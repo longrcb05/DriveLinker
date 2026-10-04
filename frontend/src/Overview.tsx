@@ -1,4 +1,3 @@
-import React from 'react';
 import { Calendar, RefreshCw, Car, Key, Clock, ShieldAlert } from 'lucide-react';
 
 export default function Overview() {

@@ -1,4 +1,3 @@
-import React from 'react';
 import { ChevronRight, RefreshCw, Map as MapIcon } from 'lucide-react';
 
 /**

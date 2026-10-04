@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 import Login from './Login';
@@ -9,7 +8,7 @@ import FleetVehicles from './FleetVehicles';
 import LiveTracking from './LiveTracking';
 import Analytics from './Analytics';
 import Alerts from './Alerts';
-import Settings from './Settings'; // <-- 1. IMPORT THÊM Ở ĐÂY
+import Settings from './Settings'; 
 
 export default function App() {
   return (
@@ -26,8 +25,7 @@ export default function App() {
           <Route path="/tracking" element={<LiveTracking />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/alerts" element={<Alerts />} />
-          
-          <Route path="/settings" element={<Settings />} /> {/* <-- 2. THÊM ROUTE Ở ĐÂY */}
+          <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>
     </BrowserRouter>
