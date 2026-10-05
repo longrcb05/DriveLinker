@@ -1,23 +1,27 @@
-🚛 DriveLinker - Fleet Intelligence
-Chào mừng bạn đến với dự án DriveLinker - Hệ thống Quản lý và Giám sát Đội xe thời gian thực. Dự án này được xây dựng bằng hệ sinh thái hiện đại bao gồm React, TypeScript, Vite, và Tailwind CSS.
+# 🚛 DriveLinker - Fleet Intelligence
+
+Chào mừng bạn đến với dự án **DriveLinker** - Hệ thống Quản lý và Giám sát Đội xe thời gian thực. Dự án này được xây dựng bằng hệ sinh thái hiện đại bao gồm **React, TypeScript, Vite, và Tailwind CSS**.
 
 Dưới đây là hướng dẫn chi tiết từng bước để bạn có thể tải mã nguồn về máy, cài đặt và chạy thử dự án thành công.
 
-🛠 Yêu cầu hệ thống (Prerequisites)
+---
+
+## 🛠 Yêu cầu hệ thống (Prerequisites)
+
 Trước khi bắt đầu, hãy đảm bảo máy tính của bạn đã cài đặt sẵn các phần mềm sau:
+1. **Node.js** (Phiên bản 18.0 trở lên): [Tải tại đây](https://nodejs.org/)
+2. **Git**: [Tải tại đây](https://git-scm.com/)
+3. **Trình soạn thảo mã (IDE):** Khuyên dùng **Visual Studio Code (VS Code)**.
 
-Node.js (Phiên bản 18.0 trở lên): Tải tại đây
+---
 
-Git: Tải tại đây
+## 🚀 Hướng dẫn Cài đặt & Khởi chạy (Getting Started)
 
-Trình soạn thảo mã (IDE): Khuyên dùng Visual Studio Code (VS Code).
-
-🚀 Hướng dẫn Cài đặt & Khởi chạy (Getting Started)
-Bước 1: Tải mã nguồn về máy (Clone Repository)
+### Bước 1: Tải mã nguồn về máy (Clone Repository)
 Mở Terminal (hoặc Git Bash, Command Prompt) tại thư mục bạn muốn lưu dự án và chạy lệnh sau:
 
-Bash
-git clone https://github.com/longrcb05/DriveLinker.git
+```bash
+git clone [https://github.com/longrcb05/DriveLinker.git](https://github.com/longrcb05/DriveLinker.git)
 Bước 2: Di chuyển vào thư mục Frontend
 Vì dự án có thể được chia thành Frontend và Backend, hãy đảm bảo bạn đang ở đúng thư mục chứa code React:
 
@@ -70,5 +74,3 @@ Mở file bị báo lỗi.
 Bấm tổ hợp phím Shift + Alt + O (trên VS Code) để tự động dọn dẹp các import thừa.
 
 Lưu file và chạy lại npm run build.
-
-Nếu bạn gặp bất kỳ vấn đề nào khác trong quá trình cài đặt, hãy liên hệ với System Admin hoặc tạo một Issue trên GitHub repository này.
