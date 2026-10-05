@@ -1,13 +1,13 @@
-package com.example.demo;
+package com.drivelinker;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class DrivelinkerApplication {
+public class DriveLinkerApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(DrivelinkerApplication.class, args);
+		SpringApplication.run(DriveLinkerApplication.class, args);
 	}
 
 }

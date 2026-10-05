@@ -1,0 +1,37 @@
+CREATE TABLE Customers (
+    CustomerID SERIAL PRIMARY KEY,
+    FullName VARCHAR(100) NOT NULL,
+    Phone VARCHAR(20) NOT NULL UNIQUE,
+    IDCardNumber VARCHAR(20) NOT NULL UNIQUE, 
+    DrivingLicense VARCHAR(50),
+    Address VARCHAR(255),
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE Vehicles (
+    VehicleID SERIAL PRIMARY KEY,
+    LicensePlate VARCHAR(20) NOT NULL UNIQUE,
+    VehicleType VARCHAR(50),
+    Brand VARCHAR(50),
+    Model VARCHAR(50),
+    GpsDeviceID VARCHAR(100) UNIQUE,
+    CameraDeviceID VARCHAR(100) UNIQUE,
+    Status VARCHAR(20) DEFAULT 'AVAILABLE',
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE RentalContracts (
+    ContractID SERIAL PRIMARY KEY,
+    CustomerID INT NOT NULL,
+    VehicleID INT NOT NULL,
+    CreatedByStaffID INT NOT NULL,
+    StartTime TIMESTAMP NOT NULL,
+    EndTime TIMESTAMP NOT NULL,
+    ActualReturnTime TIMESTAMP NULL,
+    Status VARCHAR(20) DEFAULT 'ACTIVE',
+    Notes VARCHAR(500),
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID),
+    FOREIGN KEY (VehicleID) REFERENCES Vehicles(VehicleID),
+    FOREIGN KEY (CreatedByStaffID) REFERENCES Users(UserID)
+);
