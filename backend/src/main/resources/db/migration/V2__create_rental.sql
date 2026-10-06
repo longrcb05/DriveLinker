@@ -5,7 +5,9 @@ CREATE TABLE Customers (
     IDCardNumber VARCHAR(20) NOT NULL UNIQUE, 
     DrivingLicense VARCHAR(50),
     Address VARCHAR(255),
-    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    OrganizationID INT NOT NULL,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (OrganizationID) REFERENCES Organizations(OrganizationID)
 );
 
 CREATE TABLE Vehicles (
@@ -16,8 +18,11 @@ CREATE TABLE Vehicles (
     Model VARCHAR(50),
     GpsDeviceID VARCHAR(100) UNIQUE,
     CameraDeviceID VARCHAR(100) UNIQUE,
+    OrganizationID INT NOT NULL,
     Status VARCHAR(20) DEFAULT 'AVAILABLE',
-    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (OrganizationID) REFERENCES Organizations(OrganizationID)
+
 );
 
 CREATE TABLE RentalContracts (
@@ -28,10 +33,12 @@ CREATE TABLE RentalContracts (
     StartTime TIMESTAMP NOT NULL,
     EndTime TIMESTAMP NOT NULL,
     ActualReturnTime TIMESTAMP NULL,
+    OrganizationID INT NOT NULL,
     Status VARCHAR(20) DEFAULT 'ACTIVE',
     Notes VARCHAR(500),
     CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID),
     FOREIGN KEY (VehicleID) REFERENCES Vehicles(VehicleID),
-    FOREIGN KEY (CreatedByStaffID) REFERENCES Users(UserID)
+    FOREIGN KEY (CreatedByStaffID) REFERENCES Users(UserID),
+    FOREIGN KEY (OrganizationID) REFERENCES Organizations(OrganizationID)
 );
