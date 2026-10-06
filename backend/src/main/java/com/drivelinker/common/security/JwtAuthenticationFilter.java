@@ -56,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
         } catch (Exception e) {
-            // Bỏ qua nếu Token lỗi
+            e.printStackTrace();
         }
 
         filterChain.doFilter(request, response);

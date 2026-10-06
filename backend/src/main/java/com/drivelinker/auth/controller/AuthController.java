@@ -46,11 +46,10 @@ public ResponseEntity<ApiResponse<AuthResponse>> login(@RequestBody LoginRequest
 
     String jwtToken = jwtService.generateToken(user);
 
-    String tendangnhap = user.getUsername();
     String quyenhan = user.getRole().getName();
-    Integer maCty= user.getOrganization().getId();
+    Integer maCty = user.getOrganization().getId();
 
-    AuthResponse responseData = new AuthResponse(jwtToken, username, quyenhan, maCty);
+    AuthResponse responseData = new AuthResponse(jwtToken, user.getUsername(), quyenhan, maCty);
 
     ApiResponse<AuthResponse> ketquacuoicung = ApiResponse.success(responseData);
     return ResponseEntity.ok(ketquacuoicung);

@@ -37,3 +37,42 @@ Dựa trên bản Kế hoạch Phát triển (`DriveLinker_Backend_Development_P
 
 ---
 **Trạng thái hệ thống:** Phase 2 ĐÃ HOÀN TẤT VÀ TEST THÀNH CÔNG. Cánh cửa bảo mật đã được dựng xong. Sẵn sàng tiến vào **Phần 3: Quản lý Phương tiện, Tài xế (Vehicles & Drivers)**.
+
+## Phần 3: Customer & Vehicle (Đang thực hiện - Đạt 80%)
+
+### 🎯 Mục tiêu và Ý nghĩa của Phần 3:
+- **Mục tiêu:** Xây dựng module quản lý khách hàng (Customer) và phương tiện (Vehicle). Đây là 2 thực thể cốt lõi nhất để tiến tới việc lập hợp đồng thuê xe.
+- **Ý nghĩa:** Số hóa quy trình quản lý thông tin khách hàng và trạng thái xe. Toàn bộ code trong Phase này được viết **hoàn toàn thủ công 100%** (không dùng auto-generate, không dùng Lombok) để đảm bảo độ tin cậy, tường minh và giúp người mới dễ hiểu luồng đi của dữ liệu.
+
+### ✅ Những việc ĐÃ HOÀN THÀNH:
+1. **3.1 Customer Module:** 
+   - Đã tạo Entity `Customer` liên kết `@ManyToOne` với `Organization`.
+   - Xây dựng `CustomerRepository`, `CustomerRequest`, `CustomerResponse`.
+   - Code `CustomerService` với nghiệp vụ check trùng lặp số điện thoại và CMND.
+   - Code `CustomerController` hoàn chỉnh cho các API tạo và xem danh sách.
+2. **3.2 Vehicle Module:** 
+   - Đã tạo Entity `Vehicle` với các trường trạng thái (availability_status, movement_status, safety_status).
+   - Xây dựng các Enum `AvailabilityStatus`, `MovementStatus`, `SafetyStatus`.
+   - Code `VehicleService` và `VehicleController` hoàn chỉnh, kiểm tra trùng lặp biển số xe.
+3. **3.3 Sửa lỗi Authentication (403 Forbidden):**
+   - Đã phát hiện và sửa triệt để lỗi `LazyInitializationException` khi validate Token bằng cách thêm `@Transactional` vào `CustomUserDetailsService`.
+   - Bổ sung bắt lỗi `RuntimeException` vào `GlobalExceptionHandler` để trả về `400 Bad Request` với message thân thiện thay vì lỗi 500.
+
+### 🧠 Luồng Code và Kiến trúc (Dành cho người xem code):
+Để dễ dàng theo dõi code thủ công đã được viết, dữ liệu trong Phase 3 di chuyển theo luồng **Controller ➔ Service ➔ Repository ➔ Entity**:
+1. **Controller (`CustomerController.java`, `VehicleController.java`)**: 
+   - Điểm tiếp nhận request đầu tiên (ví dụ từ file `test.http`). 
+   - Gọi hàm `createCustomer()` hoặc `createVehicle()` từ lớp `Service`.
+   - Lấy dữ liệu trả về và bọc vào `ApiResponse.success()` rồi gửi lại cho người dùng.
+2. **Service (`CustomerService.java`, `VehicleService.java`)**: 
+   - Chứa **Logic nghiệp vụ chính**.
+   - Tại đây, nó gọi `repository.findByPhone()` hoặc `repository.findByLicensePlate()` để kiểm tra xem đã tồn tại trong Database chưa. Nếu có rồi thì `throw new RuntimeException(...)`.
+   - Nếu hợp lệ, nó sẽ khởi tạo đối tượng `Entity` mới, gán các giá trị từ `Request DTO` vào bằng các hàm `set()` thủ công, sau đó gọi `repository.save()` để lưu vào Database.
+   - Cuối cùng, bóc tách dữ liệu từ `Entity` vừa lưu thành `Response DTO` để trả về cho `Controller`.
+3. **Repository (`CustomerRepository.java`, `VehicleRepository.java`)**: 
+   - Giao tiếp trực tiếp với CSDL PostgreSQL. Khai báo các hàm tìm kiếm tùy chỉnh như `Optional<Customer> findByPhone(String phone)`.
+4. **DTO (Data Transfer Object)**:
+   - Các file `CustomerRequest`, `CustomerResponse` đóng vai trò như một chiếc "thùng rỗng" để vận chuyển dữ liệu an toàn giữa Client và Server mà không làm lộ cấu trúc thật của DB.
+
+---
+**Trạng thái hệ thống:** API của Customer và Vehicle ĐÃ HOẠT ĐỘNG HOÀN HẢO và test thành công. Nhiệm vụ tiếp theo là hoàn thiện nốt phần **Device (Thiết bị IoT)** của Phase 3.
