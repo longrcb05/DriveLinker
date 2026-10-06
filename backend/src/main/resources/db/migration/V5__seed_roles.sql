@@ -1,7 +1,10 @@
+INSERT INTO Organizations (Name, Phone, Email, Address, Status) 
+VALUES ('Công ty DriveLinker VN', '0886557205', 'contact@drivelinker.com', 'Hà Nội', 'ACTIVE');
+
 INSERT INTO Roles (RoleName) VALUES ('ADMIN'), ('STAFF');
 
-INSERT INTO Users (RoleID, Username, PasswordHash, FullName, Phone, Email, Status)
-VALUES (1, 'admin', 'admin123', 'Quản trị viên hệ thống', '0886557205', 'longrcb01@gmail.com', 'ACTIVE');
+INSERT INTO Users (OrganizationID, RoleID, Username, PasswordHash, FullName, Phone, Email, Status)
+VALUES (1, 1, 'admin', '$2a$10$DowzN7o.A49G56/39X5R5uI1c6gC9G441Uj0i.Oa03XQJ4H7lZOMa', 'Quản trị viên hệ thống', '0886557205', 'longrcb01@gmail.com', 'ACTIVE');
 
 INSERT INTO SystemConfigurations (ConfigKey, ConfigValue, Description, LastUpdatedBy)
 VALUES 

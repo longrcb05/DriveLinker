@@ -21,3 +21,19 @@ Dựa trên bản Kế hoạch Phát triển (`DriveLinker_Backend_Development_P
 
 ---
 **Trạng thái hệ thống:** Phase 1 ĐÃ HOÀN TẤT. Backend đang chạy cực kỳ ổn định, kết nối Database hoàn hảo. Sẵn sàng chuyển sang **Phần 2: Authentication + JWT + RBAC**.
+
+## Phần 2: Authentication & JWT (Đã hoàn thành - 100%)
+
+### 🎯 Mục tiêu và Ý nghĩa của Phần 2:
+- **Mục tiêu:** Xây dựng hệ thống bảo mật không trạng thái (Stateless) bằng JSON Web Token (JWT). Kết nối hệ thống bảo mật với các thực thể Database (`User`, `Role`, `Organization`).
+- **Ý nghĩa:** Bảo vệ an toàn tuyệt đối cho các API nghiệp vụ. Chỉ những người dùng đã đăng nhập hợp lệ (có Token) mới được phép gọi API. Đây là hàng rào vững chắc trước khi tiến vào xây dựng các chức năng kinh doanh cốt lõi.
+
+### ✅ Những việc ĐÃ HOÀN THÀNH:
+1. **2.1 Entity Mapping:** Đã tạo thành công các Entity `Organization`, `Role`, `User` kết nối chuẩn xác với CSDL. Xử lý thành công lỗi ánh xạ tên cột bằng cách cấu hình `PhysicalNamingStrategyStandardImpl` trong file YAML.
+2. **2.2 Spring Security Core:** Viết thành công `SecurityConfig` (Nội quy tòa nhà) với cơ chế bảo vệ theo chuẩn Stateless, tắt Session, tắt CSRF.
+3. **2.3 JWT Service:** Xây dựng lớp xử lý Token `JwtService` và màng lọc `JwtAuthenticationFilter` (Chú bảo vệ kiểm tra vé) bằng Java thuần, tường minh, không lạm dụng Annotation để dễ hiểu.
+4. **2.4 Custom UserDetails:** Tích hợp `CustomUserDetailsService` để tra cứu thông tin tài khoản (đọc từ Database) thông qua `UserRepository`.
+5. **2.5 Auth API:** Tạo `AuthController`, `LoginRequest`, `AuthResponse` và test thành công API `POST /api/auth/login`. Hệ thống giải mã băm mật khẩu (BCrypt) trong CSDL hoàn hảo (mật khẩu gốc `123456`) và nhả Token chính xác.
+
+---
+**Trạng thái hệ thống:** Phase 2 ĐÃ HOÀN TẤT VÀ TEST THÀNH CÔNG. Cánh cửa bảo mật đã được dựng xong. Sẵn sàng tiến vào **Phần 3: Quản lý Phương tiện, Tài xế (Vehicles & Drivers)**.
