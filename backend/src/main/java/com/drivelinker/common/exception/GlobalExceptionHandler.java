@@ -7,6 +7,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+/**
+ * Lớp bắt lỗi (Exception Handler) tập trung, trả về format lỗi chuẩn hóa cho toàn hệ thống.
+ */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {

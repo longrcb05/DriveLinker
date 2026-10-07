@@ -13,6 +13,9 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Service chịu trách nhiệm sinh (generate) và xác thực (validate) JWT Token.
+ */
 @Service
 public class JwtService {
 

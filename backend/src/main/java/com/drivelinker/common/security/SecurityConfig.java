@@ -13,6 +13,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+/**
+ * Cấu hình bảo mật tổng thể của Spring Security, phân quyền các API.
+ */
 @Configuration
 
 public class SecurityConfig {

@@ -38,7 +38,7 @@ Dựa trên bản Kế hoạch Phát triển (`DriveLinker_Backend_Development_P
 ---
 **Trạng thái hệ thống:** Phase 2 ĐÃ HOÀN TẤT VÀ TEST THÀNH CÔNG. Cánh cửa bảo mật đã được dựng xong. Sẵn sàng tiến vào **Phần 3: Quản lý Phương tiện, Tài xế (Vehicles & Drivers)**.
 
-## Phần 3: Customer & Vehicle (Đang thực hiện - Đạt 80%)
+## Phần 3: Customer & Vehicle (Đã hoàn thành - 100%)
 
 ### 🎯 Mục tiêu và Ý nghĩa của Phần 3:
 - **Mục tiêu:** Xây dựng module quản lý khách hàng (Customer) và phương tiện (Vehicle). Đây là 2 thực thể cốt lõi nhất để tiến tới việc lập hợp đồng thuê xe.
@@ -75,4 +75,28 @@ Dựa trên bản Kế hoạch Phát triển (`DriveLinker_Backend_Development_P
    - Các file `CustomerRequest`, `CustomerResponse` đóng vai trò như một chiếc "thùng rỗng" để vận chuyển dữ liệu an toàn giữa Client và Server mà không làm lộ cấu trúc thật của DB.
 
 ---
-**Trạng thái hệ thống:** API của Customer và Vehicle ĐÃ HOẠT ĐỘNG HOÀN HẢO và test thành công. Nhiệm vụ tiếp theo là hoàn thiện nốt phần **Device (Thiết bị IoT)** của Phase 3.
+**Trạng thái hệ thống:** Phase 3 ĐÃ HOÀN TẤT VÀ TEST THÀNH CÔNG. Sẵn sàng tiến vào **Phần 4: Rental Contract & Monitoring Session**.
+
+## Phần 4: Rental Contract & Monitoring Session (Đã hoàn thành - 100%)
+
+### 🎯 Mục tiêu và Ý nghĩa của Phần 4:
+- **Mục tiêu:** Xây dựng tính năng quản lý Hợp đồng thuê xe (Rental Contract) và Phiên giám sát (Monitoring Session) tự động sinh ra khi bàn giao xe.
+- **Ý nghĩa:** Đây là phần core của hệ thống liên quan trực tiếp đến doanh thu và an toàn của xe. Nghiệp vụ chuyển đổi trạng thái của xe (Từ AVAILABLE sang RENTED rồi về lại) được xử lý đồng bộ cùng lúc với Hợp đồng và Phiên giám sát.
+
+### ✅ Những việc ĐÃ HOÀN THÀNH:
+1. **4.1 Database Migration (Flyway):** 
+   - Đã tạo thủ công file `V6__create_monitoring_sessions.sql` để sinh bảng `MonitoringSessions`.
+2. **4.2 Khởi tạo Enum Trạng thái:** 
+   - Định nghĩa vòng đời hợp đồng trong `ContractStatus` (DRAFT, CONFIRMED, ACTIVE, COMPLETED, CANCELLED).
+   - Định nghĩa trạng thái phiên giám sát trong `MonitoringStatus` (ACTIVE, CLOSED).
+3. **4.3 Entity (Không dùng Lombok):** 
+   - Code tay toàn bộ `RentalContract.java` và `MonitoringSession.java` để map với Database.
+4. **4.4 API & Data Transfer (DTO):** 
+   - Xây dựng các lớp `RentalContractRequest` và `RentalContractResponse`.
+   - Mở các endpoint POST (Tạo), POST (Confirm), POST (Handover) và POST (Return) trong `RentalContractController`.
+5. **4.5 Core Logic & Transactional:** 
+   - Hoàn thiện `RentalContractService`.
+   - Áp dụng thành công tính năng `@Transactional` khi thực hiện `handoverVehicle` (Bàn giao xe) và `returnVehicle` (Trả xe). Nếu có bất kỳ bước nào thất bại, toàn bộ quá trình đổi trạng thái sẽ được Rollback, đảm bảo tính toàn vẹn dữ liệu tuyệt đối.
+
+---
+**Trạng thái hệ thống:** Phase 4 ĐÃ HOÀN TẤT VÀ TEST BIÊN DỊCH THÀNH CÔNG. Các file code đã được chú thích (comment) đầy đủ. Sẵn sàng tiến vào **Phần 5: GPS + IoT Authentication**.

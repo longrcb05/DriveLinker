@@ -1,5 +1,8 @@
 package com.drivelinker.auth.dto;
 
+/**
+ * DTO nhận dữ liệu đăng nhập từ người dùng (username, password).
+ */
 public class LoginRequest {
     private String username;
     private String password;

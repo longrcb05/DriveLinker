@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
 
+/**
+ * Entity ánh xạ với bảng Organizations, dùng để phân tách dữ liệu đa tổ chức (Multi-tenant).
+ */
 @Entity
 @Table(name = "Organizations")
 @Getter

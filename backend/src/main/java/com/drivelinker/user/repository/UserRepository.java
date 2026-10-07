@@ -6,6 +6,9 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/**
+ * Interface thao tác CSDL cho bảng Users.
+ */
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String usename);
 }

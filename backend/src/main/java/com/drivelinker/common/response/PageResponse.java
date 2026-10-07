@@ -6,6 +6,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.util.List;
 
+/**
+ * Lớp chuẩn hóa cấu trúc dữ liệu trả về cho các API có phân trang (Pagination).
+ */
 @Data
 @Builder
 @NoArgsConstructor
