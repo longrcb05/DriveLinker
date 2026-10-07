@@ -31,12 +31,12 @@ public class RentalContractRequest {
         this.vehicleId = vehicleId;
     }
 
-    public LocalDateTime getStarTime() {
+    public LocalDateTime getStartTime() {
         return startTime;
     }
 
-    public void setStarTime(LocalDateTime starTime) {
-        this.startTime = starTime;
+    public void setStartTime(LocalDateTime startTime) {
+        this.startTime = startTime;
     }
 
     public LocalDateTime getEndTime() {
