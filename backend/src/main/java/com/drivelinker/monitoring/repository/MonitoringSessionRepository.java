@@ -17,4 +17,6 @@ public interface MonitoringSessionRepository extends JpaRepository<MonitoringSes
     @Query("SELECT m FROM MonitoringSession m WHERE m.contract.id = :contractId AND m.status = :status")
     Optional<MonitoringSession> findByContractIdAndStatus(@Param("contractId") Integer contractId,
             @Param("status") String status);
+
+    Optional<MonitoringSession> findByVehicleIdAndStatus(Integer vehicleId, String status);
 }

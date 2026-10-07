@@ -21,11 +21,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
     private CustomUserDetailsService userDetailsService;
     private JwtAuthenticationFilter jwtFilter;
+    private DeviceAuthenticationFilter deviceFilter;
 
     @Autowired
-    public SecurityConfig(CustomUserDetailsService userDetailsService, JwtAuthenticationFilter jwtFilter) {
+    public SecurityConfig(CustomUserDetailsService userDetailsService, JwtAuthenticationFilter jwtFilter,
+            DeviceAuthenticationFilter deviceFilter) {
         this.userDetailsService = userDetailsService;
         this.jwtFilter = jwtFilter;
+        this.deviceFilter = deviceFilter;
     }
 
     @Bean
@@ -34,15 +37,21 @@ public class SecurityConfig {
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
         http.authorizeHttpRequests(auth -> {
-            auth.requestMatchers("/api/auth/login", "/actuator/health").permitAll();
+            auth.requestMatchers("/api/auth/login", "/actuator/health", "/api/contracts/**").permitAll();
+
+            // Cho phép thiết bị (có thẻ ROLE_DEVICE) truy cập API IoT
+            auth.requestMatchers("/api/iot/**").hasAuthority("ROLE_DEVICE");
+
             auth.anyRequest().authenticated();
         });
 
         http.authenticationProvider(authProvider());
+
+        // 3. Đặt bộ lọc Device lên TRƯỚC bộ lọc Username/Password thông thường
+        http.addFilterBefore(deviceFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-
     }
 
     @Bean

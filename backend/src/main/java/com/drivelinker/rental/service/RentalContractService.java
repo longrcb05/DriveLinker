@@ -45,7 +45,7 @@ public class RentalContractService {
     }
 
     public RentalContractResponse createContract(RentalContractRequest request, Integer staffId) {
-        if (!request.getStarTime().isBefore(request.getEndTime())) {
+        if (!request.getStartTime().isBefore(request.getEndTime())) {
             throw new RuntimeException("Thời gian bắt đầu phải trước thời gian kết thúc.");
         }
 
@@ -68,7 +68,7 @@ public class RentalContractService {
         User staff = userRepository.findById(staffId.longValue())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên"));
 
-        RentalContract contract = new RentalContract(customer, vehicle, staff, request.getStarTime(),
+        RentalContract contract = new RentalContract(customer, vehicle, staff, request.getStartTime(),
                 request.getEndTime(), customer.getOrganization(), request.getNotes());
         contract.setStatus(ContractStatus.DRAFT.name());
 

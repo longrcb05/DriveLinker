@@ -100,3 +100,51 @@ Dựa trên bản Kế hoạch Phát triển (`DriveLinker_Backend_Development_P
 
 ---
 **Trạng thái hệ thống:** Phase 4 ĐÃ HOÀN TẤT VÀ TEST BIÊN DỊCH THÀNH CÔNG. Các file code đã được chú thích (comment) đầy đủ. Sẵn sàng tiến vào **Phần 5: GPS + IoT Authentication**.
+
+## Phần 5: GPS & IoT Authentication (Đã hoàn thành - 100%)
+
+### 🎯 Mục tiêu và Ý nghĩa của Phần 5:
+- **Mục tiêu:** Xây dựng cơ sở hạ tầng (Database, Entity) để lưu trữ Thiết bị phần cứng (GPS, Camera AI) và Ghi nhận tọa độ GPS. Thiết lập màng lọc bảo mật dành riêng cho thiết bị (`DeviceAuthenticationFilter`).
+- **Ý nghĩa:** Đây là bước ngoặt của dự án, chuyển từ quản trị phần mềm sang giao tiếp trực tiếp với phần cứng (IoT). Mạch Raspberry Pi hoặc GPS Tracker có thể kết nối vào Server để gửi dữ liệu thời gian thực.
+
+### ✅ Những việc ĐÃ HOÀN THÀNH:
+1. **5.1 Database Migration (Flyway) & Bài học về SQL:** 
+   - Đã tạo bảng `Devices` và `GpsLogs` thông qua file `V7__create_iot_and_gps_tables.sql`.
+   - **Bài học quan trọng chống lỗi tạo trùng bảng:** Khi làm việc với Flyway, tuyệt đối không sửa nội dung file SQL sau khi ứng dụng đã chạy thành công file đó, nếu không Flyway sẽ báo lỗi `Checksum mismatch`. Nếu lỡ tạo nhầm cấu trúc từ trước (ví dụ ở V3), khi tạo lại ở V7 phải thêm câu lệnh dọn dẹp an toàn:
+     `DROP TABLE IF EXISTS TenBang CASCADE;` để tránh lỗi `ERROR: relation already exists`.
+2. **5.2 Thiết kế Entity:** 
+   - Tạo thành công `Device.java` và `GpsLog.java` với các liên kết (`@ManyToOne`) tới `Vehicle`, `Organization` và `MonitoringSession`.
+3. **5.3 Màng lọc bảo mật thiết bị (Device Authentication):** 
+   - Khác với người dùng dùng JWT, mạch phần cứng không thể tự đăng nhập lấy JWT. Đã xây dựng `DeviceAuthenticationFilter` chặn riêng ở đường dẫn `/api/iot/**`.
+   - Giải quyết triệt để lỗi **Circular Reference (Phụ thuộc vòng tròn)** giữa `SecurityConfig` và `DeviceAuthenticationFilter` bằng cách khởi tạo trực tiếp `new BCryptPasswordEncoder()` ngay bên trong bộ lọc.
+   - Băm thành công mã bí mật của thiết bị theo chuẩn `$2a$` (BCrypt của Spring Boot).
+4. **5.4 API Ghi nhận Tọa độ (Telemetry):** 
+   - Đã hoàn thiện `TelemetryController` tiếp nhận JSON tọa độ.
+   - `TelemetryService` xử lý logic: Kiểm tra tính hợp lệ của thiết bị -> Tìm `MonitoringSession` đang `ACTIVE` của xe tương ứng -> Ghi tọa độ xuống Database.
+5. **5.5 Giả lập Thiết bị:** 
+   - Đã chèn dữ liệu mẫu giả lập Thiết bị (ID `PI-001`) và dùng file `test_phase5.http` để đóng giả mạch Raspberry Pi bắn tọa độ GPS lên Server. Mã trả về `200 OK` mượt mà.
+
+---
+**Trạng thái hệ thống:** Phase 5 ĐÃ HOÀN TẤT VÀ TEST THÀNH CÔNG. Backend đã có khả năng hấp thụ tọa độ GPS từ phần cứng theo thời gian thực một cách bảo mật.
+
+## Phần 6: AI Result & Alert (Đã hoàn thành - 100%)
+
+### 🎯 Mục tiêu và Ý nghĩa của Phần 6:
+- **Mục tiêu:** Xây dựng module nhận, lưu trữ và xử lý các thông số phân tích (như điểm buồn ngủ, trạng thái mắt) từ Camera AI truyền về. Phân cấp mức độ nguy hiểm (Alert Level) để đảm bảo an toàn cho hành trình.
+- **Ý nghĩa:** Đây là "bộ não" cảnh báo sớm của hệ thống, giúp nhà quản lý xe phát hiện kịp thời các tài xế có dấu hiệu buồn ngủ hoặc mất tập trung để có biện pháp can thiệp (gọi điện) trước khi tai nạn xảy ra. 
+
+### ✅ Những việc ĐÃ HOÀN THÀNH:
+1. **6.1 Tái cấu trúc Database (Drop & Recreate):** 
+   - Đã xử lý triệt để tàn dư của file `V4` cũ (DROP bảng `AiAlerts` gộp chung sai thiết kế).
+   - Thiết lập cấu trúc chuẩn gồm 3 bảng chuyên biệt: `AiResults` (Kết quả phân tích định kỳ), `Alerts` (Cảnh báo nguy hiểm) và `AlertActions` (Lịch sử xử lý cảnh báo).
+2. **6.2 Xây dựng chuẩn Enum:** 
+   - Đã quy hoạch 5 loại Enum để chuẩn hóa dữ liệu: `EyeStatus`, `HeadPoseStatus`, `AlertType`, `SeverityLevel`, và `ResolutionStatus`.
+3. **6.3 Nhận và xử lý Kết quả AI (`AiResult`):** 
+   - Xây dựng API bảo mật (`/api/iot/ai-results`) để Camera AI liên tục bắn metadata về Server. Logic tự động xác định xe và Phiên giám sát (`MonitoringSession`) đang hoạt động.
+4. **6.4 Nhận và xử lý Cảnh báo Đỏ (`Alert`):** 
+   - Khi Edge AI phát hiện nguy hiểm kéo dài (nhắm mắt lâu), nó sẽ kích hoạt API cảnh báo khẩn cấp (`/api/iot/alerts`). Backend lưu lại cảnh báo với trạng thái `NEW` (Chờ xử lý).
+5. **6.5 Kịch bản Test Phần cứng Mô phỏng:** 
+   - Đã tạo `test_phase6.http` với đầy đủ 3 kịch bản: Lái xe an toàn, Lái xe có dấu hiệu buồn ngủ, và Báo động khẩn cấp. Màng lọc bảo mật thiết bị từ Phase 5 tiếp tục hoạt động hoàn hảo cho Phase 6.
+
+---
+**Trạng thái hệ thống:** Phase 6 ĐÃ HOÀN TẤT VÀ TEST THÀNH CÔNG. Cơ sở dữ liệu và API đã sẵn sàng để tích hợp với phần cứng thật (Camera, GPS, Raspberry Pi). Sẵn sàng chuyển sang **Phần 7: WebSocket Realtime** (Bắn dữ liệu thời gian thực ra giao diện Web).
