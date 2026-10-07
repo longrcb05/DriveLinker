@@ -4,6 +4,9 @@ import com.drivelinker.organization.entity.Organization;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
+/**
+ * Entity ánh xạ với bảng Vehicles.
+ */
 @Entity
 @Table(name = "vehicles")
 public class Vehicle {

@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
 
+/**
+ * Entity ánh xạ bảng Users, lưu trữ tài khoản đăng nhập của nhân viên/admin.
+ */
 @Entity
 @Table(name = "Users")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder

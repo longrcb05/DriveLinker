@@ -12,6 +12,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
+/**
+ * Controller xử lý các API quản lý thông tin Khách hàng.
+ */
 @RestController
 @RequestMapping("/api/customers")
 public class CustomerController {

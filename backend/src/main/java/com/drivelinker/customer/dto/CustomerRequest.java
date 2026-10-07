@@ -1,5 +1,8 @@
 package com.drivelinker.customer.dto;
 
+/**
+ * DTO nhận dữ liệu tạo/sửa thông tin Khách hàng.
+ */
 public class CustomerRequest {
     private String fullName;
     private String phone;

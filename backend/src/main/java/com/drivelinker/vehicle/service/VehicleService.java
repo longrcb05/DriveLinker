@@ -11,6 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Service chứa logic nghiệp vụ quản lý Phương tiện.
+ */
 @Service
 public class VehicleService {
     private VehicleRepository vehicleRespository;

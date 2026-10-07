@@ -11,6 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Service chứa logic nghiệp vụ liên quan đến quản lý Khách hàng.
+ */
 @Service
 public class CustomerService {
     private CustomerRepository customerRepository;

@@ -3,6 +3,9 @@ package com.drivelinker.common.exception;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
+/**
+ * Enum định nghĩa các mã lỗi chuẩn của hệ thống.
+ */
 @Getter
 public enum ErrorCode {
     INTERNAL_SERVER_ERROR(500, "Lỗi hệ thống", HttpStatus.INTERNAL_SERVER_ERROR),

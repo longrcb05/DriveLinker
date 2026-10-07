@@ -3,6 +3,9 @@ package com.drivelinker.user.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+/**
+ * Entity ánh xạ bảng Roles, lưu trữ các quyền hệ thống (ADMIN, STAFF).
+ */
 @Entity
 @Table(name = "Roles")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder

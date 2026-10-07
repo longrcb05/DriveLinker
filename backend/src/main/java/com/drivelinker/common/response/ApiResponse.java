@@ -5,6 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * Lớp chuẩn hóa cấu trúc dữ liệu trả về cho mọi API (success, message, data).
+ */
 @Data
 @Builder
 @NoArgsConstructor

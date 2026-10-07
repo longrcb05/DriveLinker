@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Optional;
 
 
+/**
+ * Controller xử lý các API liên quan đến xác thực (Authentication) như Đăng nhập, trả về JWT Token.
+ */
 @RestController
 @RequestMapping("/api/auth")
 

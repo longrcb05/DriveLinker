@@ -1,5 +1,8 @@
 package com.drivelinker.auth.dto;
 
+/**
+ * DTO chứa dữ liệu trả về sau khi đăng nhập thành công (chứa Token).
+ */
 public class AuthResponse {
      private String token;
     private String username;

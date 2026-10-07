@@ -1,5 +1,8 @@
 package com.drivelinker.vehicle.dto;
 
+/**
+ * DTO nhận dữ liệu tạo/sửa thông tin Phương tiện.
+ */
 public class VehicleRequest {
     private String licensePlate;
     private String vehicleType;

@@ -1,9 +1,9 @@
 package com.drivelinker.vehicle.controller;
 
 import com.drivelinker.common.response.ApiResponse;
-import com.drivelinker.customer.dto.CustomerRequest;
-import com.drivelinker.customer.dto.CustomerResponse;
-import com.drivelinker.customer.service.CustomerService;
+// import com.drivelinker.customer.dto.CustomerRequest;
+// import com.drivelinker.customer.dto.CustomerResponse;
+// import com.drivelinker.customer.service.CustomerService;
 import com.drivelinker.user.entity.User;
 import com.drivelinker.user.repository.UserRepository;
 import com.drivelinker.vehicle.dto.VehicleRequest;
@@ -16,6 +16,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
+/**
+ * Controller xử lý API quản lý Phương tiện (Xe).
+ */
 @RestController
 @RequestMapping("/api/vehicles")
 public class VehicleController {

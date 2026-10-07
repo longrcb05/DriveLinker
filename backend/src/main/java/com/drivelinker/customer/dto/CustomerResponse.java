@@ -2,6 +2,9 @@ package com.drivelinker.customer.dto;
 
 import com.drivelinker.customer.entity.Customer;
 
+/**
+ * DTO trả về thông tin Khách hàng sau khi xử lý.
+ */
 public class CustomerResponse {
     private Integer id;
     private String fullname;

@@ -2,6 +2,9 @@ package com.drivelinker.vehicle.dto;
 
 import com.drivelinker.vehicle.entity.Vehicle;
 
+/**
+ * DTO trả về thông tin Phương tiện.
+ */
 public class VehicleResponse {
     public Integer id;
     public String licensePlate;
