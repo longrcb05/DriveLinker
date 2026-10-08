@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import 'leaflet/dist/leaflet.css'; // <--- Thêm dòng này
 
 import Login from './Login';
 import DashboardLayout from './DashboardLayout';
