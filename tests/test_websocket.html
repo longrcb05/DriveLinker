@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Realtime WebSocket DriveLinker</title>
+    <!-- Nhúng thư viện SockJS và StompJS từ CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #log { background: #1e1e1e; color: #00ff00; padding: 10px; height: 300px; overflow-y: auto; font-family: monospace; border-radius: 5px; }
+        .btn { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        .btn-danger { background: #dc3545; }
+        input { padding: 8px; width: 300px; }
+    </style>
+</head>
+<body>
+    <h2>Giao diện Test WebSocket Realtime (Dành cho Admin)</h2>
+    
+    <p>
+        <label>1. Nhập JWT Token (của Admin - lấy từ Phase 2 lúc Login):</label><br>
+        <input type="text" id="token" placeholder="Bearer eyJhbGciOiJIUzI1...">
+    </p>
+    
+    <p>
+        <label>2. Nhập Organization ID của bạn (Ví dụ: 1):</label><br>
+        <input type="number" id="orgId" value="1">
+    </p>
+
+    <button class="btn" onclick="connect()">Kết nối WebSocket</button>
+    <button class="btn btn-danger" onclick="disconnect()">Ngắt kết nối</button>
+
+    <h3>Bảng tin Realtime:</h3>
+    <div id="log">Chưa kết nối...<br></div>
+
+    <script>
+        var stompClient = null;
+
+        function logToScreen(message) {
+            var logDiv = document.getElementById('log');
+            logDiv.innerHTML += message + "<br>";
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function connect() {
+            var token = document.getElementById('token').value;
+            var orgId = document.getElementById('orgId').value;
+            
+            if (!token.startsWith("Bearer ")) {
+                alert("Token phải bắt đầu bằng 'Bearer '");
+                return;
+            }
+
+            // Kết nối tới endpoint /ws (Đã khai báo withSockJS trong WebSocketConfig)
+            var socket = new SockJS('http://localhost:8080/ws');
+            stompClient = Stomp.over(socket);
+
+            logToScreen("Đang cố gắng kết nối với Server...");
+
+            // Truyền token vào header
+            stompClient.connect({'Authorization': token}, function (frame) {
+                logToScreen("<span style='color: yellow;'>[CONNECTED]</span> Đã kết nối thành công!");
+                
+                // 1. Đăng ký lắng nghe kênh Cảnh báo của Tổ chức
+                var alertTopic = '/topic/org/' + orgId + '/alerts';
+                stompClient.subscribe(alertTopic, function (message) {
+                    var data = JSON.parse(message.body);
+                    logToScreen("<span style='color: red;'>[BÁO ĐỘNG]</span>: " + JSON.stringify(data, null, 2));
+                });
+                logToScreen("-> Đang lắng nghe kênh: " + alertTopic);
+
+                // 2. Đăng ký lắng nghe kênh GPS của tất cả các xe trong Tổ chức
+                var gpsTopic = '/topic/org/' + orgId + '/vehicles';
+                stompClient.subscribe(gpsTopic, function (message) {
+                    var data = JSON.parse(message.body);
+                    logToScreen("<span style='color: cyan;'>[GPS MỚI]</span>: Xe ID = " + data.vehicleId + " | Tọa độ: " + data.latitude + ", " + data.longitude + " | Tốc độ: " + data.speed + "km/h");
+                });
+                logToScreen("-> Đang lắng nghe kênh: " + gpsTopic);
+
+            }, function (error) {
+                logToScreen("<span style='color: red;'>[LỖI KẾT NỐI]</span>: " + error);
+            });
+        }
+
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+                logToScreen("Đã ngắt kết nối.");
+            }
+        }
+    </script>
+</body>
+</html>

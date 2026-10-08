@@ -147,4 +147,30 @@ Dựa trên bản Kế hoạch Phát triển (`DriveLinker_Backend_Development_P
    - Đã tạo `test_phase6.http` với đầy đủ 3 kịch bản: Lái xe an toàn, Lái xe có dấu hiệu buồn ngủ, và Báo động khẩn cấp. Màng lọc bảo mật thiết bị từ Phase 5 tiếp tục hoạt động hoàn hảo cho Phase 6.
 
 ---
-**Trạng thái hệ thống:** Phase 6 ĐÃ HOÀN TẤT VÀ TEST THÀNH CÔNG. Cơ sở dữ liệu và API đã sẵn sàng để tích hợp với phần cứng thật (Camera, GPS, Raspberry Pi). Sẵn sàng chuyển sang **Phần 7: WebSocket Realtime** (Bắn dữ liệu thời gian thực ra giao diện Web).
+**Trạng thái hệ thống:** Phase 6 ĐÃ HOÀN TẤT VÀ TEST THÀNH CÔNG. Cơ sở dữ liệu và API đã sẵn sàng để tích hợp với phần cứng thật (Camera, GPS, Raspberry Pi).
+
+## Phần 7: WebSocket Realtime (Đã hoàn thành - 100%)
+
+### 🎯 Mục tiêu và Ý nghĩa của Phần 7:
+- **Mục tiêu:** Push (đẩy) dữ liệu GPS và Cảnh báo AI từ Backend ra Frontend một cách liên tục với độ trễ siêu thấp thay vì phải tải lại trang.
+- **Ý nghĩa:** Chuyển đổi hệ thống từ "tĩnh" sang "động". Cung cấp trải nghiệm giám sát mượt mà, giúp Admin phản ứng tức thời với những tình huống nguy hiểm của tài xế. Tối ưu hóa băng thông mạng thay vì dùng kỹ thuật Polling truyền thống.
+
+### ✅ Những việc ĐÃ HOÀN THÀNH:
+1. **7.1 Cấu hình STOMP WebSocket:** 
+   - Đã tích hợp thành công `spring-boot-starter-websocket`.
+   - Mở endpoint `/ws` và cấu hình MessageBroker với tiền tố `/topic` và `/app`. Sửa lỗi CORS và nới lỏng quyền truy cập HTTP GET trong `SecurityConfig.java`.
+2. **7.2 Bảo mật Kênh Truyền (Channel Security):** 
+   - Xây dựng `WebSocketSecurityConfig.java` can thiệp vào tầng STOMP.
+   - Bắt buộc xác thực bằng JWT Token trong lệnh `CONNECT`.
+   - Phân quyền (Authorization): Dùng lệnh `SUBSCRIBE` để chặn Admin công ty này không được nghe lén (`/topic/org/{id}/...`) kênh dữ liệu của công ty khác bằng cách đọc từ Database qua `UserRepository`.
+3. **7.3 Chuẩn hóa Dữ liệu Truyền (Realtime DTO):** 
+   - Định nghĩa các kiện hàng gọn nhẹ `RealtimeTelemetryEvent` và `RealtimeAlertEvent`. Tuyệt đối không dùng trực tiếp JPA Entity để tránh lỗi `LazyInitializationException` khi chuyển hóa thành JSON.
+4. **7.4 Tích hợp Bộ phát sóng (`RealtimePublisher`):** 
+   - Viết Service dùng `SimpMessagingTemplate` để phát sóng.
+   - Sửa `AlertService` và `TelemetryService`: Cứ mỗi lần lưu xuống Database thành công là tự động gọi Publisher để đẩy dữ liệu ra đường ống.
+5. **7.5 Giao diện Test Trực quan & Quy hoạch File Test:** 
+   - Tạo một giao diện HTML siêu tốc (`test_websocket.html`) dùng thư viện SockJS và StompJS.
+   - Gộp tất cả các file test `.http` rải rác từ Phase 1 tới giờ vào chung một thư mục `/tests/all_api_tests.http` cực kỳ gọn gàng chuyên nghiệp.
+
+---
+**Trạng thái hệ thống:** Phase 7 ĐÃ HOÀN TẤT VÀ TEST THÀNH CÔNG. Ống nước truyền tải thời gian thực đã lưu thông hoàn hảo. Sẵn sàng chuyển sang **Phần 8: Dashboard & History** (Thống kê và lịch sử).
