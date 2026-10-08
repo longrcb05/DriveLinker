@@ -19,4 +19,12 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
             @Param("status") String status);
 
     long countByOrganizationIdAndStatus(Integer orgId, String status);
+
+    long countByOrganizationId(Integer orgId);
+
+    @Query("SELECT COUNT(r) FROM RentalContract r WHERE r.organization.id = :orgId AND r.status = 'COMPLETED' AND r.actualReturnTime <= r.endTime")
+    long countOnTimeContracts(@Param("orgId") Integer orgId);
+
+    @Query("SELECT COUNT(r) FROM RentalContract r WHERE r.organization.id = :orgId AND r.status = 'COMPLETED' AND r.actualReturnTime > r.endTime")
+    long countLateContracts(@Param("orgId") Integer orgId);
 }

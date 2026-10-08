@@ -21,5 +21,21 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build: .
+    container_name: drivelinker-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      # Kết nối nội bộ qua tên container 'postgres' ở cổng 5432
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   drivelinker_postgres_data:
