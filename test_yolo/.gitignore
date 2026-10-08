@@ -1,0 +1,4 @@
+# Ignore cho module Edge AI
+edge_ai/venv/
+edge_ai/env/
+edge_ai/__pycache__/
