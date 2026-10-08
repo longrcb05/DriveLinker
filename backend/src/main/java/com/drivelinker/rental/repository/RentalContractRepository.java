@@ -17,4 +17,6 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
     @Query("SELECT r FROM RentalContract r WHERE r.vehicle.id = :vehicleId AND r.status = :status")
     List<RentalContract> findByVehicleIdAndStatus(@Param("vehicleId") Integer vehicleId,
             @Param("status") String status);
+
+    long countByOrganizationIdAndStatus(Integer orgId, String status);
 }

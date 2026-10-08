@@ -20,7 +20,7 @@ public class TelemetryService {
     private final GpsLogRepository gpsLogRepository;
     private final DeviceRepository deviceRepository;
     private final MonitoringSessionRepository sessionRepository;
-    private final RealtimePublisher realtimePublisher; // Tích hợp phát sóng
+    private final RealtimePublisher realtimePublisher;
 
     public TelemetryService(GpsLogRepository gpsLogRepository, DeviceRepository deviceRepository,
             MonitoringSessionRepository sessionRepository, RealtimePublisher realtimePublisher) {
@@ -61,5 +61,6 @@ public class TelemetryService {
         event.setRecordedAt(request.getRecordedAt());
 
         realtimePublisher.publishTelemetry(device.getOrganization().getId(), vehicle.getId(), event);
+
     }
 }

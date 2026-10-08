@@ -174,3 +174,28 @@ Dựa trên bản Kế hoạch Phát triển (`DriveLinker_Backend_Development_P
 
 ---
 **Trạng thái hệ thống:** Phase 7 ĐÃ HOÀN TẤT VÀ TEST THÀNH CÔNG. Ống nước truyền tải thời gian thực đã lưu thông hoàn hảo. Sẵn sàng chuyển sang **Phần 8: Dashboard & History** (Thống kê và lịch sử).
+
+## Phần 8: Dashboard & History (Đã hoàn thành - 100%)
+
+### 🎯 Mục tiêu và Ý nghĩa của Phần 8:
+- **Mục tiêu:** Cung cấp dữ liệu đã được tính toán, tổng hợp (Sum, Count) thay vì trả về toàn bộ dữ liệu thô, giúp Dashboard của Admin load siêu tốc độ. Đồng thời cung cấp dữ liệu chuỗi thời gian (Time-series) để vẽ lại hành trình di chuyển (Polyline) của xe.
+- **Ý nghĩa:** Tránh nghẽn mạng (bottleneck) giữa Backend và Frontend khi dữ liệu ngày càng lớn lên hàng triệu records. Cung cấp API chuyên biệt cho việc vẽ giao diện biểu đồ và bản đồ.
+
+### ✅ Những việc ĐÃ HOÀN THÀNH:
+1. **8.1 Bổ sung Truy vấn SQL thủ công:** 
+   - Đã nhúng thêm các hàm `countByOrganizationId...` vào `VehicleRepository`, `AlertRepository`, `RentalContractRepository`.
+   - Bổ sung hàm `findByVehicleIdAndRecordedAtBetweenOrderByRecordedAtAsc` vào `GpsLogRepository` để lấy lịch sử GPS chuẩn xác.
+2. **8.2 Khởi tạo DTO Chuyên biệt:** 
+   - Định nghĩa `DashboardSummaryResponse` làm một "gói hàng" duy nhất gom số liệu từ 5 bảng dữ liệu khác nhau.
+   - Định nghĩa `JourneyPointDto` để vứt bỏ các thuộc tính không cần thiết của GpsLog, chỉ trả về Tọa độ, Tốc độ và Thời gian.
+3. **8.3 Viết DashboardService Tổng hợp:** 
+   - Dùng vòng lặp lấy số liệu của riêng Organization (Tổ chức) của tài khoản đang thao tác (Data Isolation).
+   - Biến đổi (Map) dữ liệu JPA Entity thuần sang DTO.
+4. **8.4 Mở cửa API qua DashboardController:** 
+   - Cung cấp `GET /api/dashboard/summary` (Bức tranh toàn cảnh).
+   - Cung cấp `GET /api/dashboard/vehicles/{id}/journey` (Vẽ đường đi theo mốc thời gian).
+5. **8.5 Cập nhật kịch bản Test:** 
+   - Cập nhật thêm 2 API mới vào tập tin siêu khủng `all_api_tests.http`.
+
+---
+**Trạng thái hệ thống:** Phase 8 ĐÃ HOÀN TẤT VÀ TEST THÀNH CÔNG. Hệ thống Backend đã ở hình thái tối thượng với đầy đủ chức năng quản trị, giám sát thời gian thực và thống kê lịch sử. Đã sẵn sàng cho giai đoạn cuối cùng - **Phần 9: Triển khai Docker và Đóng gói Hệ thống**.
