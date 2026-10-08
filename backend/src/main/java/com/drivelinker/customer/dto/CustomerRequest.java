@@ -1,13 +1,23 @@
 package com.drivelinker.customer.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 /**
  * DTO nhận dữ liệu tạo/sửa thông tin Khách hàng.
  */
 public class CustomerRequest {
+    @NotBlank(message = "Tên khách hàng không được để trống")
     private String fullName;
+
+    @NotBlank(message = "Số điện thoại không được để trống")
     private String phone;
+
+    @NotBlank(message = "Căn cước công dân không được để trống")
     private String idCardNumber;
+
+    @NotBlank(message = "Giấy phép lái xe không được để trống")
     private String drivingLicense;
+
     private String address;
 
     public CustomerRequest() {

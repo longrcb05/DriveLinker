@@ -1,15 +1,12 @@
 package com.drivelinker.vehicle.controller;
 
 import com.drivelinker.common.response.ApiResponse;
-// import com.drivelinker.customer.dto.CustomerRequest;
-// import com.drivelinker.customer.dto.CustomerResponse;
-// import com.drivelinker.customer.service.CustomerService;
 import com.drivelinker.user.entity.User;
 import com.drivelinker.user.repository.UserRepository;
 import com.drivelinker.vehicle.dto.VehicleRequest;
 import com.drivelinker.vehicle.dto.VehicleResponse;
 import com.drivelinker.vehicle.service.VehicleService;
-
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -33,7 +30,7 @@ public class VehicleController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<VehicleResponse>> createVehicle(
-            @RequestBody VehicleRequest request,
+            @Valid @RequestBody VehicleRequest request,
             Authentication authentication) {
 
         String currentUsername = authentication.getName();

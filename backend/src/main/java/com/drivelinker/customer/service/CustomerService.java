@@ -23,7 +23,32 @@ public class CustomerService {
         this.customerRepository = customerRepository;
     }
 
+    private void validatePhone(String phone) {
+        if (phone == null || phone.length() != 10 || phone.charAt(0) != '0') {
+            throw new RuntimeException("Số điện thoại phải có đúng 10 chữ số và bắt đầu bằng số 0");
+        }
+        for (int i = 0; i < phone.length(); i++) {
+            if (!Character.isDigit(phone.charAt(i))) {
+                throw new RuntimeException("Số điện thoại phải có đúng 10 chữ số và bắt đầu bằng số 0");
+            }
+        }
+    }
+
+    private void validateIdCard(String idCard) {
+        if (idCard == null || idCard.length() != 12) {
+            throw new RuntimeException("Căn cước công dân phải bao gồm đúng 12 chữ số");
+        }
+        for (int i = 0; i < idCard.length(); i++) {
+            if (!Character.isDigit(idCard.charAt(i))) {
+                throw new RuntimeException("Căn cước công dân phải bao gồm đúng 12 chữ số");
+            }
+        }
+    }
+
     public CustomerResponse createCustomer(CustomerRequest request, Organization organization) {
+        validatePhone(request.getPhone());
+        validateIdCard(request.getIdCardNumber());
+
         Optional<Customer> existingPhone = customerRepository.findByPhone(request.getPhone());
         if (existingPhone.isPresent()) {
             throw new RuntimeException("Số điện thoại này đã được sử dụng!");
