@@ -41,6 +41,9 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> {
             auth.requestMatchers("/api/auth/login", "/actuator/health", "/api/contracts/**").permitAll();
             
+            // Cho phép xem tài liệu API Swagger
+            auth.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
+            
             // Cho phép kết nối WebSocket tự do (xác thực sẽ diễn ra ở tầng STOMP)
             auth.requestMatchers("/ws/**").permitAll();
 
