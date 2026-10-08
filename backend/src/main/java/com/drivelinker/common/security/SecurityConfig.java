@@ -36,8 +36,13 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable());
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
+        http.cors(org.springframework.security.config.Customizer.withDefaults());
+
         http.authorizeHttpRequests(auth -> {
             auth.requestMatchers("/api/auth/login", "/actuator/health", "/api/contracts/**").permitAll();
+            
+            // Cho phép kết nối WebSocket tự do (xác thực sẽ diễn ra ở tầng STOMP)
+            auth.requestMatchers("/ws/**").permitAll();
 
             // Cho phép thiết bị (có thẻ ROLE_DEVICE) truy cập API IoT
             auth.requestMatchers("/api/iot/**").hasAuthority("ROLE_DEVICE");
@@ -70,5 +75,17 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
+        org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
+        configuration.addAllowedOriginPattern("*"); // Mở cửa cho mọi origin
+        configuration.addAllowedMethod("*");
+        configuration.addAllowedHeader("*");
+        configuration.setAllowCredentials(true);
+        org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }

@@ -1,8 +1,10 @@
 package com.drivelinker.alert.service;
 
 import com.drivelinker.alert.dto.AlertRequest;
+import com.drivelinker.alert.dto.RealtimeAlertEvent;
 import com.drivelinker.alert.entity.Alert;
 import com.drivelinker.alert.repository.AlertRepository;
+import com.drivelinker.common.websocket.RealtimePublisher;
 import com.drivelinker.device.entity.Device;
 import com.drivelinker.device.repository.DeviceRepository;
 import com.drivelinker.monitoring.entity.MonitoringSession;
@@ -17,12 +19,14 @@ public class AlertService {
     private final AlertRepository alertRepository;
     private final DeviceRepository deviceRepository;
     private final MonitoringSessionRepository sessionRepository;
+    private final RealtimePublisher realtimePublisher; // Tích hợp phát sóng
 
     public AlertService(AlertRepository alertRepository, DeviceRepository deviceRepository,
-            MonitoringSessionRepository sessionRepository) {
+            MonitoringSessionRepository sessionRepository, RealtimePublisher realtimePublisher) {
         this.alertRepository = alertRepository;
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
+        this.realtimePublisher = realtimePublisher;
     }
 
     @Transactional
@@ -51,6 +55,18 @@ public class AlertService {
         alert.setLongitude(request.getLongitude());
         alert.setOccurredAt(request.getOccurredAt());
 
-        alertRepository.save(alert);
+        alert = alertRepository.save(alert);
+
+        // --- GỬI REALTIME QUA WEBSOCKET ---
+        RealtimeAlertEvent event = new RealtimeAlertEvent();
+        event.setAlertId(alert.getId());
+        event.setAlertTypeName(alert.getAlertType());
+        event.setSeverityLevel(alert.getSeverityLevel());
+        event.setVehicleId(vehicle.getId());
+        event.setLatitude(alert.getLatitude());
+        event.setLongitude(alert.getLongitude());
+        event.setOccurredAt(alert.getOccurredAt());
+
+        realtimePublisher.publishAlert(device.getOrganization().getId(), event);
     }
 }
