@@ -6,6 +6,7 @@ import com.drivelinker.customer.dto.CustomerResponse;
 import com.drivelinker.customer.service.CustomerService;
 import com.drivelinker.user.entity.User;
 import com.drivelinker.user.repository.UserRepository;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -28,7 +29,7 @@ public class CustomerController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<CustomerResponse>> createCustomer(@RequestBody CustomerRequest request,
+    public ResponseEntity<ApiResponse<CustomerResponse>> createCustomer(@Valid @RequestBody CustomerRequest request,
             Authentication authentication) {
         String currentUsername = authentication.getName();
         User currentUser = userRepository.findByUsername(currentUsername)

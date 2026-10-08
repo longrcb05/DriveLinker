@@ -1,12 +1,22 @@
 package com.drivelinker.vehicle.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 /**
  * DTO nhận dữ liệu tạo/sửa thông tin Phương tiện.
  */
 public class VehicleRequest {
+    
+    @NotBlank(message = "Biển số xe không được để trống")
     private String licensePlate;
+
+    @NotBlank(message = "Loại xe không được để trống")
     private String vehicleType;
+
+    @NotBlank(message = "Hãng xe không được để trống")
     private String brand;
+
+    @NotBlank(message = "Dòng xe không được để trống")
     private String model;
 
     public VehicleRequest() {
