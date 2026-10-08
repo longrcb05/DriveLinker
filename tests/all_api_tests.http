@@ -111,3 +111,20 @@ X-Device-Token: admin
   "longitude": 108.2033,
   "occurredAt": "2026-10-08T15:00:15"
 }
+
+### ==========================================================
+### PHẦN 3: DASHBOARD & THỐNG KÊ (PHẦN 8)
+### (Dùng Token của Admin để lấy dữ liệu thống kê Web)
+### ==========================================================
+
+### 1. Lấy thông số Tổng quan để vẽ Dashboard
+GET http://localhost:8080/api/dashboard/summary
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NDE5MzMsImV4cCI6MTc5MTUyODMzM30.mrCR_muJd0UyXvcY5eANzCm-P-DxagnlnzaX96iKmi7qtR0AUiPMw2kkkfhNYa2g
+
+
+### 2. Lấy Lịch sử GPS của xe để vẽ vết bản đồ (Journey)
+# Thay ID xe ở đường dẫn và ngày giờ cho phù hợp
+GET http://localhost:8080/api/dashboard/vehicles/1/journey?from=2026-10-01T00:00:00&to=2026-10-31T23:59:59
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NDE5MzMsImV4cCI6MTc5MTUyODMzM30.mrCR_muJd0UyXvcY5eANzCm-P-DxagnlnzaX96iKmi7qtR0AUiPMw2kkkfhNYa2g
