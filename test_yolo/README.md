@@ -13,17 +13,21 @@ Hệ thống sử dụng camera kết hợp với mô hình học sâu **YOLOv8*
 
 ## 📂 Cấu trúc thư mục
 
-```text
 drivelinker_mini/
 │
-├── main.py                   # File code chính (chứa logic đo thời gian và tính điểm)
+├── config.py                 # File cấu hình: Chứa các thông số, ngưỡng cảnh báo (EAR, MAR, góc gục đầu)
+├── utils.py                  # Hộp công cụ: Chứa các hàm toán học tính toán tỷ lệ khuôn mặt
+├── fatigue_manager.py        # Bộ não: Quản lý trạng thái, tính điểm và xác định lý do vi phạm
+├── main.py                   # File chạy chính: Kết nối Camera, YOLO, MediaPipe và kết xuất UI
+├── tao_am_thanh.py           # Script tự động tạo giọng nói cảnh báo bằng AI của Google
 ├── best.pt                   # File trọng số (weights) của YOLOv8 đã được huấn luyện
 ├── face_landmarker.task      # File mô hình MediaPipe dùng để lấy mốc khuôn mặt 3D
-├── am_thanh_canh_bao.wav     # File âm thanh (.wav) dùng để phát báo động
+├── am_thanh_canh_bao.wav     # File âm thanh giọng nói cảnh báo (Được sinh tự động)
+├── bang_chung/               # Thư mục lưu trữ hình ảnh vi phạm (Tự động tạo khi chạy)
 └── README.md                 # Tài liệu hướng dẫn này
-
 🚀 Hướng dẫn Cài đặt & Chạy dự án
 Yêu cầu hệ thống (Prerequisites)
+
 Python: Phiên bản từ 3.8 đến 3.11 (MediaPipe hoạt động ổn định nhất trên các phiên bản này).
 
 Phần cứng: Máy tính có kết nối Webcam.
@@ -32,38 +36,60 @@ Bước 1: Chuẩn bị mã nguồn
 Tải dự án về máy và mở terminal (Command Prompt / PowerShell / VS Code Terminal) tại thư mục drivelinker_mini.
 
 Bước 2: Tạo môi trường ảo (Khuyến nghị)
-Việc tạo môi trường ảo giúp các thư viện của dự án không bị xung đột với các dự án khác trên máy của bạn.
+Việc tạo môi trường ảo giúp các thư viện của dự án không bị xung đột với các phần mềm khác trên máy.
 
 Trên Windows:
+
+Bash
 python -m venv venv
 venv\Scripts\activate
-
 Trên macOS/Linux:
+
+Bash
 python3 -m venv venv
 source venv/bin/activate
-Bước 3: Cài đặt các thư viện cần thiết (Dependencies)
-Chạy lệnh sau để cài đặt toàn bộ các gói thư viện Python yêu cầu cho dự án:
-
+**Bước 3: Cài đặt các thư viện lõi (Core Dependencies)**
+Chạy lệnh sau để cài đặt các gói xử lý AI và hình ảnh:
+bash
 pip install opencv-python ultralytics mediapipe pygame
-
 Giải thích thư viện:
 
-- opencv-python: Để xử lý hình ảnh và mở camera.
-- ultralytics: Thư viện chính thức chạy mô hình YOLOv8.
-- mediapipe: Thư viện của Google để vẽ lưới khuôn mặt 3D và tính các tỷ lệ EAR/MAR.
-- pygame: Dùng để phát âm thanh cảnh báo không bị giật lag luồng camera.
+opencv-python: Xử lý hình ảnh, mở camera và kết xuất UI, lưu ảnh bằng chứng.
 
-Bước 4: Kiểm tra tài nguyên (Assets)
-Trước khi chạy, hãy đảm bảo bạn đã có đủ 3 file tài nguyên này đặt cùng thư mục với file main.py:
+ultralytics: Framework chính thức để chạy mô hình YOLOv8.
 
-- best.pt: File trọng số của YOLOv8 (bạn tự train hoặc copy vào nếu để trong thư mục runs/detect/train/weights/best.pt thì nhớ sửa lại đường dẫn trong file code).
+mediapipe: Thư viện vẽ lưới khuôn mặt 3D và trích xuất tọa độ điểm chuẩn.
 
-- face_landmarker.task: File mô hình của MediaPipe. (Có thể tải xuống từ trang chủ Google MediaPipe Face Landmarker).
+pygame: Phát âm thanh cảnh báo độc lập, không làm giật lag luồng xử lý camera.
 
-- am_thanh_canh_bao.wav: Còi báo động định dạng .wav.
+Bước 4: Cấu hình Âm thanh cảnh báo (Giọng nói Google)
+Hệ thống sử dụng giọng nói tiếng Việt của Google thay vì tiếng còi thông thường để tăng tính tương tác. Để sử dụng tính năng này, bạn cần cài thêm thư viện Text-to-Speech của Google:
 
-Bước 5: Chạy chương trình
-Gõ lệnh sau vào Terminal để khởi động hệ thống
-- python main.py
+Chạy lệnh cài đặt:
+
+Bash
+pip install gTTS
+Mở file tao_am_thanh.py, bạn có thể tùy chỉnh lại nội dung câu nói ở biến van_ban theo ý muốn.
+
+Chạy lệnh sau để hệ thống gọi API của Google và tải giọng nói về:
+
+Bash
+python tao_am_thanh.py
+Sau khi chạy thành công, file am_thanh_canh_bao.wav sẽ xuất hiện trong thư mục.
+
+Bước 5: Kiểm tra mô hình AI (Assets)
+Đảm bảo bạn đã có đủ 2 file tài nguyên này nằm cùng thư mục với main.py:
+
+best.pt: File mô hình của YOLOv8.
+
+face_landmarker.task: File mô hình của MediaPipe.
+
+Bước 6: Khởi chạy Hệ thống
+Gõ lệnh sau vào Terminal để bắt đầu giám sát:
+
+Bash
+python main.py
+Lưu ý: Ngay khi phát hiện điểm số vi phạm (Score = 100), hệ thống sẽ tự động tạo thư mục bang_chung/ và lưu lại hình ảnh khoảnh khắc vi phạm kèm theo thời gian và hành vi cụ thể (VD: NGAP_SAU_20261010_171411.jpg).
+
 🛑 Phím tắt khi sử dụng
-Khi camera đang bật, để thoát chương trình an toàn, hãy bấm phím q hoặc ESC trên bàn phím, hệ thống sẽ tự động dọn dẹp bộ nhớ và ngắt camera.
+Khi camera đang bật, để tắt chương trình an toàn, hãy bấm phím q hoặc ESC trên bàn phím. Hệ thống sẽ tự động dọn dẹp bộ nhớ, ngắt camera và dừng âm thanh.
