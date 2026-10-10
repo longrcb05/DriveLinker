@@ -11,6 +11,10 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
+import com.drivelinker.user.repository.UserRepository;
+import com.drivelinker.user.entity.User;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.Collections;
 
 /**
  * Bộ lọc bảo mật cho Web/App, kiểm tra tính hợp lệ của JWT Token trong mỗi request.
@@ -18,12 +22,12 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private JwtService jwtService;
-    private CustomUserDetailsService userDetailsService;
+    private UserRepository userRepository;
 
     @Autowired
-    public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserRepository userRepository) {
         this.jwtService = jwtService;
-        this.userDetailsService = userDetailsService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -41,21 +45,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String jwt = authHeader.substring(7);
 
         try {
-            String username = jwtService.extractUsername(jwt);
+            String userIdStr = jwtService.extractUserId(jwt);
             boolean isNotAuthenticated = (SecurityContextHolder.getContext().getAuthentication() == null);
 
             // Xác thực Token và lưu vào hệ thống
-            if (username != null && isNotAuthenticated) {
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            if (userIdStr != null && isNotAuthenticated) {
+                Integer userId = Integer.parseInt(userIdStr);
+                User user = userRepository.findById(userId).orElse(null);
 
-                boolean isValid = jwtService.isTokenValid(jwt, userDetails);
-                if (isValid) {
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities());
+                if (user != null && "ACTIVE".equals(user.getStatus())) {
+                    UserDetails userDetails = new org.springframework.security.core.userdetails.User(
+                            user.getId().toString(),
+                            user.getPasswordHash(),
+                            Collections.singleton(new SimpleGrantedAuthority("ROLE_" + user.getRole().getName()))
+                    );
 
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                    boolean isValid = jwtService.isTokenValid(jwt, userDetails);
+                    if (isValid) {
+                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities());
+
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
                 }
             }
         } catch (Exception e) {

@@ -65,7 +65,7 @@ public class RentalContractService {
             throw new RuntimeException("Phương tiện này đang có hợp đồng ACTIVE (Đang được thuê).");
         }
 
-        User staff = userRepository.findById(staffId.longValue())
+        User staff = userRepository.findById(staffId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên"));
 
         RentalContract contract = new RentalContract(customer, vehicle, staff, request.getStartTime(),

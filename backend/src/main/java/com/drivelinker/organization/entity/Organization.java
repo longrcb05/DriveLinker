@@ -20,6 +20,10 @@ public class Organization {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "OrganizationID")
     private Integer id;
+    
+    @Column(name = "CompanyCode", unique = true, nullable = false)
+    private String companyCode;
+
     @Column(name = "Name", nullable = false)
     private String name;
     @Column(name = "Phone")

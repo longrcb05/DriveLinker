@@ -222,3 +222,44 @@ Dựa trên bản Kế hoạch Phát triển (`DriveLinker_Backend_Development_P
 
 ---
 **Trạng thái hệ thống:** Phase 9 ĐÃ HOÀN TẤT 100%. Toàn bộ Backend của DriveLinker đã chính thức khép lại hành trình phát triển và sẵn sàng bàn giao cho đội ngũ Frontend.
+
+## Phần 10: Rà soát & Cập nhật Kiến trúc (Source Audit & Backlog)
+
+Dựa trên tài liệu kiểm toán `DriveLinker_BE_Source_Audit_and_Backlog.md` (ngày 10/10/2026), hệ thống cần khắc phục các lỗi nghiêm trọng (P0) liên quan đến bảo mật và cô lập dữ liệu (Multi-tenant).
+Đang tiến hành xử lý **Task BE-007: Bổ sung Company Code cho Login**, được chia làm 5 mục nhỏ để thực hiện.
+
+### ✅ Những việc ĐÃ HOÀN THÀNH (Mục 1):
+1. Đã tạo Flyway migration (`V10__add_company_code_and_fix_user_unique.sql`):
+   - Thêm cột `CompanyCode` vào bảng `Organizations` và tự backfill dữ liệu.
+   - Xóa ràng buộc duy nhất `Username` toàn cục, thay bằng ràng buộc `(OrganizationID, Username)`.
+2. Đã cập nhật Entity `Organization.java` thêm trường `companyCode`.
+3. Đã cập nhật Entity `User.java` sửa lại Unique Constraint phù hợp với Database.
+
+### ✅ Những việc ĐÃ HOÀN THÀNH (Mục 2):
+1. Đã bổ sung trường `companyCode` và các validation `@NotBlank` vào DTO `LoginRequest.java`.
+2. Đã tạo mới interface `OrganizationRepository.java` chứa hàm `findByCompanyCode`.
+3. Đã cập nhật `UserRepository.java` (đổi sang Integer ID cho chuẩn hóa) và thêm hàm `findByOrganizationIdAndUsername`.
+
+### ✅ Những việc ĐÃ HOÀN THÀNH (Mục 3):
+- Đã tái cấu trúc toàn diện Core Security (Authentication & JWT):
+  1. Cập nhật `CustomUserDetailsService` tách `compositeUsername` thành `orgId` và `username` để truy vấn.
+  2. Sửa `AuthController` tìm kiếm theo `CompanyCode` -> lấy Organization -> sinh ra chuỗi `orgId:username`.
+  3. Cập nhật `JwtService` để ghi `userId` vào `Subject` của Token thay vì `username`.
+  4. Sửa màng lọc `JwtAuthenticationFilter` và `WebSocketSecurityConfig` để trích xuất `userId`.
+
+### ✅ Những việc ĐÃ HOÀN THÀNH (Mục 4):
+- Đã rà soát và thay thế toàn bộ mã nguồn đang dùng `findByUsername`.
+- Ở tất cả các API (`VehicleController`, `CustomerController`, `DashboardController`, `ReportController`), hệ thống đã trích xuất `userId` từ Token để tra cứu dữ liệu.
+- Đã sửa `VehicleRepository` và `CustomerRepository` thêm hàm `findAllByOrganizationId` để đảm bảo **Cách ly dữ liệu (Org Isolation)**.
+- Xóa hẳn hàm `findByUsername` cũ kỹ ở `UserRepository`.
+
+### ✅ Những việc ĐÃ HOÀN THÀNH (Mục 5):
+- Viết 2 file Integration Test (trong thư mục `src/test/java/com/drivelinker/`):
+  1. `MultiTenantAuthIntegrationTest`: Kiểm tra xác thực (Đăng nhập sai mã công ty, Đăng nhập vào công ty bị khóa, Trùng username ở 2 công ty nhưng dùng sai mật khẩu...).
+  2. `MultiTenantDataIsolationIntegrationTest`: Đảm bảo 100% tính cô lập dữ liệu. Token của công ty A không thể `GET /api/vehicles` ra xe của công ty B.
+- Kết quả chạy `mvn test`: **BUILD SUCCESS - Passed 7/7 tests**.
+- Từ đây, tính năng Multi-tenant (BE-007) đã hoàn toàn khép lại một cách an toàn và đạt chuẩn!
+
+### ⏳ Bước tiếp theo (Hoàn thiện Milestone):
+- Báo cáo hoàn tất Phase BE-007 cho Front-end dựa trên `all_api_tests.http` để họ có thể gắn thêm ô `Company Code` vào giao diện.
+- Bắt đầu chuyển sang các task khác trong Backlog (như quản lý bí mật, xử lý cứng nhắc, v.v...).
