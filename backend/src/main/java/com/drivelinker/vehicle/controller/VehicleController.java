@@ -33,16 +33,19 @@ public class VehicleController {
             @Valid @RequestBody VehicleRequest request,
             Authentication authentication) {
 
-        String currentUsername = authentication.getName();
-        User currentUser = userRepository.findByUsername(currentUsername)
+        Integer currentUserId = Integer.parseInt(authentication.getName());
+        User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy User"));
         VehicleResponse response = vehicleService.createVehicle(request, currentUser.getOrganization());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<VehicleResponse>>> getAllVehicles() {
-        List<VehicleResponse> list = vehicleService.getAllVehicle();
+    public ResponseEntity<ApiResponse<List<VehicleResponse>>> getAllVehicles(Authentication authentication) {
+        Integer currentUserId = Integer.parseInt(authentication.getName());
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy User"));
+        List<VehicleResponse> list = vehicleService.getAllVehicle(currentUser.getOrganization().getId());
         return ResponseEntity.ok(ApiResponse.success(list));
     }
 }

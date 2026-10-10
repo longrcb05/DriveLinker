@@ -21,13 +21,24 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     @org.springframework.transaction.annotation.Transactional
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+    public UserDetails loadUserByUsername(String compositeUsername) throws UsernameNotFoundException {
+        
+        String[] parts = compositeUsername.split(":");
+        if (parts.length != 2) {
+            throw new UsernameNotFoundException("Invalid username format");
+        }
+        
+        Integer orgId = Integer.parseInt(parts[0]);
+        String username = parts[1];
 
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"
-                        + username));
+        User user = userRepository.findByOrganizationIdAndUsername(orgId, username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
-        return new org.springframework.security.core.userdetails.User(user.getUsername(), user.getPasswordHash(),
+        if (!"ACTIVE".equals(user.getStatus())) {
+            throw new UsernameNotFoundException("User is disabled");
+        }
+
+        return new org.springframework.security.core.userdetails.User(user.getId().toString(), user.getPasswordHash(),
                 Collections.singleton(new SimpleGrantedAuthority("ROLE_" + user.getRole().getName())));
     }
 

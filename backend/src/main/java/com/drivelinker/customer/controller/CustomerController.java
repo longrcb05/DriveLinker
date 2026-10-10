@@ -31,8 +31,8 @@ public class CustomerController {
     @PostMapping
     public ResponseEntity<ApiResponse<CustomerResponse>> createCustomer(@Valid @RequestBody CustomerRequest request,
             Authentication authentication) {
-        String currentUsername = authentication.getName();
-        User currentUser = userRepository.findByUsername(currentUsername)
+        Integer currentUserId = Integer.parseInt(authentication.getName());
+        User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new RuntimeException("Khong tim thay User"));
 
         CustomerResponse response = customerService.createCustomer(request, currentUser.getOrganization());
@@ -40,8 +40,11 @@ public class CustomerController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<CustomerResponse>>> getAllCustomer() {
-        List<CustomerResponse> list = customerService.getAllCustomer();
+    public ResponseEntity<ApiResponse<List<CustomerResponse>>> getAllCustomer(Authentication authentication) {
+        Integer currentUserId = Integer.parseInt(authentication.getName());
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new RuntimeException("Khong tim thay User"));
+        List<CustomerResponse> list = customerService.getAllCustomer(currentUser.getOrganization().getId());
         return ResponseEntity.ok(ApiResponse.success(list));
     }
 }

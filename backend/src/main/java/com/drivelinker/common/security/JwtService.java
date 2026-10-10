@@ -32,25 +32,25 @@ public class JwtService {
 
         return Jwts.builder()
                 .claims(extraClaims)
-                .subject(user.getUsername())
+                .subject(user.getId().toString())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + jwtExpiration))
                 .signWith(getSignInKey())
                 .compact();
     }
 
-    public String extractUsername(String token) {
+    public String extractUserId(String token) {
         return Jwts.parser().verifyWith(getSignInKey()).build()
                 .parseSignedClaims(token).getPayload().getSubject();
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        String username = extractUsername(token);
+        String userIdStr = extractUserId(token);
         Date expiration = Jwts.parser().verifyWith(getSignInKey()).build()
                 .parseSignedClaims(token).getPayload().getExpiration();
 
         boolean isExpired = expiration.before(new Date());
-        return (username.equals(userDetails.getUsername())) && !isExpired;
+        return (userIdStr.equals(userDetails.getUsername())) && !isExpired;
     }
 
     private SecretKey getSignInKey() {

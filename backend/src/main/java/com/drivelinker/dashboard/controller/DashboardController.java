@@ -30,8 +30,8 @@ public class DashboardController {
     @GetMapping("/summary")
     public ResponseEntity<ApiResponse<DashboardSummaryResponse>> getSummary(Authentication auth) {
         // Tìm ra OrganizationID của Admin đang đăng nhập
-        String username = auth.getName();
-        User user = userRepository.findByUsername(username)
+        Integer currentUserId = Integer.parseInt(auth.getName());
+        User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy User"));
 
         DashboardSummaryResponse summary = dashboardService.getSummary(user.getOrganization().getId());

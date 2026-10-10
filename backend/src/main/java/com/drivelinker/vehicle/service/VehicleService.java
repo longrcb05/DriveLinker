@@ -83,8 +83,8 @@ public class VehicleService {
         return new VehicleResponse(savedVehicle);
     }
 
-    public List<VehicleResponse> getAllVehicle() {
-        List<Vehicle> listfromDB = vehicleRespository.findAll();
+    public List<VehicleResponse> getAllVehicle(Integer orgId) {
+        List<Vehicle> listfromDB = vehicleRespository.findAllByOrganizationId(orgId);
         List<VehicleResponse> listRespose = new ArrayList<>();
         for (Vehicle v : listfromDB) {
             listRespose.add(new VehicleResponse(v));

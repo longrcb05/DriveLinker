@@ -28,8 +28,8 @@ public class ReportController {
     @GetMapping("/analytics")
     @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_STAFF')")
     public ResponseEntity<ReportAnalyticsResponse> getAnalytics(Authentication auth) {
-        String username = auth.getName();
-        User user = userRepository.findByUsername(username)
+        Integer currentUserId = Integer.parseInt(auth.getName());
+        User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         Integer orgId = user.getOrganization().getId();
         

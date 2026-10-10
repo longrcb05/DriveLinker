@@ -9,7 +9,9 @@ import java.time.LocalDateTime;
  * Entity ánh xạ bảng Users, lưu trữ tài khoản đăng nhập của nhân viên/admin.
  */
 @Entity
-@Table(name = "Users")
+@Table(name = "Users", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"OrganizationID", "Username"})
+})
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class User {
     @Id
@@ -25,7 +27,7 @@ public class User {
     @JoinColumn(name = "RoleID", nullable = false)
     private Role role;
 
-    @Column(name = "Username", nullable = false, unique = true)
+    @Column(name = "Username", nullable = false)
     private String username;
 
     @Column(name = "PasswordHash", nullable = false)

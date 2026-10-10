@@ -11,9 +11,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
-import java.util.Optional;
-
-
+import jakarta.validation.Valid;
+import com.drivelinker.organization.repository.OrganizationRepository;
+import com.drivelinker.organization.entity.Organization;
 /**
  * Controller xử lý các API liên quan đến xác thực (Authentication) như Đăng nhập, trả về JWT Token.
  */
@@ -24,28 +24,36 @@ public class AuthController {
    private AuthenticationManager authenticationManager;
    private JwtService jwtService;
    private UserRepository userRepository;
+   private OrganizationRepository organizationRepository;
 
    @Autowired
-   public AuthController(AuthenticationManager authenticationManager, JwtService jwtService, UserRepository userRepository  ){
+   public AuthController(AuthenticationManager authenticationManager, JwtService jwtService, UserRepository userRepository, OrganizationRepository organizationRepository){
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userRepository = userRepository;
+        this.organizationRepository = organizationRepository;
    }
 
 @PostMapping("/login")
-public ResponseEntity<ApiResponse<AuthResponse>> login(@RequestBody LoginRequest request){
+public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request){
+    String companyCode = request.getCompanyCode();
     String username = request.getUsername();
     String password = request.getPassword();
 
-    UsernamePasswordAuthenticationToken tokenKiemTra = new UsernamePasswordAuthenticationToken(username, password);
-    authenticationManager.authenticate(tokenKiemTra);
-
-    Optional<User> ketquatimkiem = userRepository.findByUsername(username);
-    if(ketquatimkiem.isEmpty()){
-        throw new RuntimeException("Lỗi: Không tìm thấy User này trong CSDL");
+    Organization org = organizationRepository.findByCompanyCode(companyCode)
+        .orElseThrow(() -> new RuntimeException("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin."));
+        
+    if (!"ACTIVE".equals(org.getStatus())) {
+        throw new RuntimeException("Tổ chức đã bị vô hiệu hóa.");
     }
 
-    User user = ketquatimkiem.get();
+    String compositeUsername = org.getId() + ":" + username;
+
+    UsernamePasswordAuthenticationToken tokenKiemTra = new UsernamePasswordAuthenticationToken(compositeUsername, password);
+    authenticationManager.authenticate(tokenKiemTra);
+
+    User user = userRepository.findByOrganizationIdAndUsername(org.getId(), username)
+        .orElseThrow(() -> new RuntimeException("Đăng nhập thất bại."));
 
     String jwtToken = jwtService.generateToken(user);
 

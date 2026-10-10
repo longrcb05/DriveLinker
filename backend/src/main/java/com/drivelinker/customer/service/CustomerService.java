@@ -68,8 +68,8 @@ public class CustomerService {
         return new CustomerResponse(savedCustomer);
     }
 
-    public List<CustomerResponse> getAllCustomer() {
-        List<Customer> listfromDB = customerRepository.findAll();
+    public List<CustomerResponse> getAllCustomer(Integer orgId) {
+        List<Customer> listfromDB = customerRepository.findAllByOrganizationId(orgId);
         List<CustomerResponse> listResponse = new ArrayList<>();
         for (Customer cus : listfromDB) {
             listResponse.add(new CustomerResponse(cus));

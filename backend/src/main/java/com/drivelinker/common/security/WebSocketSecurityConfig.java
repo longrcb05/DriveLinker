@@ -24,13 +24,10 @@ import java.util.Optional;
 public class WebSocketSecurityConfig implements WebSocketMessageBrokerConfigurer {
 
     private final JwtService jwtService;
-    private final CustomUserDetailsService userDetailsService;
     private final UserRepository userRepository;
 
-    public WebSocketSecurityConfig(JwtService jwtService, CustomUserDetailsService userDetailsService,
-            UserRepository userRepository) {
+    public WebSocketSecurityConfig(JwtService jwtService, UserRepository userRepository) {
         this.jwtService = jwtService;
-        this.userDetailsService = userDetailsService;
         this.userRepository = userRepository;
     }
 
@@ -46,14 +43,23 @@ public class WebSocketSecurityConfig implements WebSocketMessageBrokerConfigurer
                     String authHeader = accessor.getFirstNativeHeader("Authorization");
                     if (authHeader != null && authHeader.startsWith("Bearer ")) {
                         String token = authHeader.substring(7);
-                        String username = jwtService.extractUsername(token);
+                        String userIdStr = jwtService.extractUserId(token);
 
-                        if (username != null) {
-                            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                            if (jwtService.isTokenValid(token, userDetails)) {
-                                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                                        userDetails, null, userDetails.getAuthorities());
-                                accessor.setUser(auth);
+                        if (userIdStr != null) {
+                            Integer userId = Integer.parseInt(userIdStr);
+                            User user = userRepository.findById(userId).orElse(null);
+                            if (user != null && "ACTIVE".equals(user.getStatus())) {
+                                UserDetails userDetails = new org.springframework.security.core.userdetails.User(
+                                        user.getId().toString(),
+                                        user.getPasswordHash(),
+                                        java.util.Collections.singleton(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + user.getRole().getName()))
+                                );
+
+                                if (jwtService.isTokenValid(token, userDetails)) {
+                                    UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                                            userDetails, null, userDetails.getAuthorities());
+                                    accessor.setUser(auth);
+                                }
                             }
                         }
                     }
@@ -65,8 +71,8 @@ public class WebSocketSecurityConfig implements WebSocketMessageBrokerConfigurer
                     String destination = accessor.getDestination(); // Ví dụ: /topic/org/1/alerts
 
                     if (user != null && destination != null && destination.startsWith("/topic/org/")) {
-                        String username = user.getName();
-                        Optional<User> userOpt = userRepository.findByUsername(username);
+                        String userIdStr = user.getName();
+                        Optional<User> userOpt = userRepository.findById(Integer.parseInt(userIdStr));
 
                         if (userOpt.isPresent()) {
                             Integer myOrgId = userOpt.get().getOrganization().getId();
