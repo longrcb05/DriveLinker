@@ -1,127 +1,158 @@
-import { ChevronRight, RefreshCw, Map as MapIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, MoreVertical, Loader2 } from 'lucide-react';
 
-/**
- * Component: LiveTracking (Giám sát Hành trình RTK)
- * Purpose: Hiển thị bản đồ theo dõi xe theo thời gian thực (Real-time tracking),
- *          kết hợp luồng video stream từ camera AI và log sự kiện hệ thống.
- * Note: Hiện tại UI đang ở trạng thái Empty State (chưa có tín hiệu GPS/Video).
- * 
- * TODO cho team dev:
- * - Bản đồ: Tích hợp Mapbox GL JS, Google Maps API hoặc Leaflet (React-Leaflet).
- * - Video Stream: Tích hợp WebRTC hoặc HLS player để chạy luồng live camera.
- * - Real-time: Kết nối WebSocket/Socket.io để lắng nghe stream tọa độ xe liên tục.
- */
-export default function LiveTracking() {
+interface Vehicle {
+  id: string;
+  plateNumber: string;
+  model: string;
+  status: 'AVAILABLE' | 'RENTED' | 'MAINTENANCE';
+  driver: string | null;
+}
+
+const MOCK_VEHICLES_DB: Vehicle[] = [
+  { id: 'V001', plateNumber: '51G-123.45', model: 'Toyota Vios 2022', status: 'RENTED', driver: 'Nguyễn Văn A' },
+  { id: 'V002', plateNumber: '51H-678.90', model: 'Honda City 2023', status: 'AVAILABLE', driver: null },
+  { id: 'V003', plateNumber: '29A-333.44', model: 'Ford Transit', status: 'MAINTENANCE', driver: null },
+];
+
+export default function FleetVehicles() {
   // ==========================================
-  // STATE MANAGEMENT (Dự kiến)
-  // TODO: Khai báo các state để quản lý dữ liệu bản đồ và luồng video
-  // const [vehiclesCoords, setVehiclesCoords] = useState([]);
-  // const [selectedVehicle, setSelectedVehicle] = useState(null);
-  // const [isConnected, setIsConnected] = useState(false);
+  // 1. STATE MANAGEMENT
+  // ==========================================
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // ==========================================
+  // 2. METHODS & HANDLERS
   // ==========================================
 
+  /**
+   * Giả lập API Fetch danh sách xe từ DB
+   */
+  const loadVehiclesData = async () => {
+    setIsLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 600)); // Delay mô phỏng mạng
+      setVehicles(MOCK_VEHICLES_DB);
+    } catch (error) {
+      console.error("Lỗi get danh sách xe:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Bắt sự kiện khi người dùng gõ vào ô tìm kiếm (Two-way binding)
+   */
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(event.target.value);
+  };
+
+  /**
+   * Xử lý điều hướng sang trang chi tiết xe
+   */
+  const handleViewDetails = (vehicleId: string) => {
+    // Tương lai: dùng navigate() của react-router-dom
+    console.log(`Navigate: /vehicles/detail/${vehicleId}`);
+  };
+
+  /**
+   * Helper function: Trả về UI Badge tùy theo trạng thái Enum của xe
+   */
+  const getStatusBadge = (status: Vehicle['status']) => {
+    switch (status) {
+      case 'AVAILABLE': return <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-xs font-bold rounded border border-emerald-100">CÓ SẴN</span>;
+      case 'RENTED': return <span className="px-2 py-1 bg-blue-50 text-blue-600 text-xs font-bold rounded border border-blue-100">ĐANG THUÊ</span>;
+      case 'MAINTENANCE': return <span className="px-2 py-1 bg-amber-50 text-amber-600 text-xs font-bold rounded border border-amber-100">BẢO DƯỠNG</span>;
+      default: return null;
+    }
+  };
+
+  // ==========================================
+  // 3. LIFECYCLE
+  // ==========================================
+  useEffect(() => {
+    loadVehiclesData();
+  }, []);
+
+  // ==========================================
+  // 4. COMPUTED DATA (Dữ liệu tính toán)
+  // ==========================================
+  // Lọc trực tiếp trên frontend dựa vào keyword
+  const filteredVehicles = vehicles.filter(v =>
+    v.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    v.model.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // ==========================================
+  // 5. RENDER
+  // ==========================================
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 font-sans">
-      
-      {/* ==========================================
-          1. HEADER TỔNG KHU VỰC BẢN ĐỒ
-          ========================================== */}
-      <div className="px-6 pt-5 pb-3 shrink-0">
-        {/* Breadcrumb */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center text-xs font-medium text-slate-500">
-            <span className="hover:text-slate-800 cursor-pointer transition-colors">Fleet Operations</span>
-            <ChevronRight className="w-3 h-3 mx-1" />
-            <span className="text-slate-800 font-bold">Bản đồ RTK</span>
-          </div>
-        </div>
-        
-        {/* Tiêu đề & Nút trạng thái */}
-        <div className="flex items-end justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800 leading-tight">Giám sát Hành trình (Live)</h2>
-          </div>
-          {/* TODO: Đổi UI nút này thành màu xanh lá (Connected) khi WebSocket kết nối thành công */}
-          <button className="bg-white border border-slate-200 text-slate-400 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 cursor-not-allowed">
-            <RefreshCw className="w-4 h-4" /> Đang chờ tín hiệu
-          </button>
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full flex flex-col">
+      <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50/30">
+        <h2 className="text-xl font-bold text-slate-800">Danh sách Phương tiện</h2>
+        <div className="relative w-72">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Tìm biển số, dòng xe..."
+            value={searchTerm}
+            onChange={handleSearchChange}
+            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-[#0EA5E9] focus:ring-1 focus:ring-[#0EA5E9] transition-all shadow-sm"
+          />
         </div>
       </div>
 
-      {/* ==========================================
-          2. THANH TRẠNG THÁI (KPI) CỦA ĐỘI XE MÀN HÌNH CHÍNH
-          TODO: Cập nhật các biến số lượng dựa vào mảng dữ liệu realtime
-          ========================================== */}
-      <div className="px-6 grid grid-cols-5 gap-4 mb-4 shrink-0">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Tổng phương tiện</p>
-          <h3 className="text-2xl font-bold text-slate-400">0</h3>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Đang lăn bánh</p>
-          <h3 className="text-2xl font-bold text-slate-400">0</h3>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Dừng / Đỗ</p>
-          <h3 className="text-2xl font-bold text-slate-400">0</h3>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Cảnh báo</p>
-          <h3 className="text-2xl font-bold text-slate-400">0</h3>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Tín hiệu RTK</p>
-          <h3 className="text-2xl font-bold text-slate-400">Mất kết nối</h3>
-        </div>
-      </div>
+      <div className="flex-1 overflow-auto relative">
+        {isLoading ? (
+          // Khối hiển thị khi đang tải dữ liệu
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10">
+            <Loader2 className="w-8 h-8 text-[#0EA5E9] animate-spin mb-2" />
+            <p className="text-sm text-slate-500 font-medium">Đang đồng bộ dữ liệu xe...</p>
+          </div>
+        ) : null}
 
-      {/* ==========================================
-          3. KHU VỰC CHÍNH (BẢN ĐỒ & SIDEBAR BÊN PHẢI)
-          ========================================== */}
-      <div className="flex-1 flex gap-4 px-6 pb-6 overflow-hidden">
-        
-        {/* KHU VỰC BẢN ĐỒ (Map Container) */}
-        <div className="flex-1 bg-slate-800 rounded-xl border border-slate-700 relative overflow-hidden flex items-center justify-center">
-          {/* Lưới giả lập (Grid pattern) khi chưa load map */}
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
-          
-          {/* TODO: Thay khối div này bằng thẻ <MapContainer /> (Leaflet) hoặc <ReactMapGL /> (Mapbox) */}
-          <div className="text-center text-slate-400 z-10">
-            <MapIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p className="font-bold tracking-widest uppercase">No Signal Detected</p>
-            <p className="text-xs mt-1">Chưa có phương tiện nào truyền tọa độ về hệ thống</p>
-          </div>
-        </div>
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 sticky top-0 z-0">
+            <tr>
+              <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider">Biển số</th>
+              <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider">Dòng xe</th>
+              <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider">Trạng thái</th>
+              <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider">Tài xế hiện tại</th>
+              <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider text-right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {filteredVehicles.map((vehicle) => (
+              <tr key={vehicle.id} className="hover:bg-slate-50 transition-colors group">
+                <td className="px-6 py-4 font-bold text-slate-700">{vehicle.plateNumber}</td>
+                <td className="px-6 py-4 text-slate-600">{vehicle.model}</td>
+                <td className="px-6 py-4">{getStatusBadge(vehicle.status)}</td>
+                <td className="px-6 py-4 text-slate-500">{vehicle.driver || <span className="text-slate-300 italic">Trống</span>}</td>
+                <td className="px-6 py-4 text-right">
+                  <button
+                    onClick={() => handleViewDetails(vehicle.id)}
+                    className="p-1.5 text-slate-400 hover:text-[#0EA5E9] hover:bg-sky-50 rounded transition-colors"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
 
-        {/* SIDEBAR BÊN PHẢI (Camera Stream & Logs) */}
-        <div className="w-[380px] flex flex-col gap-4 shrink-0 overflow-y-auto pr-1">
-          
-          {/* Widget: Camera AI (Live Stream) */}
-          <div className="bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-lg">
-            <div className="bg-slate-800 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
-              <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
-                {/* TODO: Thay màu dot xanh khi camera online */}
-                <div className="w-2 h-2 rounded-full bg-slate-600"></div> CAMERA AI (OFFLINE)
-              </span>
-            </div>
-            {/* TODO: Lắp thẻ <video> hoặc thư viện player tại đây */}
-            <div className="h-36 bg-black flex items-center justify-center text-slate-600 text-[10px] font-mono">
-              [ NO VIDEO STREAM ]
-            </div>
-          </div>
-          
-          {/* Widget: Log Sự kiện Hệ thống */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col flex-1 min-h-[250px]">
-            <div className="p-3 border-b border-slate-100 bg-slate-50 rounded-t-xl">
-              <h3 className="font-bold text-slate-600 text-xs">Cập nhật hệ thống</h3>
-            </div>
-            {/* TODO: Map() danh sách mảng dữ liệu log (vd: "[12:30:45] Xe 29C-12345 mất tín hiệu") */}
-            <div className="flex-1 flex items-center justify-center p-6 text-center">
-              <p className="text-xs text-slate-400 italic">Luồng theo dõi trống.</p>
-            </div>
-          </div>
-          
-        </div>
+            {filteredVehicles.length === 0 && !isLoading && (
+              <tr>
+                <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                  <div className="flex flex-col items-center">
+                    <Search className="w-8 h-8 text-slate-300 mb-3" />
+                    <p>Không tìm thấy xe nào phù hợp với từ khóa "<span className="font-bold">{searchTerm}</span>"</p>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
