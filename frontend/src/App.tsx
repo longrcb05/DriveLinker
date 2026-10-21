@@ -1,15 +1,15 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import 'leaflet/dist/leaflet.css'; // <--- Thêm dòng này
 
-import Login from './Login';
-import DashboardLayout from './DashboardLayout';
-import Overview from './Overview';
-import ContractManagement from './ContractManagement';
-import FleetVehicles from './FleetVehicles';
-import LiveTracking from './LiveTracking';
-import Analytics from './Analytics';
-import Alerts from './Alerts';
-import Settings from './Settings'; 
+import Login from './render/Login';
+import DashboardLayout from './UI/DashboardLayout';
+import Overview from './render/Overview';
+import ContractManagement from './render/ContractManagement';
+import FleetVehicles from './render/FleetVehicles';
+import LiveTracking from './render/LiveTracking';
+import Analytics from './render/Analytics';
+import Alerts from './render/Alerts';
+import Settings from './render/Settings';
 
 export default function App() {
   return (
