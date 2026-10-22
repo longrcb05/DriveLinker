@@ -10,6 +10,7 @@ interface Vehicle {
 }
 
 const MOCK_VEHICLES_DB: Vehicle[] = [
+  // dữ liệu demo
   { id: 'V001', plateNumber: '51G-123.45', model: 'Toyota Vios 2022', status: 'RENTED', driver: 'Nguyễn Văn A' },
   { id: 'V002', plateNumber: '51H-678.90', model: 'Honda City 2023', status: 'AVAILABLE', driver: null },
   { id: 'V003', plateNumber: '29A-333.44', model: 'Ford Transit', status: 'MAINTENANCE', driver: null },

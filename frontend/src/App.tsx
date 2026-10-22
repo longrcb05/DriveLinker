@@ -1,10 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import 'leaflet/dist/leaflet.css'; // <--- Thêm dòng này
+import 'leaflet/dist/leaflet.css';
 
 import Login from './render/Login';
 import DashboardLayout from './UI/DashboardLayout';
 import Overview from './render/Overview';
 import ContractManagement from './render/ContractManagement';
+import CreateContract from './render/CreateContract'; // <--- MỚI THÊM: Import component
 import FleetVehicles from './render/FleetVehicles';
 import LiveTracking from './render/LiveTracking';
 import Analytics from './render/Analytics';
@@ -22,6 +23,10 @@ export default function App() {
         <Route element={<DashboardLayout />}>
           <Route path="/overview" element={<Overview />} />
           <Route path="/partners" element={<ContractManagement />} />
+
+          {/* <--- MỚI THÊM: Đăng ký router hiển thị giao diện tạo hợp đồng */}
+          <Route path="/partners/new" element={<CreateContract />} />
+
           <Route path="/vehicles" element={<FleetVehicles />} />
           <Route path="/tracking" element={<LiveTracking />} />
           <Route path="/analytics" element={<Analytics />} />

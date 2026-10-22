@@ -1,8 +1,10 @@
-import { 
+import {
   Search, Download, RefreshCw, ChevronRight, Truck,
   Building2, Filter, FileText, ShieldCheck, User,
   CreditCard, List, Users
 } from 'lucide-react';
+// Bổ sung import hook useNavigate
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Component: ContractManagement (Quản lý Đối tác & Hợp đồng Vận chuyển)
@@ -17,9 +19,12 @@ import {
  *   để đổ dữ liệu vào cột bên phải.
  */
 export default function ContractManagement() {
+  // Khởi tạo hàm điều hướng
+  const navigate = useNavigate();
+
   return (
     <div className="flex-1 overflow-auto bg-[#F8FAFC]">
-      
+
       {/* ==========================================
           1. HEADER KHU VỰC
           Chứa Breadcrumb, Tiêu đề và Các nút chức năng chính
@@ -36,7 +41,7 @@ export default function ContractManagement() {
             <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Đang chờ dữ liệu
           </span>
         </div>
-        
+
         {/* Tiêu đề & Cụm nút hành động */}
         <div className="flex items-end justify-between">
           <div>
@@ -48,8 +53,11 @@ export default function ContractManagement() {
             <button className="bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm active:scale-95">
               <RefreshCw className="w-4 h-4" /> Làm mới
             </button>
-            {/* TODO: Mở modal thêm khách hàng */}
-            <button className="bg-[#0EA5E9] border border-[#0EA5E9] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-sky-600 transition-all shadow-sm active:scale-95">
+            {/* Bổ sung sự kiện onClick để chuyển sang trang tạo hợp đồng */}
+            <button
+              onClick={() => navigate('/partners/new')}
+              className="bg-[#0EA5E9] border border-[#0EA5E9] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-sky-600 transition-all shadow-sm active:scale-95"
+            >
               <User className="w-4 h-4" /> Thêm khách hàng
             </button>
           </div>
@@ -62,7 +70,7 @@ export default function ContractManagement() {
           TODO: Truyền dữ liệu thật từ API vào các thẻ này
           ========================================== */}
       <div className="px-6 grid grid-cols-4 gap-4 mb-6">
-        
+
         {/* Card 1: Tổng khách hàng */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-4">
@@ -116,7 +124,7 @@ export default function ContractManagement() {
           3. MAIN LAYOUT SPLIT (Chia làm 2 cột: Danh sách và Chi tiết)
           ========================================== */}
       <div className="px-6 flex gap-6 pb-6 h-[500px]">
-        
+
         {/* CỘT TRÁI: Bảng danh sách Khách hàng */}
         <div className="w-[60%] bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
           {/* Box tìm kiếm */}
@@ -127,7 +135,7 @@ export default function ContractManagement() {
               <input disabled type="text" placeholder="Tìm tên công ty, mã KH..." className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-sm outline-none" />
             </div>
           </div>
-          
+
           {/* Vùng hiển thị trống (Empty State) - TODO: Thay thế bằng vòng lặp .map() khi có data */}
           <div className="flex-1 flex flex-col items-center justify-center p-8">
             <Users className="w-12 h-12 text-slate-200 mb-3" />
@@ -145,7 +153,7 @@ export default function ContractManagement() {
           {/* TODO: Dùng toán tử ba ngôi (selectedPartner ? <DetailComponent/> : <EmptyState/>) 
               để hiển thị chi tiết khi click vào một hàng bên danh sách */}
         </div>
-        
+
       </div>
     </div>
   );
