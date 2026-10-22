@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import {
   Search, Plus, LayoutDashboard, Truck, Map as MapIcon,
@@ -5,8 +6,12 @@ import {
 } from 'lucide-react';
 
 export default function DashboardLayout() {
+  // Lấy thông tin phân quyền và tên công ty từ LocalStorage (Đã lưu lúc đăng nhập)
+  const [userRole, setUserRole] = useState(localStorage.getItem('userRole') || 'Manager');
+  const [tenantName, setTenantName] = useState(localStorage.getItem('tenantName') || 'DriveLinker');
+
   // ==========================================
-  // 1. CẤU HÌNH MENU SIDEBAR
+  // 1. CẤU HÌNH MENU SIDEBAR (CÓ PHÂN QUYỀN)
   // ==========================================
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard, path: '/overview' },
@@ -15,8 +20,12 @@ export default function DashboardLayout() {
     { id: 'partners', label: 'Partners & Leases', icon: Handshake, path: '/partners', pill: '0' },
     { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics' },
     { id: 'alerts', label: 'Alerts', icon: AlertTriangle, path: '/alerts', badge: 0 },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
+    // Thuộc tính role: 'Admin' giúp hệ thống biết chỉ có Admin mới được xem menu này
+    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings', role: 'Admin' },
   ];
+
+  // BỘ LỌC THÔNG MINH: Chỉ giữ lại các menu không yêu cầu quyền, hoặc quyền khớp với user hiện tại
+  const filteredMenu = menuItems.filter(item => !item.role || item.role === userRole);
 
   return (
     <div className="flex h-screen bg-[#F1F5F9] font-sans overflow-hidden">
@@ -43,11 +52,11 @@ export default function DashboardLayout() {
           <div className="py-6 px-4">
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-4 px-2">Operations Deck</p>
             <nav className="space-y-1">
-              {menuItems.map((item) => {
+              {/* Sử dụng filteredMenu thay vì menuItems gốc */}
+              {filteredMenu.map((item) => {
                 const Icon = item.icon;
 
                 return (
-                  // Thay vì dùng <button onClick={...}>, dùng <NavLink> của Router
                   <NavLink
                     key={item.id}
                     to={item.path}
@@ -63,14 +72,12 @@ export default function DashboardLayout() {
                       <span className="text-sm">{item.label}</span>
                     </div>
 
-                    {/* Render badge cảnh báo đỏ (vd: Alerts) nếu có số lượng > 0 */}
                     {item.badge !== undefined && item.badge > 0 && (
                       <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                         {item.badge}
                       </span>
                     )}
 
-                    {/* Render pill số lượng xanh (vd: Partners) */}
                     {item.pill !== undefined && item.pill !== '0' && (
                       <span className="bg-slate-800 text-sky-400 text-[10px] font-bold px-2.5 py-1 rounded-xl">
                         {item.pill}
@@ -137,7 +144,10 @@ export default function DashboardLayout() {
               </div>
               <div>
                 <p className="text-sm font-bold text-slate-700 leading-none">Nguyễn Nhật Long</p>
-                <p className="text-[10px] text-slate-500 mt-1">System Admin</p>
+                {/* HIỂN THỊ ĐỘNG: Tên công ty và Vai trò lấy từ LocalStorage */}
+                <p className="text-[10px] text-slate-500 mt-1 font-medium tracking-wide">
+                  {tenantName} • <span className={userRole === 'Admin' ? 'text-sky-600 font-bold' : ''}>{userRole}</span>
+                </p>
               </div>
             </div>
           </div>

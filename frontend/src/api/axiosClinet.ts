@@ -1,35 +1,30 @@
+// src/API/axiosClient.ts
 import axios from 'axios';
 
 const axiosClient = axios.create({
-  // Đọc domain backend từ biến môi trường của Vite, fallback về cổng mặc định
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1',
+  baseURL: 'http://localhost:8080/api',
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Tự động đính kèm Token vào mọi request gửi đi
-axiosClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('drivelinker_token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+// Interceptor: Người gác cổng trước khi gửi Request
+axiosClient.interceptors.request.use((config) => {
+  // Lấy mã định danh công ty từ LocalStorage
+  const tenantId = localStorage.getItem('tenantId');
 
-// Xử lý phản hồi tập trung (Đá văng ra trang Login nếu Token hết hạn)
-axiosClient.interceptors.response.use(
-  (response) => response.data,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('drivelinker_token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
+  // Nhét mã này vào Header (X-Tenant-ID là chuẩn thông lệ quốc tế)
+  if (tenantId) {
+    config.headers['X-Tenant-ID'] = tenantId;
   }
-);
+
+  // Tương tự với Token bảo mật JWT
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  return config;
+});
 
 export default axiosClient;
