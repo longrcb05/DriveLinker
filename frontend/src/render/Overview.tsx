@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ChevronRight, Activity, Truck, AlertTriangle,
-  MapPin, CheckCircle2, RefreshCw
+  ChevronRight, Truck, AlertTriangle,
+  MapPin, CheckCircle2, RefreshCw,
+  Clock, Wallet, TrendingUp, ShieldAlert, BellRing
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
-/**
- * Cấu hình Fix lỗi mất icon mặc định của Leaflet trong Vite
- */
+// Fix lỗi mất icon mặc định của Leaflet
 const defaultIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -19,78 +18,111 @@ const defaultIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-// Dữ liệu gốc dùng để giả lập Database
-const MOCK_VEHICLES_DB = [
-  { id: '29C-123.45', lat: 16.047079, lng: 108.206230, status: 'RUNNING', driver: 'Nguyễn Văn A', speed: '65 km/h' },
-  { id: '51D-987.65', lat: 16.055000, lng: 108.215000, status: 'WARNING', driver: 'Trần Thị B', speed: '72 km/h' },
-  { id: '15C-456.78', lat: 16.035000, lng: 108.225000, status: 'STOPPED', driver: 'Lê Văn C', speed: '0 km/h' },
-];
+// Component tự động cập nhật tâm bản đồ khi đổi công ty
+function MapUpdater({ center }: { center: [number, number] }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, 13);
+  }, [center, map]);
+  return null;
+}
+
+// === BỘ DỮ LIỆU DEMO ĐA DOANH NGHIỆP ===
+const MOCK_DATA_BY_TENANT: Record<string, any> = {
+  'COMPANY_A': {
+    center: [16.047079, 108.206230], // Đà Nẵng
+    stats: { totalVehicles: 42, renting: 28, available: 12, aiAlerts: 7 },
+    revenue: { amount: '128.5', growth: 'Tăng 12%', utilization: '66%', collection: '85%' },
+    vehicles: [
+      { id: '29C-123.45', lat: 16.047079, lng: 108.206230, status: 'RUNNING', driver: 'Nguyễn Văn A', speed: '65 km/h' },
+      { id: '51D-987.65', lat: 16.055000, lng: 108.215000, status: 'WARNING', driver: 'Trần Thị B', speed: '72 km/h' },
+      { id: '15C-456.78', lat: 16.035000, lng: 108.225000, status: 'STOPPED', driver: 'Lê Văn C', speed: '0 km/h' },
+    ],
+    alerts: [
+      { id: 1, time: 'Vừa xong', vehicle: '51D-987.65', type: 'Ngủ gật', message: 'Mắt nhắm > 3s. Đã hú còi cabin.', severity: 'high' },
+      { id: 2, time: '5 phút trước', vehicle: '43A-112.22', type: 'Quá tốc độ', message: 'Vượt tốc độ 85/60 km/h tại QL1A.', severity: 'medium' },
+      { id: 3, time: '12 phút trước', vehicle: '92C-555.33', type: 'Lệch làn', message: 'Lệch làn đường liên tục.', severity: 'low' },
+    ]
+  },
+  'COMPANY_B': {
+    center: [10.762622, 106.660172], // TP. Hồ Chí Minh
+    stats: { totalVehicles: 120, renting: 95, available: 20, aiAlerts: 18 },
+    revenue: { amount: '450.2', growth: 'Tăng 25%', utilization: '85%', collection: '92%' },
+    vehicles: [
+      { id: '51F-888.11', lat: 10.762622, lng: 106.660172, status: 'RUNNING', driver: 'Phạm Văn D', speed: '50 km/h' },
+      { id: '51G-999.22', lat: 10.775000, lng: 106.700000, status: 'WARNING', driver: 'Hoàng Thị E', speed: '85 km/h' },
+      { id: '51C-777.33', lat: 10.750000, lng: 106.640000, status: 'STOPPED', driver: 'Lý Quốc F', speed: '0 km/h' },
+    ],
+    alerts: [
+      { id: 4, time: '2 phút trước', vehicle: '51G-999.22', type: 'Vượt đèn đỏ', message: 'Vượt đèn đỏ tại ngã tư.', severity: 'high' },
+      { id: 5, time: '30 phút trước', vehicle: '51H-555.55', type: 'Phanh gấp', message: 'Cảm biến gia tốc phát hiện phanh gấp.', severity: 'low' }
+    ]
+  },
+  'COMPANY_C': {
+    center: [21.028511, 105.804817], // Hà Nội
+    stats: { totalVehicles: 5, renting: 3, available: 2, aiAlerts: 0 },
+    revenue: { amount: '15.8', growth: 'Giảm 2%', utilization: '60%', collection: '98%' },
+    vehicles: [
+      { id: '29A-111.11', lat: 21.028511, lng: 105.804817, status: 'RUNNING', driver: 'Vũ Thị H', speed: '35 km/h' }
+    ],
+    alerts: [] // Công ty C quy mô nhỏ, hiện không có cảnh báo
+  }
+};
+
+const DEFAULT_DATA = MOCK_DATA_BY_TENANT['COMPANY_A'];
 
 export default function Overview() {
-  // ==========================================
-  // 1. KHỞI TẠO STATE (TRẠNG THÁI ỨNG DỤNG)
-  // ==========================================
-  const [mapCenter] = useState<[number, number]>([16.047079, 108.206230]);
+  const [userRole] = useState(localStorage.getItem('userRole') || 'TENANT_STAFF');
+
+  // 1. CHẶN HIỂN THỊ DỮ LIỆU ĐỐI VỚI HỆ THỐNG LÕI (SYS_ADMIN)
+  if (userRole === 'SYS_ADMIN') {
+    return (
+      <div className="flex-1 bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center h-full">
+        <div className="bg-white p-10 rounded-2xl border border-slate-200 shadow-sm max-w-lg w-full">
+          <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <ShieldAlert className="w-10 h-10 text-rose-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-3">Không khả dụng cho Quản trị viên</h2>
+          <p className="text-slate-500 mb-6 text-sm leading-relaxed">
+            Trang Tổng quan chỉ chứa dữ liệu nghiệp vụ của khách hàng. Hãy dùng menu <b>Quản lý Doanh nghiệp</b> hoặc trang <b>Settings</b> để kiểm tra và cấu hình hệ thống.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. LOGIC HIỂN THỊ CHO KHÁCH HÀNG (TENANT_ADMIN & TENANT_STAFF)
+  const [tenantId] = useState(localStorage.getItem('tenantId') || 'COMPANY_A');
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [vehicles, setVehicles] = useState<typeof MOCK_VEHICLES_DB>([]);
-  const [kpiStats, setKpiStats] = useState({
-    totalVehicles: 0,
-    activeVehicles: 0,
-    gpsSignal: 0,
-    aiAlerts: 0,
-    serverPing: 0
-  });
 
-  // ==========================================
-  // 2. CÁC PHƯƠNG THỨC XỬ LÝ (METHODS)
-  // ==========================================
+  const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_DATA.center);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [kpiStats, setKpiStats] = useState({ totalVehicles: 0, renting: 0, available: 0, aiAlerts: 0 });
+  const [revenueData, setRevenueData] = useState({ amount: '0', growth: '', utilization: '0%', collection: '0%' });
 
-  /**
-   * Phương thức tải toàn bộ dữ liệu cho Dashboard
-   * Dùng async/await để xử lý bất đồng bộ khi gọi API thực tế
-   */
   const fetchDashboardData = async () => {
-    setIsLoading(true); // Bật trạng thái loading để vô hiệu hóa nút bấm
+    setIsLoading(true);
     try {
-      // Giả lập thời gian server phản hồi (delay 800ms)
-      // Thực tế: const response = await axios.get('/api/dashboard/summary');
       await new Promise(resolve => setTimeout(resolve, 800));
+      const currentData = MOCK_DATA_BY_TENANT[tenantId] || DEFAULT_DATA;
 
-      // Cập nhật State bằng dữ liệu giả lập trả về từ "API"
-      setVehicles(MOCK_VEHICLES_DB);
-      setKpiStats({
-        totalVehicles: 1248,
-        activeVehicles: 1200,
-        gpsSignal: 99.8,
-        aiAlerts: 3,
-        serverPing: Math.floor(Math.random() * 20) + 10 // Random ping 10-30ms cho chân thực
-      });
+      setMapCenter(currentData.center);
+      setVehicles(currentData.vehicles);
+      setAlerts(currentData.alerts);
+      setKpiStats(currentData.stats);
+      setRevenueData(currentData.revenue);
     } catch (error) {
       console.error("Lỗi khi tải dữ liệu Dashboard:", error);
-      // Thực tế sẽ dùng Toast (VD: react-hot-toast) để báo lỗi cho user
     } finally {
-      setIsLoading(false); // Tắt trạng thái loading dù API thành công hay lỗi
+      setIsLoading(false);
     }
   };
 
-  /**
-   * Xử lý sự kiện khi user click nút "Làm mới dữ liệu"
-   */
-  const handleRefreshClick = () => {
-    fetchDashboardData();
-  };
-
-  // ==========================================
-  // 3. LIFECYCLE HOOKS
-  // ==========================================
-  // Tự động gọi API 1 lần duy nhất ngay khi trang vừa load xong
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [tenantId]); // Tự động refetch dữ liệu khi đổi tenantId
 
-  // ==========================================
-  // 4. GIAO DIỆN HIỂN THỊ (RENDER)
-  // ==========================================
   return (
     <div className="flex-1 overflow-auto bg-[#F8FAFC] p-6 space-y-6">
 
@@ -98,16 +130,15 @@ export default function Overview() {
       <div className="flex justify-between items-end">
         <div>
           <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-            <span className="hover:text-slate-800 cursor-pointer transition-colors">Operations Deck</span>
+            <span className="hover:text-slate-800 cursor-pointer transition-colors">MENU</span>
             <ChevronRight className="w-3 h-3 mx-2" />
-            <span className="text-sky-600">Tổng quan (Overview)</span>
+            <span className="text-sky-600">Tổng quan</span>
           </div>
-          <h2 className="text-2xl font-bold text-slate-800 leading-tight">Trung tâm Điều hành Toàn diện</h2>
+          <h2 className="text-2xl font-bold text-slate-800 leading-tight">Hệ thống Giám sát và Quản lý xe</h2>
         </div>
 
-        {/* Nút Refresh gắn sự kiện onClick và hiệu ứng spin khi đang tải */}
         <button
-          onClick={handleRefreshClick}
+          onClick={fetchDashboardData}
           disabled={isLoading}
           className="bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -116,112 +147,162 @@ export default function Overview() {
         </button>
       </div>
 
-      {/* KPI CARDS (Dùng dữ liệu từ State thay vì hardcode) */}
-      <div className="grid grid-cols-4 gap-4">
+      {/* HÀNG 1: KPI CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tổng Phương Tiện</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tổng Đội Xe</p>
             <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Truck className="w-4 h-4" /></div>
           </div>
-          <h3 className="text-3xl font-bold text-slate-800">
-            {isLoading ? '...' : kpiStats.totalVehicles.toLocaleString()}
-          </h3>
-          <p className="text-[11px] font-medium text-emerald-600 mt-2 flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" /> {kpiStats.activeVehicles.toLocaleString()} Đang hoạt động
-          </p>
+          <h3 className="text-3xl font-bold text-slate-800">{isLoading ? '...' : kpiStats.totalVehicles}</h3>
+          <p className="text-[11px] font-medium text-slate-500 mt-2">Tổng phương tiện</p>
         </div>
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tín hiệu GPS RTK</p>
-            <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg"><MapPin className="w-4 h-4" /></div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Đang cho thuê</p>
+            <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg"><CheckCircle2 className="w-4 h-4" /></div>
           </div>
-          <h3 className="text-3xl font-bold text-slate-800">{isLoading ? '...' : `${kpiStats.gpsSignal}%`}</h3>
-          <p className="text-[11px] font-medium text-slate-500 mt-2">4 xe đang mất kết nối</p>
+          <h3 className="text-3xl font-bold text-slate-800">{isLoading ? '...' : kpiStats.renting}</h3>
+          <p className="text-[11px] font-medium text-emerald-600 mt-2 flex items-center gap-1">Sinh lời ngay lúc này</p>
         </div>
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cảnh báo AI DMS</p>
-            <div className="p-1.5 bg-red-50 text-red-600 rounded-lg"><AlertTriangle className="w-4 h-4" /></div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Trống lịch / Bảo dưỡng</p>
+            <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg"><Clock className="w-4 h-4" /></div>
           </div>
-          <h3 className="text-3xl font-bold text-red-600">{isLoading ? '...' : kpiStats.aiAlerts}</h3>
-          <p className="text-[11px] font-medium text-red-500 mt-2 animate-pulse">Cần xử lý ngay lập tức</p>
+          <h3 className="text-3xl font-bold text-slate-800">{isLoading ? '...' : kpiStats.available}</h3>
+          <p className="text-[11px] font-medium text-amber-600 mt-2">Sẵn sàng nhận khách</p>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="bg-white p-5 rounded-xl border border-rose-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/5 rounded-bl-full"></div>
           <div className="flex justify-between items-start mb-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tải máy chủ (Server)</p>
-            <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg"><Activity className="w-4 h-4" /></div>
+            <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Cảnh báo AI (24h)</p>
+            <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg animate-pulse"><AlertTriangle className="w-4 h-4" /></div>
           </div>
-          <h3 className="text-3xl font-bold text-slate-800">
-            {isLoading ? '...' : kpiStats.serverPing}<span className="text-sm font-medium text-slate-400">ms</span>
-          </h3>
-          <p className="text-[11px] font-medium text-slate-500 mt-2">Độ trễ API ổn định</p>
+          <h3 className="text-3xl font-bold text-rose-600">{isLoading ? '...' : kpiStats.aiAlerts}</h3>
+          <p className="text-[11px] font-medium text-rose-500 mt-2">Sự cố cần kiểm tra</p>
         </div>
       </div>
 
-      {/* MAIN CONTENT: MAP & SIDEBAR */}
-      <div className="flex gap-6 h-[500px]">
+      {/* HÀNG 2: BẢN ĐỒ & DOANH THU */}
+      <div className="flex flex-col lg:flex-row gap-6 h-[400px]">
         {/* Bản đồ Live Tracking */}
         <div className="flex-[2] bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative z-0">
           <div className="p-3 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center absolute top-0 left-0 right-0 z-[400] bg-white/80 backdrop-blur-sm">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-sky-500" /> Trạng thái Giao thông & Định vị (Real-time)
+              <MapPin className="w-4 h-4 text-sky-500" /> Giám sát hành trình
             </h3>
           </div>
-
           <div className="flex-1 w-full h-full mt-11">
-            <MapContainer
-              center={mapCenter}
-              zoom={13}
-              scrollWheelZoom={true}
-              style={{ height: '100%', width: '100%' }}
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              {/* Duyệt qua State vehicles để render xe */}
-              {vehicles.map((vehicle, index) => (
-                <Marker key={index} position={[vehicle.lat, vehicle.lng]} icon={defaultIcon}>
-                  <Popup>
-                    <div className="font-sans">
-                      <p className="font-bold text-slate-800">{vehicle.id}</p>
-                      <p className="text-xs text-slate-600 mt-1">Tài xế: {vehicle.driver}</p>
-                      <p className="text-xs text-slate-600">Vận tốc: {vehicle.speed}</p>
-                      <p className={`text-xs font-bold mt-2 ${vehicle.status === 'WARNING' ? 'text-red-500' : 'text-emerald-500'}`}>
-                        {vehicle.status === 'WARNING' ? 'CẢNH BÁO AI' : 'BÌNH THƯỜNG'}
-                      </p>
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
-            </MapContainer>
+            {!isLoading && (
+              <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
+                <MapUpdater center={mapCenter} />
+                <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                {vehicles.map((vehicle, index) => (
+                  <Marker key={index} position={[vehicle.lat, vehicle.lng]} icon={defaultIcon}>
+                    <Popup>
+                      <div className="font-sans">
+                        <p className="font-bold text-slate-800">{vehicle.id}</p>
+                        <p className="text-xs text-slate-600 mt-1">Tài xế: {vehicle.driver}</p>
+                        <p className="text-xs text-slate-600">Vận tốc: {vehicle.speed}</p>
+                        <p className={`text-xs font-bold mt-2 ${vehicle.status === 'WARNING' ? 'text-red-500' : 'text-emerald-500'}`}>
+                          {vehicle.status === 'WARNING' ? 'CẢNH BÁO AI' : 'BÌNH THƯỜNG'}
+                        </p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
+            )}
           </div>
         </div>
 
-        {/* Danh sách sự kiện nhanh (Phần này có thể tách component sau) */}
-        <div className="flex-[1] bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-            <h3 className="text-sm font-bold text-slate-800">Sự kiện mới nhất</h3>
-          </div>
-          <div className="flex-1 overflow-auto p-4 space-y-4">
-            {/* Các sự kiện tạm giữ nguyên giao diện */}
-            <div className="flex gap-3 items-start border-b border-slate-50 pb-4">
-              <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-4 h-4 text-red-500" />
+        {/* Module Phân quyền: Hiệu suất Kinh doanh */}
+        <div className="flex-[1] bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden relative">
+          {userRole === 'TENANT_ADMIN' ? (
+            <>
+              <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-emerald-500" /> Doanh thu trong tháng
+                </h3>
               </div>
-              <div>
-                <p className="text-xs font-bold text-slate-800">Xe 51D-987.65: Cảnh báo ngủ gật</p>
-                <p className="text-[10px] text-slate-500 mt-1">Camera AI phát hiện mắt nhắm &gt; 2s. Hệ thống đã hú còi cabin.</p>
-                <p className="text-[9px] text-slate-400 mt-1.5">Vừa xong</p>
+              <div className="p-5 flex-1 flex flex-col justify-center">
+                <div className="mb-6 text-center">
+                  <h3 className="text-4xl font-bold text-slate-800">{isLoading ? '...' : revenueData.amount}<span className="text-xl text-slate-500 ml-1">Tr</span></h3>
+                  <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full mt-2 ${revenueData.growth.includes('Tăng') ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                    <TrendingUp className="w-3 h-3" /> {revenueData.growth} so với tháng trước
+                  </span>
+                </div>
+                <div className="space-y-4 w-full">
+                  <div>
+                    <div className="flex justify-between text-xs font-bold mb-1">
+                      <span className="text-slate-500">Tỷ lệ cho thuê xe</span>
+                      <span className="text-sky-600">{revenueData.utilization}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2">
+                      <div className="bg-[#0EA5E9] h-2 rounded-full transition-all duration-1000" style={{ width: isLoading ? '0%' : revenueData.utilization }}></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs font-bold mb-1">
+                      <span className="text-slate-500">Tỷ lệ thu hồi công nợ</span>
+                      <span className="text-emerald-600">{revenueData.collection}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2">
+                      <div className="bg-emerald-500 h-2 rounded-full transition-all duration-1000" style={{ width: isLoading ? '0%' : revenueData.collection }}></div>
+                    </div>
+                  </div>
+                </div>
               </div>
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-slate-50/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-10">
+              <ShieldAlert className="w-12 h-12 text-slate-300 mb-3" />
+              <h3 className="font-bold text-slate-700 mb-1">Khu vực Giới hạn</h3>
+              <p className="text-xs text-slate-500">Chỉ quản lý doanh nghiệp mới có quyền xem thông tin doanh thu.</p>
             </div>
-            {/* ... (Các sự kiện khác giữ nguyên) ... */}
-          </div>
+          )}
         </div>
       </div>
+
+      {/* HÀNG 3: LIVE FEED CẢNH BÁO AI */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <h2 className="font-bold text-slate-800 flex items-center gap-2">
+            <BellRing className="w-4 h-4 text-rose-500" /> Cảnh báo Khẩn cấp từ Camera AI
+          </h2>
+          <button className="text-xs font-bold text-[#0EA5E9] hover:text-sky-700 transition-colors">Xem toàn bộ lịch sử</button>
+        </div>
+        <div className="p-4">
+          {alerts.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {alerts.map((alert) => (
+                <div key={alert.id} className="flex gap-3 p-3 rounded-lg border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all bg-slate-50/50">
+                  <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${alert.severity === 'high' ? 'bg-rose-500 animate-ping' :
+                    alert.severity === 'medium' ? 'bg-amber-500' : 'bg-sky-400'
+                    }`}></div>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-sm font-bold text-slate-800">{alert.vehicle}</p>
+                      <span className="text-[10px] font-bold text-slate-400">{alert.time}</span>
+                    </div>
+                    <p className="text-xs font-semibold text-rose-600 mb-1">{alert.type}</p>
+                    <p className="text-xs text-slate-600 line-clamp-2">{alert.message}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 text-slate-400 text-sm">
+              Không có cảnh báo an toàn nào trong 24h qua.
+            </div>
+          )}
+        </div>
+      </div>
+
     </div>
   );
 }

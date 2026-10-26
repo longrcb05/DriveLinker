@@ -22,7 +22,7 @@ export default function LiveTracking() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 font-sans">
-      
+
       {/* ==========================================
           1. HEADER TỔNG KHU VỰC BẢN ĐỒ
           ========================================== */}
@@ -30,16 +30,16 @@ export default function LiveTracking() {
         {/* Breadcrumb */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center text-xs font-medium text-slate-500">
-            <span className="hover:text-slate-800 cursor-pointer transition-colors">Fleet Operations</span>
+            <span className="hover:text-slate-800 cursor-pointer transition-colors">MENU</span>
             <ChevronRight className="w-3 h-3 mx-1" />
-            <span className="text-slate-800 font-bold">Bản đồ RTK</span>
+            <span className="text-slate-800 font-bold">THEO DÕI</span>
           </div>
         </div>
-        
+
         {/* Tiêu đề & Nút trạng thái */}
         <div className="flex items-end justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 leading-tight">Giám sát Hành trình (Live)</h2>
+            <h2 className="text-2xl font-bold text-slate-800 leading-tight">Giám sát Hành trình</h2>
           </div>
           {/* TODO: Đổi UI nút này thành màu xanh lá (Connected) khi WebSocket kết nối thành công */}
           <button className="bg-white border border-slate-200 text-slate-400 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 cursor-not-allowed">
@@ -70,7 +70,7 @@ export default function LiveTracking() {
           <h3 className="text-2xl font-bold text-slate-400">0</h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Tín hiệu RTK</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Định vị</p>
           <h3 className="text-2xl font-bold text-slate-400">Mất kết nối</h3>
         </div>
       </div>
@@ -79,37 +79,37 @@ export default function LiveTracking() {
           3. KHU VỰC CHÍNH (BẢN ĐỒ & SIDEBAR BÊN PHẢI)
           ========================================== */}
       <div className="flex-1 flex gap-4 px-6 pb-6 overflow-hidden">
-        
+
         {/* KHU VỰC BẢN ĐỒ (Map Container) */}
         <div className="flex-1 bg-slate-800 rounded-xl border border-slate-700 relative overflow-hidden flex items-center justify-center">
           {/* Lưới giả lập (Grid pattern) khi chưa load map */}
           <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
-          
+
           {/* TODO: Thay khối div này bằng thẻ <MapContainer /> (Leaflet) hoặc <ReactMapGL /> (Mapbox) */}
           <div className="text-center text-slate-400 z-10">
             <MapIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p className="font-bold tracking-widest uppercase">No Signal Detected</p>
-            <p className="text-xs mt-1">Chưa có phương tiện nào truyền tọa độ về hệ thống</p>
+            <p className="font-bold tracking-widest uppercase">No Signal</p>
+            <p className="text-xs mt-1">Đang trong quá trình cấu hình. Vui lòng chờ...</p>
           </div>
         </div>
 
         {/* SIDEBAR BÊN PHẢI (Camera Stream & Logs) */}
         <div className="w-[380px] flex flex-col gap-4 shrink-0 overflow-y-auto pr-1">
-          
+
           {/* Widget: Camera AI (Live Stream) */}
           <div className="bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-lg">
             <div className="bg-slate-800 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
               <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
                 {/* TODO: Thay màu dot xanh khi camera online */}
-                <div className="w-2 h-2 rounded-full bg-slate-600"></div> CAMERA AI (OFFLINE)
+                <div className="w-2 h-2 rounded-full bg-slate-600"></div> CAMERA AI
               </span>
             </div>
             {/* TODO: Lắp thẻ <video> hoặc thư viện player tại đây */}
             <div className="h-36 bg-black flex items-center justify-center text-slate-600 text-[10px] font-mono">
-              [ NO VIDEO STREAM ]
+              [ ĐANG TRONG QUÁ TRÌNH CẤU HÌNH. VUI LÒNG CHỜ...]
             </div>
           </div>
-          
+
           {/* Widget: Log Sự kiện Hệ thống */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col flex-1 min-h-[250px]">
             <div className="p-3 border-b border-slate-100 bg-slate-50 rounded-t-xl">
@@ -120,7 +120,7 @@ export default function LiveTracking() {
               <p className="text-xs text-slate-400 italic">Luồng theo dõi trống.</p>
             </div>
           </div>
-          
+
         </div>
       </div>
     </div>

@@ -25,19 +25,14 @@ export default function ContractManagement() {
           ========================================== */}
       <div className="px-6 pt-5 pb-3">
         <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-          <span className="hover:text-slate-800 cursor-pointer transition-colors">Operations</span>
+          <span className="hover:text-slate-800 cursor-pointer transition-colors">MENU</span>
           <ChevronRight className="w-3 h-3 mx-2" />
-          <span className="text-sky-600 cursor-pointer">Partners & Fleet Leases</span>
-          <ChevronRight className="w-3 h-3 mx-2" />
-          <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full flex items-center gap-1 normal-case tracking-normal shadow-sm">
-            <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Đang chờ dữ liệu
-          </span>
+          <span className="text-sky-600 cursor-pointer">ĐỐI TÁC</span>
         </div>
 
         <div className="flex items-end justify-between">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 leading-tight">Quản lý Đối tác & Hợp đồng Vận chuyển</h2>
-            <p className="text-xs text-slate-500 mt-1.5 max-w-2xl">Hệ sinh thái điều phối đối tác doanh nghiệp, khách hàng thuê xe viễn thông, kiểm soát hạn mức tín dụng và lịch sử hợp đồng.</p>
           </div>
           <div className="flex items-center gap-3">
             <button className="bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm active:scale-95">
@@ -87,7 +82,7 @@ export default function ContractManagement() {
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Doanh thu thuê xe tháng</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Doanh thu thuê xe</p>
               <h3 className="text-3xl font-bold text-slate-300 leading-none">0</h3>
             </div>
             <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400"><CreditCard className="w-4 h-4" /></div>
@@ -98,7 +93,7 @@ export default function ContractManagement() {
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tín nhiệm & Đúng hạn</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Trễ hẹn/Quá hạn hợp đồng</p>
               <h3 className="text-3xl font-bold text-slate-300 leading-none">--%</h3>
             </div>
             <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400"><ShieldCheck className="w-4 h-4" /></div>
