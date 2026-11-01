@@ -4,21 +4,23 @@
  * Tích hợp Phân quyền (RBAC) & PDF Viewer.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  ChevronRight, Truck, ShieldCheck, FileText, Printer, Building2,
-  User, CreditCard, Eye, Search, PenTool, Lock, ShieldAlert, Edit3, Trash2
+  ChevronRight, FileText, Printer, Building2,
+  User, CreditCard, Eye, Search, PenTool, Lock, ShieldAlert, Edit3, Trash2, CheckCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import RequestPriceChangeModal from '../components/RequestPriceChangeModal';
+import contractService from '../api/contractService';
+import priceService from '../api/priceService';
 
 export default function ContractManagement() {
   const navigate = useNavigate();
   const userRole = localStorage.getItem('userRole') || 'TENANT_STAFF';
   const tenantId = localStorage.getItem('tenantId') || 'COMPANY_A';
 
-  // KIỂM TRA QUYỀN QUẢN LÝ
-  const isManager = userRole === 'TENANT_ADMIN' || userRole === 'SYS_ADMIN' || userRole === 'SUPER_ADMIN_VIEW';
+  // KIỂM TRA QUYỀN QUẢN LÝ (Hỗ trợ cả ADMIN và TENANT_ADMIN)
+  const isManager = userRole === 'TENANT_ADMIN' || userRole === 'ADMIN' || userRole === 'SYS_ADMIN' || userRole === 'SUPER_ADMIN_VIEW';
 
   // Tabs quản lý
   const [activeTab, setActiveTab] = useState<'OFFICIAL' | 'DRAFT'>('OFFICIAL');
@@ -39,31 +41,85 @@ export default function ContractManagement() {
     return () => window.removeEventListener('storage', loadData);
   }, [tenantId]);
 
-  const loadData = () => {
+  const loadData = async () => {
     if (!localStorage.getItem('sys_price_requests')) localStorage.setItem('sys_price_requests', JSON.stringify([]));
 
-    // Load Hợp đồng chính thức
-    const allContracts = JSON.parse(localStorage.getItem('sys_e_contracts') || '[]');
-    setContracts(allContracts.filter((c: any) => c.tenantId === tenantId).reverse());
+    // 1. Load Hợp đồng từ LocalStorage
+    const localContracts = JSON.parse(localStorage.getItem('sys_e_contracts') || '[]');
+    let currentContracts = localContracts.filter((c: any) => c.tenantId === tenantId).reverse();
 
-    // Load Bản nháp
+    // 2. Load Bản nháp từ LocalStorage
     const allDrafts = JSON.parse(localStorage.getItem('sys_contract_drafts') || '[]');
-    setDrafts(allDrafts.filter((d: any) => d.tenantId === tenantId || !d.tenantId).reverse()); // Giả sử chưa gán tenantId thì vẫn hiển thị để test
+    setDrafts(allDrafts.filter((d: any) => d.tenantId === tenantId || !d.tenantId).reverse());
+
+    // 3. Nếu có Token, đồng bộ từ Backend Next.js API
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const res = await contractService.getAll();
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          const beContracts = res.data.map((c: any) => ({
+            id: `HD-${c.id}`,
+            backendId: c.id,
+            tenantId: tenantId,
+            partnerName: c.customer?.fullName || 'Khách hàng',
+            partnerPhone: c.customer?.phone || '',
+            partyB: {
+              name: c.customer?.fullName || '',
+              phone: c.customer?.phone || '',
+              cccd: c.customer?.idCardNumber || 'Chưa có'
+            },
+            vehicle: {
+              plate: c.vehicle?.licensePlate || '',
+              price: c.price
+            },
+            value: c.price,
+            date: c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '',
+            status: c.status,
+            type: 'E_CONTRACT',
+            hasPendingRequest: false,
+            notes: c.notes
+          }));
+
+          // Hợp nhất dữ liệu BE và LocalStorage
+          const beIds = new Set(beContracts.map((b: any) => b.id));
+          const remainingLocal = currentContracts.filter((l: any) => !beIds.has(l.id));
+          currentContracts = [...beContracts, ...remainingLocal];
+        }
+      }
+    } catch (err) {
+      console.warn("Không thể tải hợp đồng từ Backend, sử dụng bộ nhớ cục bộ:", err);
+    }
+
+    setContracts(currentContracts);
   };
 
   // ==========================================
   // XỬ LÝ GỬI YÊU CẦU SỬA GIÁ TỪ MODAL
   // ==========================================
-  const handleSubmitPriceRequest = (reason: string) => {
+  const handleSubmitPriceRequest = async (reason: string) => {
     if (!requestContractId) return;
 
     const allContracts = JSON.parse(localStorage.getItem('sys_e_contracts') || '[]');
-    const targetContract = allContracts.find((c: any) => c.id === requestContractId);
-    const userName = localStorage.getItem('sys_core_role') === 'SUPER_ADMIN' ? 'Hệ thống Admin' : 'Nhân viên A';
+    const targetContract = contracts.find((c: any) => c.id === requestContractId);
+    const userName = localStorage.getItem('userFullName') || localStorage.getItem('username') || (localStorage.getItem('sys_core_role') === 'SUPER_ADMIN' ? 'Hệ thống Admin' : 'Nhân viên');
+
+    // Nếu hợp đồng thuộc backend, gọi trực tiếp API Backend Next.js
+    if (targetContract?.backendId) {
+      try {
+        await priceService.createRequest(targetContract.backendId, {
+          proposedPrice: Number(String(targetContract.value).replace(/[^0-9]/g, '')) || 5000000,
+          reason: reason
+        });
+      } catch (err) {
+        console.warn("Lỗi gửi yêu cầu giá tới Backend, ghi nhận cục bộ:", err);
+      }
+    }
 
     const newRequest = {
       id: `REQ-${Date.now()}`,
       contractId: requestContractId,
+      backendId: targetContract?.backendId,
       customer: targetContract?.partnerName || 'Khách hàng',
       staff: userName,
       date: new Date().toLocaleString('vi-VN'),
@@ -87,6 +143,21 @@ export default function ContractManagement() {
   };
 
   // ==========================================
+  // XỬ LÝ CHUYỂN TRẠNG THÁI HỢP ĐỒNG (QUẢN LÝ)
+  // ==========================================
+  const handleContractStatus = async (backendId: number, action: 'confirm' | 'handover' | 'return') => {
+    try {
+      if (action === 'confirm') await contractService.confirm(backendId);
+      if (action === 'handover') await contractService.handover(backendId);
+      if (action === 'return') await contractService.returnVehicle(backendId);
+      alert('Thao tác trạng thái hợp đồng thành công!');
+      loadData();
+    } catch (err: any) {
+      alert(`Lỗi: ${err?.response?.data?.message || err.message}`);
+    }
+  };
+
+  // ==========================================
   // XỬ LÝ BẢN NHÁP
   // ==========================================
   const handleDeleteDraft = (id: string) => {
@@ -98,7 +169,7 @@ export default function ContractManagement() {
   };
 
   const totalClients = contracts.length;
-  const eContractCount = contracts.filter(c => c.type === 'E_CONTRACT' || c.status === 'OFFICIAL').length;
+  const eContractCount = contracts.filter(c => c.type === 'E_CONTRACT' || c.status === 'OFFICIAL' || c.status === 'ACTIVE').length;
 
   const displayData = activeTab === 'OFFICIAL' ? contracts : drafts;
   const filteredData = displayData.filter(c =>
@@ -257,7 +328,14 @@ export default function ContractManagement() {
                         </td>
                         <td className="p-4">
                           {activeTab === 'OFFICIAL' ? (
-                            <span className="font-bold text-emerald-600">{formatMoney(item.value || item.vehicle?.price)}</span>
+                            <div>
+                              <span className="font-bold text-emerald-600">{formatMoney(item.value || item.vehicle?.price)}</span>
+                              {item.status && (
+                                <span className="ml-2 text-[10px] font-mono font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                                  {item.status}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded">Đang soạn thảo</span>
                           )}
@@ -273,6 +351,23 @@ export default function ContractManagement() {
                                 <button onClick={() => setViewingContract(item)} className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded flex items-center gap-1 transition-colors">
                                   <Eye className="w-3.5 h-3.5" /> Xem PDF
                                 </button>
+
+                                {/* Các nút chuyển trạng thái cho Quản lý nếu có liên kết Backend */}
+                                {isManager && item.backendId && item.status === 'DRAFT' && (
+                                  <button onClick={() => handleContractStatus(item.backendId, 'confirm')} className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-bold rounded text-xs border border-emerald-200 transition-colors">
+                                    Duyệt HĐ
+                                  </button>
+                                )}
+                                {isManager && item.backendId && item.status === 'CONFIRMED' && (
+                                  <button onClick={() => handleContractStatus(item.backendId, 'handover')} className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-600 font-bold rounded text-xs border border-sky-200 transition-colors">
+                                    Giao xe
+                                  </button>
+                                )}
+                                {isManager && item.backendId && item.status === 'ACTIVE' && (
+                                  <button onClick={() => handleContractStatus(item.backendId, 'return')} className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-600 font-bold rounded text-xs border border-purple-200 transition-colors">
+                                    Trả xe
+                                  </button>
+                                )}
 
                                 {isManager ? (
                                   <button onClick={() => alert('Chức năng sửa giá trực tiếp đang cập nhật')} className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-600 font-bold rounded-lg text-xs border border-sky-200 transition-colors flex items-center gap-1">

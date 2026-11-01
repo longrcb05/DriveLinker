@@ -1,6 +1,6 @@
 ###========================================================================
 ### TẬP HỢP TOÀN BỘ KỊCH BẢN TEST CỦA DỰ ÁN DRIVELINKER
-### Nơi này chứa mọi thứ để anh dễ dàng bấm nút test ở bất kỳ Phase nào
+### Nơi này chứa mọi thứ để bạn dễ dàng bấm nút test ở bất kỳ Phase nào
 ###========================================================================
 
 
@@ -9,6 +9,7 @@
 ### ==========================================================
 
 ### BƯỚC 1: Đăng nhập lấy thẻ Token
+# @name login
 POST http://localhost:8080/api/auth/login
 Content-Type: application/json
 
@@ -18,11 +19,24 @@ Content-Type: application/json
     "password": "123456"
 }
 
+### Lấy token tự động từ response trên (nếu dùng REST Client):
+@authToken = {{login.response.body.data.token}}
+
+### BƯỚC 1B: Lấy thông tin Profile người dùng hiện tại (API /api/auth/me mới hoàn thành)
+GET http://localhost:8080/api/auth/me
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+
+### BƯỚC 1C: Kiểm tra bảo mật /api/auth/me khi KHÔNG có Token (Mong đợi: 403 Forbidden)
+GET http://localhost:8080/api/auth/me
+Content-Type: application/json
+
 
 ### BƯỚC 2A: Tạo Khách Hàng Hợp Lệ (Thành công)
 POST http://localhost:8080/api/customers
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NjE5MDEsImV4cCI6MTc5MTU0ODMwMX0.PKEzh5WmUCPPWYnKDBAqPPbTpCldyD9C4HjiSsAcfMJ85kW4jzkY-dbwR6sGr-0V
+Authorization: Bearer {{authToken}}
 
 {
     "fullName": "Le Thi C test2222",
@@ -35,7 +49,7 @@ Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6I
 ### BƯỚC 2B: Tạo Khách Hàng Thất Bại (Số điện thoại có chứa chữ cái)
 POST http://localhost:8080/api/customers
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NjE5MDEsImV4cCI6MTc5MTU0ODMwMX0.PKEzh5WmUCPPWYnKDBAqPPbTpCldyD9C4HjiSsAcfMJ85kW4jzkY-dbwR6sGr-0V
+Authorization: Bearer {{authToken}}
 
 {
     "fullName": "Nguyen Van B",
@@ -48,7 +62,7 @@ Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6I
 ### BƯỚC 2C: Tạo Khách Hàng Thất Bại (CCCD không đủ 12 số)
 POST http://localhost:8080/api/customers
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NjE5MDEsImV4cCI6MTc5MTU0ODMwMX0.PKEzh5WmUCPPWYnKDBAqPPbTpCldyD9C4HjiSsAcfMJ85kW4jzkY-dbwR6sGr-0V
+Authorization: Bearer {{authToken}}
 
 {
     "fullName": "Le Thi C",
@@ -58,34 +72,34 @@ Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6I
     "address": "Da Nang"
 }
 
-### BƯỚC 3: Lấy danh sách toàn bộ Khách Hàng để kiểm tra
+### BƯỚC 3: Lấy danh sách toàn bộ Khách hàng
 GET http://localhost:8080/api/customers
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NjE5MDEsImV4cCI6MTc5MTU0ODMwMX0.PKEzh5WmUCPPWYnKDBAqPPbTpCldyD9C4HjiSsAcfMJ85kW4jzkY-dbwR6sGr-0V
+Authorization: Bearer {{authToken}}
 
 
-### BƯỚC 4A: Tạo Xe Ô Tô Hợp Lệ (Biển số: 43A-12345)
+### BƯỚC 4A: Tạo Xe Hợp Lệ (Thành công)
 POST http://localhost:8080/api/vehicles
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NjE5MDEsImV4cCI6MTc5MTU0ODMwMX0.PKEzh5WmUCPPWYnKDBAqPPbTpCldyD9C4HjiSsAcfMJ85kW4jzkY-dbwR6sGr-0V
+Authorization: Bearer {{authToken}}
 
 {
-    "licensePlate": "43A-12345",
-    "brand": "TOYOTA",
+    "licensePlate": "43A-999.88",
+    "brand": "VINFAST",
     "vehicleType": "CAR",
-    "model": "VIOS",
-    "color": "TRẮNG",
-    "yearOfManufacture": 2025,
+    "model": "VF8",
+    "color": "XANH",
+    "yearOfManufacture": 2024,
     "status": "AVAILABLE"
 }
 
-### BƯỚC 4B: Tạo Xe Máy Hợp Lệ (Biển số: 43H1-12345)
+### BƯỚC 4B: Tạo Xe Thất Bại (Trùng biển số xe)
 POST http://localhost:8080/api/vehicles
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NjE5MDEsImV4cCI6MTc5MTU0ODMwMX0.PKEzh5WmUCPPWYnKDBAqPPbTpCldyD9C4HjiSsAcfMJ85kW4jzkY-dbwR6sGr-0V
+Authorization: Bearer {{authToken}}
 
 {
-    "licensePlate": "43H1-12345",
+    "licensePlate": "43A-999.88",
     "brand": "HONDA",
     "vehicleType": "MOTORCYCLE",
     "model": "SH",
@@ -94,26 +108,36 @@ Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6I
     "status": "AVAILABLE"
 }
 
-### BƯỚC 4C: Tạo Xe Thất Bại (Biển số quá dài)
-POST http://localhost:8080/api/vehicles
-Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NjE5MDEsImV4cCI6MTc5MTU0ODMwMX0.PKEzh5WmUCPPWYnKDBAqPPbTpCldyD9C4HjiSsAcfMJ85kW4jzkY-dbwR6sGr-0V
-
-{
-    "licensePlate": "43AH-0203008uu",
-    "brand": "HONDA",
-    "vehicleType": "MOTORCYCLE",
-    "model": "VESPA",
-    "color": "TRẮNG",
-    "yearOfManufacture": 2025,
-    "status": "AVAILABLE"
-}
-
-
 ### BƯỚC 5: Lấy danh sách toàn bộ Xe
 GET http://localhost:8080/api/vehicles
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NjE5MDEsImV4cCI6MTc5MTU0ODMwMX0.PKEzh5WmUCPPWYnKDBAqPPbTpCldyD9C4HjiSsAcfMJ85kW4jzkY-dbwR6sGr-0V
+Authorization: Bearer {{authToken}}
+
+
+### BƯỚC 6A: Kiểm tra bảo mật API Hợp đồng - KHÔNG có Token (Mong đợi: 403 Forbidden)
+POST http://localhost:8080/api/contracts
+Content-Type: application/json
+
+{
+    "customerId": 1,
+    "vehicleId": 1,
+    "startTime": "2026-11-05T08:00:00",
+    "endTime": "2026-11-10T17:00:00",
+    "notes": "Hợp đồng thuê xe có cọc"
+}
+
+### BƯỚC 6B: Tạo Hợp đồng Hợp Lệ (CÓ Token - StaffId tự động trích xuất từ Token)
+POST http://localhost:8080/api/contracts
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "customerId": 1,
+    "vehicleId": 1,
+    "startTime": "2026-11-05T08:00:00",
+    "endTime": "2026-11-10T17:00:00",
+    "notes": "Hợp đồng thuê xe kiểm thử Sprint 1"
+}
 
 
 ### ==========================================================
@@ -122,7 +146,6 @@ Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6I
 ### ==========================================================
 
 ### 1. Giả lập phần cứng gửi tọa độ GPS lên Server
-# (Nếu đang mở trang test_websocket.html, bạn sẽ thấy [GPS MỚI] nảy lên!)
 POST http://localhost:8080/api/iot/telemetry
 Content-Type: application/json
 X-Device-Code: PI-001
@@ -137,23 +160,7 @@ X-Device-Token: admin
 }
 
 
-### 2. Giả lập phần cứng gửi GPS lần 2 (Xe đang di chuyển)
-POST http://localhost:8080/api/iot/telemetry
-Content-Type: application/json
-X-Device-Code: PI-001
-X-Device-Token: admin
-
-{
-  "eventId": "{{$guid}}",
-  "latitude": 16.0{{$randomInt 100 999}},
-  "longitude": 108.2{{$randomInt 100 999}},
-  "speed": {{$randomInt 40 80}},
-  "recordedAt": "{{$localDatetime "YYYY-MM-DDTHH:mm:ss"}}"
-}
-
-
-### 3. Giả lập AI phát hiện tài xế nhắm mắt quá lâu
-# (Nếu đang mở trang test_websocket.html, bạn sẽ thấy [BÁO ĐỘNG] màu đỏ chóe!)
+### 2. Giả lập AI phát hiện tài xế nhắm mắt quá lâu
 POST http://localhost:8080/api/iot/alerts
 Content-Type: application/json
 X-Device-Code: PI-001
@@ -169,18 +176,18 @@ X-Device-Token: admin
   "occurredAt": "{{$localDatetime "YYYY-MM-DDTHH:mm:ss"}}"
 }
 
+
 ### ==========================================================
-### PHẦN 3: DASHBOARD & THỐNG KÊ (PHẦN 8)
+### PHẦN 3: DASHBOARD & THỐNG KÊ
 ### (Dùng Token của Admin để lấy dữ liệu thống kê Web)
 ### ==========================================================
 
 ### 1. Lấy thông số Tổng quan để vẽ Dashboard
 GET http://localhost:8080/api/dashboard/summary
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NjE5MDEsImV4cCI6MTc5MTU0ODMwMX0.PKEzh5WmUCPPWYnKDBAqPPbTpCldyD9C4HjiSsAcfMJ85kW4jzkY-dbwR6sGr-0V
+Authorization: Bearer {{authToken}}
 
 ### 2. Lấy Lịch sử GPS của xe để vẽ vết bản đồ (Journey)
-# Thay ID xe ở đường dẫn và ngày giờ cho phù hợp
 GET http://localhost:8080/api/dashboard/vehicles/1/journey?from=2026-10-01T00:00:00&to=2026-10-31T23:59:59
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJvcmdhbml6YXRpb25JZCI6MSwicm9sZSI6IkFETUlOIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3OTE0NjE5MDEsImV4cCI6MTc5MTU0ODMwMX0.PKEzh5WmUCPPWYnKDBAqPPbTpCldyD9C4HjiSsAcfMJ85kW4jzkY-dbwR6sGr-0V
+Authorization: Bearer {{authToken}}

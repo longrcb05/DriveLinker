@@ -10,6 +10,7 @@ import {
   BarChart3, Settings, Handshake, LogOut, Settings2, RefreshCw, XCircle, X,
   ClipboardCheck // ĐÃ BỔ SUNG: Import icon cho menu Duyệt đơn giá
 } from 'lucide-react';
+import { vehicleService } from '../api/vehicleService';
 
 export default function DashboardLayout() {
   const navigate = useNavigate();
@@ -22,6 +23,10 @@ export default function DashboardLayout() {
 
   // State quản lý hiển thị Modal Thêm Xe
   const [showAddModal, setShowAddModal] = useState(false);
+  const [newLicensePlate, setNewLicensePlate] = useState('');
+  const [newBrand, setNewBrand] = useState('');
+  const [newModelYear, setNewModelYear] = useState('');
+  const [isAddingVehicle, setIsAddingVehicle] = useState(false);
 
   useEffect(() => {
     setUserRole(localStorage.getItem('userRole') || 'TENANT_STAFF');
@@ -29,13 +34,13 @@ export default function DashboardLayout() {
   }, [location.pathname]);
 
   const menuItems = [
-    { id: 'overview', label: 'Tổng quan', icon: LayoutDashboard, path: '/overview', roles: ['TENANT_ADMIN', 'TENANT_STAFF', 'SUPER_ADMIN_VIEW'] },
-    { id: 'tracking', label: 'Theo dõi', icon: MapIcon, path: '/tracking', roles: ['TENANT_ADMIN', 'TENANT_STAFF', 'SUPER_ADMIN_VIEW'] },
-    { id: 'analytics', label: 'Phân tích', icon: BarChart3, path: '/analytics', roles: ['TENANT_ADMIN', 'TENANT_STAFF', 'SUPER_ADMIN_VIEW'] },
-    { id: 'partners', label: 'Đối tác & Hợp đồng', icon: Handshake, path: '/partners', roles: ['TENANT_ADMIN', 'TENANT_STAFF', 'SUPER_ADMIN_VIEW'] },
-    // ĐÃ BỔ SUNG: Menu Duyệt đơn giá
-    { id: 'approvals', label: 'Duyệt đơn giá', icon: ClipboardCheck, path: '/approvals', roles: ['TENANT_ADMIN', 'SUPER_ADMIN_VIEW'] },
-    { id: 'settings', label: 'Cài đặt', icon: Settings, path: '/settings', roles: ['TENANT_ADMIN', 'SUPER_ADMIN_VIEW'] },
+    { id: 'overview', label: 'Tổng quan', icon: LayoutDashboard, path: '/overview', roles: ['TENANT_ADMIN', 'ADMIN', 'TENANT_STAFF', 'STAFF', 'SUPER_ADMIN_VIEW'] },
+    { id: 'tracking', label: 'Theo dõi', icon: MapIcon, path: '/tracking', roles: ['TENANT_ADMIN', 'ADMIN', 'TENANT_STAFF', 'STAFF', 'SUPER_ADMIN_VIEW'] },
+    { id: 'analytics', label: 'Phân tích', icon: BarChart3, path: '/analytics', roles: ['TENANT_ADMIN', 'ADMIN', 'TENANT_STAFF', 'STAFF', 'SUPER_ADMIN_VIEW'] },
+    { id: 'partners', label: 'Đối tác & Hợp đồng', icon: Handshake, path: '/partners', roles: ['TENANT_ADMIN', 'ADMIN', 'TENANT_STAFF', 'STAFF', 'SUPER_ADMIN_VIEW'] },
+    // ĐÃ BỔ SUNG: Menu Duyệt đơn giá (Dành cho Quản lý)
+    { id: 'approvals', label: 'Duyệt đơn giá', icon: ClipboardCheck, path: '/approvals', roles: ['TENANT_ADMIN', 'ADMIN', 'SUPER_ADMIN_VIEW'] },
+    { id: 'settings', label: 'Cài đặt', icon: Settings, path: '/settings', roles: ['TENANT_ADMIN', 'ADMIN', 'SUPER_ADMIN_VIEW'] },
   ];
 
   const filteredMenu = menuItems.filter(item => !item.roles || item.roles.includes(userRole));
@@ -62,6 +67,40 @@ export default function DashboardLayout() {
       setSyncState('IDLE');
       alert('Đồng bộ hoàn tất! Manager và Staff của doanh nghiệp đã nhận được bản cập nhật.');
     }, 2000);
+  };
+
+  const handleSaveVehicle = async () => {
+    if (!newLicensePlate.trim()) {
+      alert('Vui lòng nhập biển số xe.');
+      return;
+    }
+
+    setIsAddingVehicle(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await vehicleService.addVehicle({
+          licensePlate: newLicensePlate.trim().toUpperCase(),
+          brand: newBrand.trim().toUpperCase() || 'VINFAST',
+          vehicleType: 'TRUCK',
+          model: newModelYear ? `Model ${newModelYear}` : 'VF8'
+        });
+        alert('Thêm phương tiện mới vào hệ thống thành công!');
+        window.dispatchEvent(new Event('vehicle_updated'));
+      } else {
+        alert('Giả lập lưu dữ liệu thành công!');
+      }
+      setShowAddModal(false);
+      setNewLicensePlate('');
+      setNewBrand('');
+      setNewModelYear('');
+    } catch (err: any) {
+      console.error('Lỗi khi thêm xe:', err);
+      const errMsg = err?.response?.data?.message || err.message || 'Lỗi khi lưu phương tiện.';
+      alert(`Không thể lưu phương tiện: ${errMsg}`);
+    } finally {
+      setIsAddingVehicle(false);
+    }
   };
 
   return (
@@ -137,15 +176,15 @@ export default function DashboardLayout() {
             </button>
             <div className="w-px h-8 bg-slate-200 mx-2"></div>
             <div className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg transition-colors">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isAdminImpersonating ? 'bg-rose-100 text-rose-600 border border-rose-200' : 'bg-sky-100 text-sky-600 border border-sky-200'}`}>
-                {isAdminImpersonating ? 'A' : 'U'}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isAdminImpersonating ? 'bg-rose-100 text-rose-600 border border-rose-200' : (userRole === 'TENANT_ADMIN' || userRole === 'ADMIN') ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : 'bg-sky-100 text-sky-600 border border-sky-200'}`}>
+                {isAdminImpersonating ? 'A' : (userRole === 'TENANT_ADMIN' || userRole === 'ADMIN') ? 'M' : 'S'}
               </div>
               <div>
                 <p className="text-sm font-bold text-slate-700 leading-none">Tài khoản</p>
                 <p className="text-[10px] text-slate-500 mt-1 font-medium tracking-wide">
                   {tenantName} •
-                  <span className={isAdminImpersonating ? 'text-rose-600 font-bold ml-1' : userRole === 'TENANT_ADMIN' ? 'text-emerald-600 font-bold ml-1' : 'text-sky-600 font-bold ml-1'}>
-                    {isAdminImpersonating ? 'ADMIN_HỆ_THỐNG' : userRole}
+                  <span className={isAdminImpersonating ? 'text-rose-600 font-bold ml-1' : (userRole === 'TENANT_ADMIN' || userRole === 'ADMIN') ? 'text-emerald-600 font-bold ml-1' : 'text-sky-600 font-bold ml-1'}>
+                    {isAdminImpersonating ? 'ADMIN_HỆ_THỐNG' : (userRole === 'TENANT_ADMIN' || userRole === 'ADMIN') ? 'QUẢN LÝ' : 'NHÂN VIÊN'}
                   </span>
                 </p>
               </div>
@@ -206,7 +245,9 @@ export default function DashboardLayout() {
                 </label>
                 <input
                   type="text"
-                  placeholder="VD: 43A-123.45"
+                  value={newLicensePlate}
+                  onChange={(e) => setNewLicensePlate(e.target.value)}
+                  placeholder="VD: 43A-12345"
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0EA5E9] focus:ring-1 focus:ring-[#0EA5E9] transition-all uppercase placeholder:normal-case font-medium text-slate-700"
                 />
               </div>
@@ -217,6 +258,8 @@ export default function DashboardLayout() {
                 </label>
                 <input
                   type="text"
+                  value={newBrand}
+                  onChange={(e) => setNewBrand(e.target.value)}
                   placeholder="VD: Hyundai, Toyota, Ford..."
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0EA5E9] focus:ring-1 focus:ring-[#0EA5E9] transition-all font-medium text-slate-700"
                 />
@@ -228,6 +271,8 @@ export default function DashboardLayout() {
                 </label>
                 <input
                   type="number"
+                  value={newModelYear}
+                  onChange={(e) => setNewModelYear(e.target.value)}
                   placeholder="VD: 2023"
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0EA5E9] focus:ring-1 focus:ring-[#0EA5E9] transition-all font-medium text-slate-700"
                 />
@@ -243,13 +288,11 @@ export default function DashboardLayout() {
                 Hủy bỏ
               </button>
               <button
-                onClick={() => {
-                  alert('Giả lập lưu dữ liệu thành công!');
-                  setShowAddModal(false);
-                }}
-                className="px-6 py-2.5 text-sm font-bold text-white bg-[#0EA5E9] hover:bg-sky-600 rounded-xl shadow-sm transition-all active:scale-95"
+                disabled={isAddingVehicle}
+                onClick={handleSaveVehicle}
+                className="px-6 py-2.5 text-sm font-bold text-white bg-[#0EA5E9] hover:bg-sky-600 rounded-xl shadow-sm transition-all active:scale-95 disabled:opacity-50"
               >
-                Lưu phương tiện
+                {isAddingVehicle ? 'Đang lưu...' : 'Lưu phương tiện'}
               </button>
             </div>
 

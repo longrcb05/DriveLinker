@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Truck, User, Lock, Building2, ArrowRight, AlertCircle } from 'lucide-react';
+import authService from '../api/authService';
 
 // === CƠ SỞ DỮ LIỆU GIẢ LẬP (MOCK DATABASE FRONTEND) ===
 const DEMO_DB = {
@@ -30,16 +31,61 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
-    // Bắt đầu luồng kiểm tra logic Multi-tenant
-    setTimeout(() => {
-      const codeInput = tenantCode.trim().toUpperCase();
-      const userInput = username.trim().toLowerCase();
+    const codeInput = tenantCode.trim().toUpperCase();
+    const userInput = username.trim().toLowerCase();
 
+    // 1. Thử xác thực trực tiếp qua Backend Next.js API
+    try {
+      const res = await authService.login({
+        companyCode: codeInput,
+        username: userInput,
+        password: password
+      });
+
+      if (res && res.success && res.data) {
+        const { token, role, username: authUser, organizationId } = res.data;
+        localStorage.setItem('token', token);
+        localStorage.setItem('tenantId', codeInput);
+        localStorage.setItem('tenantCode', codeInput);
+        localStorage.setItem('username', authUser || userInput);
+        if (organizationId) {
+          localStorage.setItem('organizationId', String(organizationId));
+        }
+
+        // Chuẩn hóa role cho tương thích cả logic mới và giao diện cũ
+        const normalizedRole = role === 'ADMIN' ? 'TENANT_ADMIN' : (role === 'STAFF' ? 'TENANT_STAFF' : role);
+        localStorage.setItem('userRole', normalizedRole);
+
+        // Lấy thông tin profile người dùng từ /api/auth/me
+        try {
+          const meRes = await authService.getMe();
+          if (meRes && meRes.success && meRes.data) {
+            localStorage.setItem('tenantName', meRes.data.companyName || meRes.data.companyCode || `Công ty ${codeInput}`);
+            if (meRes.data.fullName) {
+              localStorage.setItem('userFullName', meRes.data.fullName);
+            }
+          } else {
+            localStorage.setItem('tenantName', `Công ty ${codeInput}`);
+          }
+        } catch {
+          localStorage.setItem('tenantName', `Công ty ${codeInput}`);
+        }
+
+        setIsLoading(false);
+        navigate('/overview');
+        return;
+      }
+    } catch (apiErr: any) {
+      console.warn("Backend API login chưa sẵn sàng hoặc không khớp, chuyển tiếp luồng dự phòng DEMO_DB:", apiErr);
+    }
+
+    // 2. Luồng kiểm tra logic Multi-tenant DEMO_DB nguyên bản (Dự phòng khi offline / demo)
+    setTimeout(() => {
       // 1. Tìm Doanh nghiệp theo Mã đăng nhập
       const tenant = DEMO_DB.tenants.find(t => t.code === codeInput);
       if (!tenant) {
@@ -74,6 +120,7 @@ export default function Login() {
       localStorage.setItem('username', userInput);
       localStorage.setItem('userRole', userRoleForTenant);
 
+      setIsLoading(false);
       navigate('/overview');
     }, 600); // Giả lập ping mạng 600ms
   };

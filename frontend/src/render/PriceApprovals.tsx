@@ -3,8 +3,9 @@
  * @description Màn hình Manager xử lý yêu cầu. Cho phép nhập trực tiếp đơn giá mới.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Clock, ChevronRight, Edit3, X, CheckCircle2 } from 'lucide-react';
+import priceService from '../api/priceService';
 
 export default function PriceApprovals() {
     const [requests, setRequests] = useState<any[]>([]);
@@ -16,9 +17,39 @@ export default function PriceApprovals() {
     const [newPrice, setNewPrice] = useState<string>('');
     const [managerNote, setManagerNote] = useState<string>('');
 
-    const loadData = () => {
-        setRequests(JSON.parse(localStorage.getItem('sys_price_requests') || '[]'));
+    const loadData = async () => {
+        let localReqs = JSON.parse(localStorage.getItem('sys_price_requests') || '[]');
         setContracts(JSON.parse(localStorage.getItem('sys_contracts') || '[]'));
+
+        try {
+            const token = localStorage.getItem('token');
+            if (token) {
+                const res = await priceService.getRequests();
+                if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+                    const beReqs = res.data.map((r: any) => ({
+                        id: `REQ-${r.id}`,
+                        backendId: r.id,
+                        contractId: `HD-${r.rentalContractId}`,
+                        customer: r.rentalContract?.customer?.fullName || 'Khách hàng',
+                        staff: r.requestedBy?.fullName || r.requestedBy?.username || 'Nhân viên',
+                        date: r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : '',
+                        reason: r.reason,
+                        status: r.status,
+                        managerNote: r.managerNote || '',
+                        proposedPrice: r.proposedPrice,
+                        currentPrice: r.rentalContract?.price || 0
+                    }));
+
+                    const beIds = new Set(beReqs.map((b: any) => b.id));
+                    const remainingLocal = localReqs.filter((l: any) => !beIds.has(l.id));
+                    localReqs = [...beReqs, ...remainingLocal];
+                }
+            }
+        } catch (err) {
+            console.warn("Không thể tải yêu cầu giá từ Backend, dùng dữ liệu cục bộ:", err);
+        }
+
+        setRequests(localReqs);
     };
 
     useEffect(() => {
@@ -32,15 +63,29 @@ export default function PriceApprovals() {
     // Mở modal xử lý
     const openProcessModal = (req: any) => {
         const contract = contracts.find(c => c.id === req.contractId);
-        setProcessingReq({ ...req, currentPrice: contract?.price || 0 });
-        setNewPrice('');
+        setProcessingReq({ ...req, currentPrice: contract?.price || req.currentPrice || 0 });
+        setNewPrice(req.proposedPrice ? String(req.proposedPrice) : '');
         setManagerNote('');
     };
 
     // Submit phê duyệt hoặc từ chối
-    const submitAction = (action: 'APPROVED' | 'REJECTED') => {
+    const submitAction = async (action: 'APPROVED' | 'REJECTED') => {
         if (action === 'APPROVED' && !newPrice) return alert('Vui lòng nhập đơn giá mới để phê duyệt.');
         if (action === 'REJECTED' && !managerNote) return alert('Vui lòng nhập ghi chú lý do từ chối.');
+
+        if (processingReq?.backendId) {
+            try {
+                if (action === 'APPROVED') {
+                    await priceService.approve(processingReq.backendId, managerNote || undefined);
+                } else {
+                    await priceService.reject(processingReq.backendId, managerNote);
+                }
+            } catch (beErr: any) {
+                console.warn("Lỗi cập nhật trên Backend:", beErr);
+                alert(`Lỗi Backend: ${beErr?.response?.data?.message || beErr.message}`);
+                return;
+            }
+        }
 
         // 1. Update Request Status
         const updatedRequests = requests.map(r =>

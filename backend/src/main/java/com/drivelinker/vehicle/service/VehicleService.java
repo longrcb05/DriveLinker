@@ -61,7 +61,7 @@ public class VehicleService {
                 }
             }
         } else {
-             throw new RuntimeException("Loại xe (vehicleType) phải là CAR, TRUCK hoặc MOTORCYCLE");
+            throw new RuntimeException("Loại xe (vehicleType) phải là CAR, TRUCK hoặc MOTORCYCLE");
         }
     }
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import contractService from '../api/contractService';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import {
@@ -190,10 +191,26 @@ export default function CreateContract() {
         setTimeout(() => { document.title = originalTitle; }, 1000);
     };
 
-    const handleFinalizeContract = () => {
+        const handleFinalizeContract = async () => {
         if (!validateForm()) return;
         setIsSaving(true);
         try {
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    await contractService.create({
+                        customerId: 1,
+                        vehicleId: 1,
+                        startTime: formData.rentStartDate ? new Date(formData.rentStartDate).toISOString() : new Date().toISOString(),
+                        endTime: formData.rentEndDate ? new Date(formData.rentEndDate).toISOString() : new Date(Date.now() + 86400000 * 3).toISOString(),
+                        price: Number(formData.rentPrice) || 1000000,
+                        depositAmount: Number(formData.depositAmount) || 0,
+                        notes: `Hợp đồng thuê xe ${formData.carPlate || 'tự lái'} - Khách: ${formData.renterName}`
+                    });
+                } catch (beErr) {
+                    console.warn('Lỗi ghi nhận hợp đồng Backend:', beErr);
+                }
+            }
             const contractId = `HD-${Date.now().toString().slice(-6)}`;
             const newContract = {
                 id: contractId,
