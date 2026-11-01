@@ -1,17 +1,30 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import DashboardLayout from './UI/DashboardLayout';
 
-// Import toàn bộ các file trong thư mục render
 import Login from './render/Login';
 import Overview from './render/Overview';
 import Settings from './render/Settings';
-import TenantManager from './render/TenantManager';
-import FleetVehicles from './render/FleetVehicles';
 import LiveTracking from './render/LiveTracking';
-import Alerts from './render/Alerts';
 import Analytics from './render/Analytics';
-import SystemLogs from './render/SystemLogs';
 import ContractManagement from './render/ContractManagement';
+import CreateContract from './render/CreateContract';
+// ĐÃ BỔ SUNG: Import trang Duyệt đơn giá
+import PriceApprovals from './render/PriceApprovals';
+
+import AdminLogin from './render/admin/AdminLogin';
+import AdminTenantList from './render/admin/AdminTenantList';
+
+// Middleware bảo vệ Core Admin - SỬ DỤNG SESSION_STORAGE ĐỂ BẢO MẬT TỐI ĐA
+const RequireAdminAuth = ({ children }: { children: React.ReactNode }) => {
+  // Chỉ lưu tạm thời, tắt tab trình duyệt là tự động mất quyền Admin
+  const role = sessionStorage.getItem('sys_core_role');
+  const location = useLocation();
+
+  if (role !== 'SUPER_ADMIN') {
+    return <Navigate to="/overview/admin/login" state={{ from: location }} replace />;
+  }
+  return <>{children}</>;
+};
 
 export default function App() {
   return (
@@ -20,24 +33,35 @@ export default function App() {
         <Route path="/" element={<Navigate to="/portal/login" replace />} />
         <Route path="/portal/login" element={<Login />} />
 
-        {/* CỔNG THÔNG TIN HỢP NHẤT (UNIFIED PORTAL) */}
-        <Route element={<DashboardLayout />}>
+        {/* =========================================================
+            KHU VỰC 1: CORE ADMIN LÕI (BẢO MẬT & ĐỘC LẬP HOÀN TOÀN)
+            Phải đặt bên ngoài DashboardLayout để không dính Sidebar
+            ========================================================= */}
+        <Route path="/overview/admin/login" element={<AdminLogin />} />
+        <Route
+          path="/overview/admin"
+          element={
+            <RequireAdminAuth>
+              <AdminTenantList />
+            </RequireAdminAuth>
+          }
+        />
 
-          {/* Nhóm chức năng dùng chung */}
+        {/* =========================================================
+            KHU VỰC 2: GIAO DIỆN KHÁCH HÀNG (Manager, Staff, Admin nhập vai)
+            ========================================================= */}
+        <Route element={<DashboardLayout />}>
           <Route path="/overview" element={<Overview />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/vehicles" element={<FleetVehicles />} />
           <Route path="/tracking" element={<LiveTracking />} />
-          <Route path="/alerts" element={<Alerts />} />
           <Route path="/analytics" element={<Analytics />} />
 
-          {/* Route dành cho phần Đối tác & Hợp đồng (Partners & Leases) */}
+          {/* Trang danh sách Hợp đồng / Đối tác */}
           <Route path="/partners" element={<ContractManagement />} />
+          <Route path="/create-contract" element={<CreateContract />} />
 
-          {/* Nhóm chức năng ĐẶC QUYỀN của System Admin */}
-          <Route path="/sysadmin/tenants" element={<TenantManager />} />
-          <Route path="/sysadmin/logs" element={<SystemLogs />} />
-
+          {/* ĐÃ BỔ SUNG: Route dành cho trang Duyệt đơn giá */}
+          <Route path="/approvals" element={<PriceApprovals />} />
         </Route>
       </Routes>
     </BrowserRouter>

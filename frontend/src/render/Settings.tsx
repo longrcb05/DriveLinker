@@ -1,29 +1,26 @@
 /**
  * @file Settings.tsx
  * @description Phân hệ Cài đặt hệ thống (Settings) dành cho Quản trị viên doanh nghiệp (Tenant Admin).
- * Module này quản lý các thiết lập bảo mật (Mã đăng nhập doanh nghiệp), quản trị nhân sự (thêm, sửa, vô hiệu hóa, duyệt),
- * và ghi nhận nhật ký thao tác (Audit Logs). Toàn bộ dữ liệu được mô phỏng lưu trữ qua `localStorage`
- * với cơ chế cô lập dữ liệu đa tiền thuê (Multi-tenant Isolation) dựa trên `tenantId`.
+ * Module này quản lý:
+ * 1. Thiết lập bảo mật (Mã đăng nhập doanh nghiệp).
+ * 2. Cấu hình dịch vụ lõi (Chỉ System Admin mới được chỉnh sửa).
+ * 3. Quản lý thiết bị truy cập (Giám sát PC, Laptop, Mobile đăng nhập vào hệ thống).
+ * 4. Nhật ký thao tác (Audit Logs).
  */
 
 import React, { useState, useEffect } from 'react';
 import {
-  Building2, MapPin, Camera, Users, Shield, Key,
-  CheckCircle2, AlertCircle, Edit2, Trash2, Check, X, Eye, EyeOff,
-  UserPlus, History, Clock, ShieldAlert, UserCheck
+  Key, CheckCircle2, AlertCircle, Eye, EyeOff,
+  History, Clock, ShieldAlert,
+  Smartphone, Monitor, Laptop, Info, AlertTriangle, Cpu, Check, X,
+  Shield, Camera, MapPin, Bell, Lock, Save, Terminal,
+  ClipboardEdit, CheckSquare // Đã thêm import 2 icon này
 } from 'lucide-react';
 
 /**
  * Hàm khởi tạo dữ liệu mẫu (Seed Data) cho môi trường phát triển.
- * - Bài toán: Hệ thống cần dữ liệu ban đầu để hiển thị giao diện và cho phép thao tác nếu cơ sở dữ liệu trống.
- * - Đầu vào: Trạng thái hiện tại của `localStorage`.
- * - Nguyên lý: Khởi tạo các bảng `sys_tenants`, `sys_users`, và `sys_logs` nếu chúng chưa tồn tại.
- * - Đặc biệt: Sử dụng phương pháp Tìm kiếm tuần tự (Linear Search) thông qua hàm `Array.prototype.some`
- *   để kiểm tra xem Công ty A có tài khoản nào đang chờ duyệt hay không. Nếu không, tự động thêm một
- *   tài khoản mới để đảm bảo chức năng "Duyệt tài khoản" luôn có dữ liệu để kiểm thử.
  */
 const initDemoData = () => {
-  // 1. Khởi tạo danh sách Doanh nghiệp (Tenants)
   if (!localStorage.getItem('sys_tenants')) {
     localStorage.setItem('sys_tenants', JSON.stringify([
       { id: 'COMPANY_A', name: 'Demo CTY A', code: 'CTYA26' },
@@ -32,49 +29,31 @@ const initDemoData = () => {
     ]));
   }
 
-  // 2. Khởi tạo danh sách Người dùng (Users)
-  let currentUsers = JSON.parse(localStorage.getItem('sys_users') || '[]');
-  if (currentUsers.length === 0) {
-    currentUsers = [
-      { id: 'U1', tenantId: 'COMPANY_A', name: 'Nguyễn Văn A', email: 'admin@drivelinker.vn', role: 'TENANT_ADMIN', status: 'ACTIVE', requestTime: '2026-10-20T10:00:00' },
-      { id: 'U2', tenantId: 'COMPANY_A', name: 'Trần Thị B', email: 'nhanvien1@drivelinker.vn', role: 'TENANT_STAFF', status: 'ACTIVE', requestTime: '2026-10-25T14:30:00' },
-      { id: 'U4', tenantId: 'COMPANY_B', name: 'Phạm Văn D', email: 'admin_b@drivelinker.vn', role: 'TENANT_ADMIN', status: 'ACTIVE', requestTime: '2026-10-20T10:00:00' }
-    ];
-  }
-
-  // 3. Tự động bơm dữ liệu kiểm thử (Mock Data Injection)
-  // Duyệt qua mảng users để tìm tài khoản trạng thái PENDING của COMPANY_A
-  const hasPending = currentUsers.some((u: any) => u.tenantId === 'COMPANY_A' && u.status === 'PENDING');
-  if (!hasPending) {
-    currentUsers.push({
-      id: `U_TEST_${Date.now()}`,
-      tenantId: 'COMPANY_A',
-      name: 'Hoàng Văn F (Tài khoản mới)',
-      email: `nhanvien_${Date.now().toString().slice(-4)}@drivelinker.vn`,
-      role: 'TENANT_STAFF',
-      status: 'PENDING',
-      requestTime: new Date().toISOString()
-    });
-  }
-  localStorage.setItem('sys_users', JSON.stringify(currentUsers));
-
-  // 4. Khởi tạo mảng Nhật ký hệ thống trống
   if (!localStorage.getItem('sys_logs')) {
     localStorage.setItem('sys_logs', JSON.stringify([]));
   }
+
+  // KHỞI TẠO DỮ LIỆU THIẾT BỊ TRUY CẬP (Có thiết bị đang chờ duyệt)
+  if (!localStorage.getItem('sys_access_devices')) {
+    localStorage.setItem('sys_access_devices', JSON.stringify([
+      { id: 'DEV-001', tenantId: 'COMPANY_A', name: 'MacBook Pro', type: 'Laptop', ip: '113.190.23.44', account: 'manager@drivelinker.vn', lastLogin: '2026-10-28 08:00', status: 'APPROVED', os: 'macOS', browser: 'Safari' },
+      { id: 'DEV-002', tenantId: 'COMPANY_A', name: 'iPhone 15 Pro', type: 'Mobile', ip: '14.232.11.22', account: 'nhanvien1@drivelinker.vn', lastLogin: '2026-10-28 09:15', status: 'LOCKED', os: 'iOS 17.1', browser: 'Chrome' },
+      { id: 'DEV-003', tenantId: 'COMPANY_A', name: 'Windows PC', type: 'Desktop', ip: '113.190.23.44', account: 'admin@drivelinker.vn', lastLogin: '2026-10-27 14:00', status: 'APPROVED', os: 'Windows 11', browser: 'Cốc Cốc' },
+      { id: 'DEV-004', tenantId: 'COMPANY_A', name: 'iPad Air 5', type: 'Mobile', ip: '113.190.23.12', account: 'sale1@drivelinker.vn', lastLogin: 'Vừa xong', status: 'PENDING', os: 'iPadOS 17', browser: 'Safari' },
+      { id: 'DEV-005', tenantId: 'COMPANY_A', name: 'Dell XPS 15', type: 'Laptop', ip: '113.190.23.12', account: 'sale2@drivelinker.vn', lastLogin: 'Vừa xong', status: 'PENDING', os: 'Windows 11', browser: 'Edge' }
+    ]));
+  }
 };
 
-/**
- * Component chính quản lý trang Cài đặt (Settings).
- * Chịu trách nhiệm render giao diện và xử lý toàn bộ logic nghiệp vụ liên quan đến Tenant Admin.
- */
 export default function Settings() {
-  // Lấy thông tin định danh và phân quyền từ phiên đăng nhập (Session) hiện tại
   const [userRole] = useState(localStorage.getItem('userRole') || 'TENANT_STAFF');
   const [tenantId] = useState(localStorage.getItem('tenantId') || 'COMPANY_A');
   const currentUserEmail = localStorage.getItem('username') || 'admin@drivelinker.vn';
+  
+  // KIỂM TRA QUYỀN SYSTEM ADMIN NHẬP VAI
+  const isAdminImpersonating = localStorage.getItem('isAdminImpersonating') === 'true';
 
-  // --- Trạng thái quản lý Mã đăng nhập doanh nghiệp ---
+  // --- Trạng thái: Mã doanh nghiệp ---
   const [currentCode, setCurrentCode] = useState('');
   const [showCode, setShowCode] = useState(false);
   const [isEditingCode, setIsEditingCode] = useState(false);
@@ -82,228 +61,184 @@ export default function Settings() {
   const [confirmCode, setConfirmCode] = useState('');
   const [codeMessage, setCodeMessage] = useState({ type: '', text: '' });
 
-  // --- Trạng thái quản lý Danh sách Nhân sự & Modal Thêm/Sửa ---
-  const [staffList, setStaffList] = useState<any[]>([]);
-  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
-  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
-  const [staffForm, setStaffForm] = useState({ name: '', email: '', role: 'TENANT_STAFF', status: 'ACTIVE' });
-  const [staffMessage, setStaffMessage] = useState({ type: '', text: '' });
+  // --- Trạng thái: Cấu hình dịch vụ lõi ---
+  const [coreServices, setCoreServices] = useState({
+    gpsTracking: true,
+    aiCamera: false,
+    speedAlert: true,
+  });
 
-  // --- Trạng thái quản lý Modal Duyệt tài khoản ---
+  // --- Trạng thái: Thiết bị truy cập ---
+  const [deviceList, setDeviceList] = useState<any[]>([]);
+  const [deviceAnomaly, setDeviceAnomaly] = useState<any[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
+
+  // --- Trạng thái: Xét duyệt thiết bị (MỚI) ---
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [approvalNotes, setApprovalNotes] = useState<{[key: string]: string}>({});
 
-  // --- Trạng thái quản lý Lịch sử thao tác ---
+  // --- Trạng thái: Lịch sử ---
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
 
-  /**
-   * Theo dõi vòng đời Component: Khởi tạo dữ liệu mẫu và nạp dữ liệu thực tế
-   * mỗi khi Component được render lần đầu hoặc khi định danh `tenantId` thay đổi.
-   */
   useEffect(() => {
+    localStorage.removeItem('sys_access_devices'); // Hỗ trợ reload lại demo data
     initDemoData();
     loadData();
   }, [tenantId]);
 
-  /**
-   * Tải và cô lập dữ liệu (Data Loading & Isolation).
-   * Mục tiêu: Chỉ lấy dữ liệu thuộc về doanh nghiệp hiện tại (Dựa vào tenantId).
-   */
   const loadData = () => {
-    // 1. Tải thông tin công ty để lấy mã đăng nhập
+    // 1. Tải Mã CTY
     const tenants = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
     const currentTenant = tenants.find((t: any) => t.id === tenantId);
     if (currentTenant) setCurrentCode(currentTenant.code);
 
-    // 2. Tải danh sách nhân sự: Sử dụng Lọc mảng (Array Filtering) để cô lập dữ liệu nhân sự
-    const allUsers = JSON.parse(localStorage.getItem('sys_users') || '[]');
-    setStaffList(allUsers.filter((u: any) => u.tenantId === tenantId));
-
-    // 3. Tải và Sắp xếp nhật ký: Lọc theo tenantId, sau đó dùng Thuật toán Sắp xếp (Sorting Algorithm)
-    // dựa trên thời gian (timestamp) giảm dần để bản ghi mới nhất luôn nằm trên cùng.
+    // 2. Tải Lịch sử
     const allLogs = JSON.parse(localStorage.getItem('sys_logs') || '[]');
-    setActivityLogs(
-      allLogs
-        .filter((l: any) => l.tenantId === tenantId)
-        .sort((a: any, b: any) => b.timestamp - a.timestamp)
-    );
+    setActivityLogs(allLogs.filter((l: any) => l.tenantId === tenantId).sort((a: any, b: any) => b.timestamp - a.timestamp));
+
+    // 3. Tải Thiết bị truy cập & Phân tích IP
+    const allDevices = JSON.parse(localStorage.getItem('sys_access_devices') || '[]');
+    const tenantDevices = allDevices.filter((d: any) => d.tenantId === tenantId);
+    setDeviceList(tenantDevices);
+
+    // Thuật toán phát hiện xung đột IP
+    const ipMap = new Map();
+    tenantDevices.forEach((d: any) => {
+      if (!ipMap.has(d.ip)) ipMap.set(d.ip, new Set());
+      ipMap.get(d.ip).add(d.account);
+    });
+
+    const conflicts = [];
+    for (let [ip, accounts] of ipMap.entries()) {
+      if (accounts.size > 1) conflicts.push({ ip, accounts: Array.from(accounts) });
+    }
+    setDeviceAnomaly(conflicts);
   };
 
   /**
-   * Mảng dẫn xuất (Derived State) lưu các tài khoản đang chờ duyệt.
-   * Cập nhật tự động mỗi khi `staffList` thay đổi.
-   */
-  const pendingStaffList = staffList.filter(s => s.status === 'PENDING');
-
-  /**
-   * Ghi nhận Nhật ký thao tác (Audit Log).
-   * @param {string} action - Hành động vừa thực hiện (VD: 'Thêm nhân sự mới').
-   * @param {string} target - Đối tượng chịu tác động (VD: email của nhân sự).
-   * @param {string} result - Kết quả thao tác (Mặc định: 'Thành công').
+   * HÀM GHI NHẬT KÝ ĐA LUỒNG (Bổ sung Bắn log về Admin Core)
    */
   const logActivity = (action: string, target: string, result: string = 'Thành công') => {
+    // 1. GHI LOG CHO DOANH NGHIỆP TẠI CHỖ
     const allLogs = JSON.parse(localStorage.getItem('sys_logs') || '[]');
     const newLog = {
-      id: `LOG_${Date.now()}`,
-      tenantId,
-      user: currentUserEmail,
-      action,
-      target,
-      result,
-      timestamp: Date.now(),
-      timeStr: new Date().toLocaleString('vi-VN')
+      id: `LOG_${Date.now()}`, tenantId, user: currentUserEmail, action, target, result,
+      timestamp: Date.now(), timeStr: new Date().toLocaleString('vi-VN')
     };
-    // Ghi nối bản ghi mới vào đầu mảng
     localStorage.setItem('sys_logs', JSON.stringify([newLog, ...allLogs]));
-    loadData(); // Tải lại danh sách log để cập nhật giao diện
+    loadData(); // Tự động load lại sau khi log
+
+    // 2. NẾU LÀ ADMIN NHẬP VAI -> BẮN THÊM LOG VỀ BẢNG ĐIỀU KHIỂN LÕI
+    if (isAdminImpersonating) {
+      const adminName = sessionStorage.getItem('sys_core_admin_name') || 'Quản trị viên';
+      const tenantName = localStorage.getItem('tenantName') || 'Doanh nghiệp';
+      const coreLogs = JSON.parse(localStorage.getItem('sys_core_audit_logs') || '[]');
+
+      // Phân loại nhãn hành động cho dễ nhìn bên bảng Admin
+      let coreAction = 'THAY ĐỔI';
+      if (action.includes('Cập nhật trạng thái thiết bị')) coreAction = 'XÉT DUYỆT';
+      if (action.includes('Cấu hình dịch vụ')) coreAction = 'CẤU HÌNH';
+      if (action.includes('Đổi mã')) coreAction = 'BẢO MẬT';
+
+      const newCoreLog = {
+        id: Date.now() + 1, // +1 để đảm bảo ID không trùng
+        time: new Date().toLocaleString('vi-VN'),
+        admin: adminName,
+        action: coreAction,
+        details: `${action}: ${target} (tại ${tenantName})`
+      };
+      
+      localStorage.setItem('sys_core_audit_logs', JSON.stringify([newCoreLog, ...coreLogs]));
+    }
   };
 
-  /**
-   * Xử lý thay đổi Mã đăng nhập doanh nghiệp.
-   * - Xác thực chuỗi nhập vào: Đúng 6 ký tự, chỉ gồm chữ cái và số.
-   * - Xác thực nghiệp vụ: Phải khớp với mã xác nhận, khác mã cũ.
-   * - Xác thực duy nhất toàn cục: Không được trùng với mã của bất kỳ Tenant nào khác.
-   */
+  // ================= LOGIC MÃ DOANH NGHIỆP =================
   const handleSaveCode = () => {
     setCodeMessage({ type: '', text: '' });
-
-    // Biểu thức chính quy (Regular Expression) giới hạn chính xác 6 ký tự Alphanumeric.
     const codeRegex = /^[A-Za-z0-9]{6}$/;
 
-    // Các bước kiểm tra tính hợp lệ (Validation)
     if (!codeRegex.test(newCode)) return setCodeMessage({ type: 'error', text: 'Mã doanh nghiệp phải gồm đúng 6 ký tự chữ và số.' });
     if (newCode !== confirmCode) return setCodeMessage({ type: 'error', text: 'Mã xác nhận không khớp.' });
     if (newCode.toUpperCase() === currentCode.toUpperCase()) return setCodeMessage({ type: 'error', text: 'Mã mới phải khác mã hiện tại.' });
 
-    // Kiểm tra tính duy nhất: Tìm kiếm tuần tự trong toàn bộ hệ thống để đảm bảo không trùng mã
     const tenants = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
     if (tenants.some((t: any) => t.code.toUpperCase() === newCode.toUpperCase())) {
       return setCodeMessage({ type: 'error', text: 'Mã doanh nghiệp này đã được sử dụng.' });
     }
 
-    // Tiến hành cập nhật bằng cách ánh xạ (mapping) mảng dữ liệu cũ sang cấu trúc mới
     const updatedTenants = tenants.map((t: any) => t.id === tenantId ? { ...t, code: newCode.toUpperCase() } : t);
     localStorage.setItem('sys_tenants', JSON.stringify(updatedTenants));
     localStorage.setItem('tenantCode', newCode.toUpperCase());
 
-    // Ghi Audit Log
-    logActivity('Đổi mã doanh nghiệp', `CTY ID: ${tenantId}`);
+    logActivity('Đổi mã doanh nghiệp', `Mã mới: ${newCode.toUpperCase()}`);
 
-    // Dọn dẹp trạng thái UI
     setCurrentCode(newCode.toUpperCase());
     setIsEditingCode(false);
     setNewCode(''); setConfirmCode('');
     setCodeMessage({ type: 'success', text: 'Đổi mã doanh nghiệp thành công. Mã cũ đã vô hiệu hóa.' });
-
-    // Ẩn thông báo sau 5 giây
     setTimeout(() => setCodeMessage({ type: '', text: '' }), 5000);
   };
 
-  /**
-   * Chuẩn bị trạng thái để mở Modal Thêm/Sửa nhân sự.
-   * @param {any} staff - Đối tượng nhân sự (Nếu null -> Thêm mới, Nếu có dữ liệu -> Chế độ Sửa).
-   */
-  const openStaffModal = (staff: any = null) => {
-    setStaffMessage({ type: '', text: '' });
-    if (staff) {
-      setEditingStaffId(staff.id);
-      setStaffForm({ name: staff.name, email: staff.email, role: staff.role, status: staff.status });
-    } else {
-      setEditingStaffId(null);
-      setStaffForm({ name: '', email: '', role: 'TENANT_STAFF', status: 'ACTIVE' });
-    }
-    setIsStaffModalOpen(true);
-  };
+  // ================= LOGIC THIẾT BỊ TRUY CẬP =================
+  const handleDeviceAction = (id: string, action: 'APPROVED' | 'REJECTED' | 'LOCKED', customNote?: string) => {
+    const actionText = action === 'LOCKED' ? 'khóa' : action === 'APPROVED' ? 'mở khóa/duyệt' : 'từ chối';
+    
+    // Xử lý ghi chú
+    const finalNote = customNote !== undefined ? customNote : approvalNotes[id] || '';
 
-  /**
-   * Lưu thông tin Nhân sự (Create/Update).
-   * - Xác thực đầu vào cơ bản (Tên, Email).
-   * - Xác thực nghiệp vụ: Email phải là duy nhất trên toàn hệ thống (cả các doanh nghiệp khác).
-   */
-  const saveStaff = () => {
-    // 1. Xác thực trường dữ liệu bắt buộc
-    if (!staffForm.name || !staffForm.email) return setStaffMessage({ type: 'error', text: 'Vui lòng nhập đủ Họ tên và Email.' });
+    if (window.confirm(`Xác nhận ${actionText} thiết bị này?`)) {
+      const allDevices = JSON.parse(localStorage.getItem('sys_access_devices') || '[]');
+      const updated = allDevices.map((d: any) => d.id === id && d.tenantId === tenantId ? { ...d, status: action, note: finalNote } : d);
+      localStorage.setItem('sys_access_devices', JSON.stringify(updated));
+      
+      let logTarget = `Chuyển thiết bị ID ${id} thành ${action}`;
+      if (finalNote) logTarget += ` (Ghi chú: ${finalNote})`;
 
-    const allUsers = JSON.parse(localStorage.getItem('sys_users') || '[]');
-
-    // 2. Xác thực tính duy nhất của Email toàn cục (loại trừ tài khoản đang sửa)
-    const isEmailExist = allUsers.some((u: any) => u.email.toLowerCase() === staffForm.email.toLowerCase() && u.id !== editingStaffId);
-    if (isEmailExist) return setStaffMessage({ type: 'error', text: 'Email này đã tồn tại trong hệ thống.' });
-
-    // 3. Xử lý ghi dữ liệu dựa trên ngữ cảnh (Sửa hay Thêm mới)
-    if (editingStaffId) {
-      // Chế độ Sửa (Update)
-      const updatedUsers = allUsers.map((u: any) => u.id === editingStaffId ? { ...u, ...staffForm } : u);
-      localStorage.setItem('sys_users', JSON.stringify(updatedUsers));
-      logActivity('Cập nhật nhân sự', staffForm.email);
-    } else {
-      // Chế độ Thêm mới (Create)
-      const newUser = { id: `U_${Date.now()}`, tenantId, ...staffForm, requestTime: new Date().toISOString() };
-      localStorage.setItem('sys_users', JSON.stringify([newUser, ...allUsers]));
-      logActivity('Thêm nhân sự mới', staffForm.email);
-    }
-
-    setIsStaffModalOpen(false);
-    loadData();
-  };
-
-  /**
-   * Vô hiệu hóa Nhân sự (Soft Delete).
-   * - Nguyên lý: Không xóa hẳn dòng dữ liệu trong DB để bảo toàn lịch sử nghiệp vụ (đơn hàng, hành trình xe).
-   *   Thay vào đó, chuyển trạng thái thành 'DISABLED'.
-   * - Ràng buộc: Không tự vô hiệu hóa chính mình, không vô hiệu hóa Admin cuối cùng.
-   * @param {any} staff - Đối tượng nhân sự cần vô hiệu hóa.
-   */
-  const handleDisableStaff = (staff: any) => {
-    // Ngăn chặn tự tử (Self-lockout prevention)
-    if (staff.email === currentUserEmail) return alert("Hệ thống từ chối: Bạn không thể tự vô hiệu hóa tài khoản của chính mình.");
-
-    // Ngăn chặn vô hiệu hóa quản trị viên cuối cùng (Last Admin lock prevention)
-    const activeAdmins = staffList.filter(s => s.role === 'TENANT_ADMIN' && s.status === 'ACTIVE');
-    if (staff.role === 'TENANT_ADMIN' && activeAdmins.length <= 1) {
-      return alert("Cảnh báo: Không thể vô hiệu hóa Quản trị viên cuối cùng của doanh nghiệp.");
-    }
-
-    if (window.confirm(`Xác nhận vô hiệu hóa tài khoản của ${staff.name}?\nLịch sử chuyến xe của tài xế này vẫn sẽ được giữ lại.`)) {
-      const allUsers = JSON.parse(localStorage.getItem('sys_users') || '[]');
-      const updatedUsers = allUsers.map((u: any) => u.id === staff.id ? { ...u, status: 'DISABLED' } : u);
-      localStorage.setItem('sys_users', JSON.stringify(updatedUsers));
-
-      logActivity('Vô hiệu hóa tài khoản', staff.email);
+      logActivity(`Cập nhật trạng thái thiết bị`, logTarget);
       loadData();
+
+      // Clear note sau khi duyệt xong
+      const newNotes = {...approvalNotes};
+      delete newNotes[id];
+      setApprovalNotes(newNotes);
+
+      if (selectedDevice && selectedDevice.id === id) {
+        setSelectedDevice({ ...selectedDevice, status: action, note: finalNote });
+      }
     }
   };
 
-  /**
-   * Xử lý phê duyệt (Duyệt/Từ chối) tài khoản nhân sự mới đăng ký.
-   * @param {string} userId - Mã ID nhân sự cần xét duyệt.
-   * @param {'ACTIVE' | 'REJECTED'} action - Trạng thái mới muốn gán.
-   * @param {string} userName - Tên nhân sự (dùng hiển thị thông báo).
-   * @param {string} email - Email (dùng để ghi log).
-   */
-  const handleApproval = (userId: string, action: 'ACTIVE' | 'REJECTED', userName: string, email: string) => {
-    const actionText = action === 'ACTIVE' ? 'Duyệt' : 'Từ chối';
-    if (!window.confirm(`Xác nhận ${actionText.toLowerCase()} yêu cầu tham gia của ${userName}?`)) return;
-
-    // Tìm và cập nhật đúng User thuộc Tenant hiện tại (bảo mật tránh thao tác chéo)
-    const allUsers = JSON.parse(localStorage.getItem('sys_users') || '[]');
-    const updatedUsers = allUsers.map((u: any) => u.id === userId && u.tenantId === tenantId ? { ...u, status: action } : u);
-
-    localStorage.setItem('sys_users', JSON.stringify(updatedUsers));
-    logActivity(`${actionText} yêu cầu tham gia`, email);
-    loadData();
-
-    // Logic đóng modal thông minh: Nếu xử lý xong người cuối cùng đang chờ, tự động đóng Modal
-    const remainingPending = updatedUsers.filter((u: any) => u.tenantId === tenantId && u.status === 'PENDING');
-    if (remainingPending.length === 0) {
-      setIsApprovalModalOpen(false);
+  const getDeviceIcon = (type: string) => {
+    switch (type) {
+      case 'Laptop': return <Laptop className="w-5 h-5 text-slate-500" />;
+      case 'Mobile': return <Smartphone className="w-5 h-5 text-slate-500" />;
+      case 'Desktop': return <Monitor className="w-5 h-5 text-slate-500" />;
+      default: return <Monitor className="w-5 h-5 text-slate-500" />;
     }
   };
 
-  // -------------------------------------------------------------------------
-  // Middleware Xác thực Quyền truy cập phía Client (Client-side Access Control)
-  // Ngăn chặn tài khoản không có quyền Admin truy cập màn hình cài đặt.
-  // -------------------------------------------------------------------------
-  if (userRole !== 'TENANT_ADMIN' && userRole !== 'SYS_ADMIN') {
+  // ================= LOGIC DỊCH VỤ LÕI =================
+  const handleToggleCoreService = (service: keyof typeof coreServices) => {
+    if (!isAdminImpersonating) return; 
+    setCoreServices(prev => ({ ...prev, [service]: !prev[service] }));
+  };
+
+  const handleSaveCoreServices = () => {
+    const activeModules = Object.entries(coreServices)
+      .filter(([_, isActive]) => isActive)
+      .map(([key]) => key)
+      .join(', ');
+
+    logActivity('Cấu hình dịch vụ Lõi', `Kích hoạt các module: [${activeModules}]`);
+    alert('Đã cập nhật cấu hình dịch vụ thành công!');
+  };
+
+  // Tính toán số lượng thiết bị đang chờ duyệt
+  const pendingDevices = deviceList.filter(d => d.status === 'PENDING');
+  const pendingCount = pendingDevices.length;
+
+  // --- Kiểm tra quyền truy cập trang ---
+  if (userRole !== 'TENANT_ADMIN' && userRole !== 'SYS_ADMIN' && userRole !== 'SUPER_ADMIN_VIEW') {
     return (
       <div className="flex-1 bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center">
         <ShieldAlert className="w-16 h-16 mx-auto mb-4 text-slate-300" />
@@ -313,19 +248,15 @@ export default function Settings() {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // RENDER UI CHÍNH
-  // -------------------------------------------------------------------------
   return (
-    <div className="flex-1 overflow-auto bg-[#F8FAFC] p-6 space-y-6 font-sans">
+    <div className="flex-1 overflow-auto bg-[#F8FAFC] p-6 space-y-6 font-sans relative">
 
-      {/* KHU VỰC 1: Tiêu đề trang */}
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-slate-800">Cài đặt Hệ thống</h2>
-        <p className="text-sm text-slate-500 mt-1">Quản lý bảo mật, nhân sự, phân quyền và nhật ký thao tác</p>
+        <p className="text-sm text-slate-500 mt-1">Quản lý bảo mật, thiết bị truy cập và cấu hình dịch vụ</p>
       </div>
 
-      {/* KHU VỰC 2: Quản lý Mã đăng nhập doanh nghiệp */}
+      {/* ================= 1. MODULE: BẢO MẬT & MÃ ĐĂNG NHẬP ================= */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center gap-3">
           <div className="p-2 bg-rose-50 rounded-lg text-rose-600"><Key className="w-5 h-5" /></div>
@@ -363,90 +294,178 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* KHU VỰC 3: Thống kê Dịch vụ hệ thống */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-        <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Shield className="w-4 h-4" /> Dịch vụ đang sử dụng</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-sky-50/50 border border-sky-100 p-4 rounded-lg"><MapPin className="w-6 h-6 text-sky-500 mb-2" /><h4 className="font-bold text-sky-900">Giám sát hành trình</h4><span className="text-xs font-medium text-sky-600">Đang hoạt động</span></div>
-          <div className="bg-slate-50 border border-slate-100 p-4 rounded-lg opacity-60"><Camera className="w-6 h-6 text-slate-400 mb-2" /><h4 className="font-bold text-slate-600">Camera AI (DMS)</h4><span className="text-xs font-medium text-slate-400">Chưa đăng ký</span></div>
-          <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-lg"><Users className="w-6 h-6 text-indigo-500 mb-2" /><h4 className="font-bold text-indigo-900">Giới hạn nhân sự</h4><span className="text-xs font-medium text-indigo-600">Tối đa 15 tài khoản</span></div>
+      {/* ================= 2. MODULE: CẤU HÌNH DỊCH VỤ LÕI (CHỈ ADMIN THAO TÁC) ================= */}
+      <div className={`rounded-xl shadow-sm border overflow-hidden relative ${isAdminImpersonating ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+        <div className={`px-5 py-4 flex items-center justify-between border-b ${isAdminImpersonating ? 'bg-rose-500/10 border-rose-500/20' : 'bg-slate-50 border-slate-100'}`}>
+          <div>
+            <h3 className={`font-bold flex items-center gap-2 ${isAdminImpersonating ? 'text-rose-400' : 'text-slate-800'}`}>
+              {isAdminImpersonating ? <Terminal className="w-5 h-5" /> : <Cpu className="w-5 h-5 text-indigo-500" />}
+              Cấu hình Dịch vụ Hệ thống
+            </h3>
+            <p className={`text-xs mt-1 ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-500'}`}>Quản lý cấp phép tính năng hoạt động cho doanh nghiệp.</p>
+          </div>
+          {!isAdminImpersonating && <div className="p-2 bg-slate-100 rounded-lg"><Lock className="w-4 h-4 text-slate-400" /></div>}
+        </div>
+
+        <div className="p-5 space-y-6">
+          {!isAdminImpersonating ? (
+            <p className="text-xs text-slate-500 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
+              Khu vực này được quản lý bởi Hệ thống DriveLinker. Quản trị viên doanh nghiệp chỉ có thể <strong>XEM</strong> các tính năng phần cứng/phần mềm đang được cấp phép. Liên hệ với DriveLinker để nâng cấp.
+            </p>
+          ) : (
+            <p className="text-xs text-rose-300 leading-relaxed bg-rose-500/10 p-3 rounded-lg border border-rose-500/20">
+              Chế độ <strong>Core Admin</strong>. Bạn có quyền cấp phép hoặc vô hiệu hóa các dịch vụ cho doanh nghiệp này.
+            </p>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            {/* Module Định vị */}
+            <div className={`p-4 rounded-xl border flex items-center justify-between transition-colors ${isAdminImpersonating ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl ${coreServices.gpsTracking ? (isAdminImpersonating ? 'bg-sky-500/20 text-sky-400' : 'bg-sky-50 text-sky-600') : (isAdminImpersonating ? 'bg-slate-700 text-slate-500' : 'bg-slate-100 text-slate-400')}`}>
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className={`text-sm font-bold ${isAdminImpersonating ? 'text-slate-200' : 'text-slate-700'}`}>Định vị bản đồ</p>
+                  <p className={`text-[10px] ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-400'}`}>Giám sát hành trình</p>
+                </div>
+              </div>
+              <button onClick={() => handleToggleCoreService('gpsTracking')} disabled={!isAdminImpersonating} className={`w-11 h-6 rounded-full relative transition-colors shadow-inner ${!isAdminImpersonating ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${coreServices.gpsTracking ? 'bg-sky-500' : (isAdminImpersonating ? 'bg-slate-600' : 'bg-slate-200')}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${coreServices.gpsTracking ? 'left-6' : 'left-1'}`}></div>
+              </button>
+            </div>
+
+            {/* Module AI Camera */}
+            <div className={`p-4 rounded-xl border flex items-center justify-between transition-colors ${isAdminImpersonating ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl ${coreServices.aiCamera ? (isAdminImpersonating ? 'bg-rose-500/20 text-rose-400' : 'bg-rose-50 text-rose-600') : (isAdminImpersonating ? 'bg-slate-700 text-slate-500' : 'bg-slate-100 text-slate-400')}`}>
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className={`text-sm font-bold ${isAdminImpersonating ? 'text-slate-200' : 'text-slate-700'}`}>Camera AI (Edge)</p>
+                  <p className={`text-[10px] ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-400'}`}>Nhận diện tài xế</p>
+                </div>
+              </div>
+              <button onClick={() => handleToggleCoreService('aiCamera')} disabled={!isAdminImpersonating} className={`w-11 h-6 rounded-full relative transition-colors shadow-inner ${!isAdminImpersonating ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${coreServices.aiCamera ? 'bg-rose-500' : (isAdminImpersonating ? 'bg-slate-600' : 'bg-slate-200')}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${coreServices.aiCamera ? 'left-6' : 'left-1'}`}></div>
+              </button>
+            </div>
+
+            {/* Module Cảnh báo */}
+            <div className={`p-4 rounded-xl border flex items-center justify-between transition-colors ${isAdminImpersonating ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl ${coreServices.speedAlert ? (isAdminImpersonating ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-600') : (isAdminImpersonating ? 'bg-slate-700 text-slate-500' : 'bg-slate-100 text-slate-400')}`}>
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className={`text-sm font-bold ${isAdminImpersonating ? 'text-slate-200' : 'text-slate-700'}`}>Cảnh báo vi phạm</p>
+                  <p className={`text-[10px] ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-400'}`}>Cảnh báo ngủ gật</p>
+                </div>
+              </div>
+              <button onClick={() => handleToggleCoreService('speedAlert')} disabled={!isAdminImpersonating} className={`w-11 h-6 rounded-full relative transition-colors shadow-inner ${!isAdminImpersonating ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${coreServices.speedAlert ? 'bg-amber-500' : (isAdminImpersonating ? 'bg-slate-600' : 'bg-slate-200')}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${coreServices.speedAlert ? 'left-6' : 'left-1'}`}></div>
+              </button>
+            </div>
+
+          </div>
+
+          {/* Nút lưu cấu hình của Admin */}
+          {isAdminImpersonating && (
+            <div className="flex justify-end pt-2">
+              <button onClick={handleSaveCoreServices} className="bg-rose-600 hover:bg-rose-700 text-white px-6 py-2.5 text-sm font-bold rounded-xl transition-colors shadow-lg active:scale-95 flex items-center gap-2">
+                <Save className="w-4 h-4" /> Cập nhật Hệ thống
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* KHU VỰC 4: Quản trị Nhân sự & Phân quyền */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* ================= 3. MODULE: QUẢN LÝ THIẾT BỊ TRUY CẬP ================= */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <div>
-            <h3 className="font-bold text-slate-800 flex items-center gap-2"><Building2 className="w-5 h-5 text-sky-500" /> Quản lý Nhân viên & Phân quyền</h3>
-            <p className="text-xs text-slate-500 mt-1">Đã dùng: {staffList.filter(s => s.status === 'ACTIVE').length} / 15 tài khoản khả dụng</p>
+            <h3 className="font-bold text-slate-800 flex items-center gap-2"><Monitor className="w-5 h-5 text-indigo-500" /> Quản lý Thiết bị Truy cập</h3>
+            <p className="text-xs text-slate-500 mt-1">Giám sát PC, Laptop, Mobile đăng nhập vào hệ thống. {deviceAnomaly.length > 0 && <span className="text-rose-500 font-bold ml-2">Phát hiện {deviceAnomaly.length} IP có dấu hiệu dùng chung!</span>}</p>
           </div>
-          <div className="flex gap-3">
-            {/* Nút thao tác nhanh: Chỉ kích hoạt nổi bật khi có yêu cầu phê duyệt */}
-            <button
+          
+          {/* NÚT HIỂN THỊ DANH SÁCH CHỜ DUYỆT */}
+          {pendingCount > 0 && (
+            <button 
               onClick={() => setIsApprovalModalOpen(true)}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm flex items-center gap-2 ${pendingStaffList.length > 0 ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-colors animate-pulse hover:animate-none"
             >
-              <UserCheck className="w-4 h-4" />
-              Duyệt tài khoản {pendingStaffList.length > 0 && `(${pendingStaffList.length})`}
+              <CheckSquare className="w-4 h-4" /> 
+              Duyệt yêu cầu mới ({pendingCount})
             </button>
-            <button onClick={() => openStaffModal(null)} className="bg-[#0EA5E9] text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-sky-600 transition-all shadow-sm flex items-center gap-2">
-              <UserPlus className="w-4 h-4" /> Thêm nhân sự
-            </button>
-          </div>
+          )}
         </div>
 
-        {/* Bảng dữ liệu nhân sự */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-white border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-white text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
               <tr>
-                <th className="p-4">Nhân sự</th>
-                <th className="p-4">Quyền truy cập</th>
+                <th className="p-4">Thiết bị</th>
+                <th className="p-4">Địa chỉ IP</th>
+                <th className="p-4">Tài khoản truy cập</th>
                 <th className="p-4 text-center">Trạng thái</th>
                 <th className="p-4 text-right">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 text-sm">
-              {staffList.map((staff) => (
-                <tr key={staff.id} className={`hover:bg-slate-50/50 transition-colors ${staff.status === 'DISABLED' ? 'opacity-60 bg-slate-50' : ''}`}>
-                  <td className="p-4">
-                    <p className="font-bold text-slate-800">{staff.name}</p>
-                    <p className="text-xs text-slate-500">{staff.email}</p>
-                    {staff.status === 'PENDING' && <p className="text-[10px] text-amber-500 mt-1">Gửi lúc: {new Date(staff.requestTime).toLocaleString('vi-VN')}</p>}
-                  </td>
-                  <td className="p-4"><span className="font-medium text-slate-600 text-xs bg-slate-100 px-2 py-1 rounded border border-slate-200">{staff.role === 'TENANT_ADMIN' ? 'Quản lý (Admin)' : 'Nhân viên (Staff)'}</span></td>
-                  <td className="p-4 text-center">
-                    {/* Render badge (huy hiệu) tùy theo trạng thái */}
-                    {staff.status === 'ACTIVE' && <span className="inline-flex text-[11px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-600">Hoạt động</span>}
-                    {staff.status === 'PENDING' && <span className="inline-flex text-[11px] font-bold px-2 py-1 rounded-full bg-amber-50 text-amber-600 animate-pulse">Chờ duyệt</span>}
-                    {staff.status === 'REJECTED' && <span className="inline-flex text-[11px] font-bold px-2 py-1 rounded-full bg-rose-50 text-rose-600">Bị từ chối</span>}
-                    {staff.status === 'DISABLED' && <span className="inline-flex text-[11px] font-bold px-2 py-1 rounded-full bg-slate-200 text-slate-500">Vô hiệu hóa</span>}
-                  </td>
-                  <td className="p-4 text-right">
-                    {/* Render các nút thao tác khác nhau giữa Tài khoản Đang chờ vs Đã duyệt */}
-                    {staff.status === 'PENDING' ? (
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => handleApproval(staff.id, 'ACTIVE', staff.name, staff.email)} className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded" title="Duyệt yêu cầu"><Check className="w-4 h-4" /></button>
-                        <button onClick={() => handleApproval(staff.id, 'REJECTED', staff.name, staff.email)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white rounded" title="Từ chối"><X className="w-4 h-4" /></button>
+            <tbody className="divide-y divide-slate-50">
+              {deviceList.map(d => {
+                const isAnomaly = deviceAnomaly.some(a => a.ip === d.ip);
+                return (
+                  <tr key={d.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-slate-100 rounded-lg">{getDeviceIcon(d.type)}</div>
+                        <div>
+                          <span className="font-bold text-slate-800">{d.name}</span>
+                          <p className="text-[10px] text-slate-400 font-normal">Truy cập cuối: {d.lastLogin}</p>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => openStaffModal(staff)} className="p-1.5 text-slate-400 hover:bg-sky-50 hover:text-sky-600 rounded transition-colors" title="Sửa thông tin"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={() => handleDisableStaff(staff)} disabled={staff.status === 'DISABLED'} className="p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400" title="Vô hiệu hóa"><Trash2 className="w-4 h-4" /></button>
+                    </td>
+                    <td className="p-4">
+                      <span className={`font-mono font-medium ${isAnomaly ? 'text-rose-500 bg-rose-50 px-2 py-0.5 rounded border border-rose-200' : 'text-slate-500'}`}>
+                        {d.ip}
+                        {isAnomaly && <AlertTriangle className="w-3 h-3 inline-block ml-1" />}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sky-600 font-bold">{d.account}</td>
+                    <td className="p-4 text-center">
+                      <span className={`px-2 py-1 text-[10px] font-bold rounded-full ${d.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
+                        d.status === 'PENDING' ? 'bg-amber-100 text-amber-700 animate-pulse' : 'bg-rose-100 text-rose-700'
+                        }`}>
+                        {d.status === 'APPROVED' ? 'Đã duyệt' : d.status === 'PENDING' ? 'Chờ duyệt' : 'Đã khóa'}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end gap-2 items-center">
+                        {d.status === 'PENDING' ? (
+                          <button onClick={() => setIsApprovalModalOpen(true)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white rounded transition-colors text-xs font-bold px-3">Xử lý ngay</button>
+                        ) : d.status === 'LOCKED' ? (
+                          <button onClick={() => handleDeviceAction(d.id, 'APPROVED')} className="text-xs font-bold text-emerald-500 hover:bg-emerald-50 px-2 py-1 rounded transition-colors">Mở khóa</button>
+                        ) : (
+                          <button onClick={() => handleDeviceAction(d.id, 'LOCKED')} className="text-xs font-bold text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition-colors">Khóa</button>
+                        )}
+                        <button onClick={() => setSelectedDevice(d)} className="px-3 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 transition-colors text-slate-600 rounded flex items-center gap-1">
+                          <Info className="w-3 h-3" /> Chi tiết
+                        </button>
                       </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* KHU VỰC 5: Nhật ký thao tác (Audit Logs) */}
+      {/* ================= 4. MODULE: NHẬT KÝ THAO TÁC ================= */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <div><h3 className="font-bold text-slate-800 flex items-center gap-2"><History className="w-5 h-5 text-indigo-500" /> Lịch sử Thao tác</h3><p className="text-xs text-slate-500 mt-1">Giám sát toàn bộ hoạt động thay đổi dữ liệu trong hệ thống.</p></div>
+          <div><h3 className="font-bold text-slate-800 flex items-center gap-2"><History className="w-5 h-5 text-indigo-500" /> Lịch sử Thao tác Doanh nghiệp</h3></div>
         </div>
         <div className="overflow-auto max-h-[300px]">
           <table className="w-full text-left">
@@ -463,96 +482,146 @@ export default function Settings() {
                   <td className="p-3 text-center"><span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded font-bold">{log.result}</span></td>
                 </tr>
               ))}
-              {activityLogs.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-slate-400 italic">Chưa có bản ghi lịch sử nào.</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* --- CÁC MODAL HIỂN THỊ (Nằm ngoài luồng render giao diện tĩnh) --- */}
+      {/* ================= MODALS ================= */}
 
-      {/* MODAL: DUYỆT TÀI KHOẢN */}
+      {/* MODAL: XÉT DUYỆT HÀNG LOẠT (TÍNH NĂNG MỚI) */}
       {isApprovalModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-              <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                <UserCheck className="w-5 h-5 text-amber-500" /> Danh sách Tài khoản chờ duyệt
-              </h2>
-              <button onClick={() => setIsApprovalModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="w-5 h-5" /></button>
+          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50 shrink-0">
+              <div>
+                <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                  <CheckSquare className="w-5 h-5 text-amber-500" /> Xét duyệt Thiết bị truy cập
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">Danh sách các thiết bị mới đang chờ cấp quyền truy cập vào hệ thống.</p>
+              </div>
+              <button onClick={() => setIsApprovalModalOpen(false)} className="text-slate-400 hover:text-rose-500 transition-colors bg-white p-2 rounded-lg border border-slate-200"><X className="w-5 h-5" /></button>
             </div>
 
-            <div className="overflow-y-auto max-h-[60vh] p-0">
-              {pendingStaffList.length > 0 ? (
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky top-0">
-                    <tr>
-                      <th className="p-4">Họ và Tên</th>
-                      <th className="p-4">Thông tin liên hệ</th>
-                      <th className="p-4">Thời gian Đăng ký</th>
-                      <th className="p-4 text-right">Phê duyệt</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {pendingStaffList.map((staff) => (
-                      <tr key={staff.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-4 font-bold text-slate-800">{staff.name}</td>
-                        <td className="p-4 text-slate-600">{staff.email}</td>
-                        <td className="p-4 text-slate-500 text-xs">{new Date(staff.requestTime).toLocaleString('vi-VN')}</td>
-                        <td className="p-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => handleApproval(staff.id, 'ACTIVE', staff.name, staff.email)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white text-xs font-bold rounded flex items-center gap-1 transition-colors"><Check className="w-3 h-3" /> Duyệt</button>
-                            <button onClick={() => handleApproval(staff.id, 'REJECTED', staff.name, staff.email)} className="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white text-xs font-bold rounded flex items-center gap-1 transition-colors"><X className="w-3 h-3" /> Từ chối</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="p-10 text-center text-slate-500">
-                  <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
-                  <p className="font-bold">Không có yêu cầu chờ duyệt</p>
-                  <p className="text-sm mt-1">Tất cả tài khoản đều đã được xử lý.</p>
+            <div className="p-5 overflow-y-auto flex-1 space-y-4 bg-slate-50/50">
+              {pendingDevices.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <CheckCircle2 className="w-16 h-16 text-emerald-100 mb-4" />
+                  <p className="text-lg font-bold text-slate-600">Tuyệt vời!</p>
+                  <p className="text-sm">Không còn yêu cầu truy cập nào đang chờ duyệt.</p>
                 </div>
+              ) : (
+                pendingDevices.map(d => (
+                  <div key={d.id} className="bg-white border border-amber-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
+                    <div className="flex items-start justify-between gap-4">
+                      
+                      {/* Cột 1: Thông tin */}
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-slate-100 rounded-xl">{getDeviceIcon(d.type)}</div>
+                          <div>
+                            <p className="font-bold text-slate-800 text-lg">{d.name}</p>
+                            <p className="text-xs font-mono text-slate-500">{d.id} • {d.os} • {d.browser}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-4 text-sm bg-slate-50 p-3 rounded-lg border border-slate-100">
+                          <div><span className="text-slate-400 text-xs block mb-0.5 uppercase font-bold">Tài khoản</span><span className="font-bold text-sky-600">{d.account}</span></div>
+                          <div><span className="text-slate-400 text-xs block mb-0.5 uppercase font-bold">IP Yêu cầu</span><span className="font-bold font-mono text-slate-700">{d.ip}</span></div>
+                        </div>
+                      </div>
+
+                      {/* Cột 2: Ghi chú & Nút */}
+                      <div className="w-64 shrink-0 flex flex-col gap-3">
+                        <div className="relative">
+                          <ClipboardEdit className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                          <input 
+                            type="text" 
+                            placeholder="Nhập ghi chú duyệt..."
+                            value={approvalNotes[d.id] || ''}
+                            onChange={(e) => setApprovalNotes({...approvalNotes, [d.id]: e.target.value})}
+                            className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-amber-400 focus:bg-white transition-colors"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleDeviceAction(d.id, 'APPROVED')} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1 shadow-sm transition-colors"><Check className="w-4 h-4" /> Duyệt</button>
+                          <button onClick={() => handleDeviceAction(d.id, 'REJECTED')} className="flex-1 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1 transition-colors"><X className="w-4 h-4" /> Từ chối</button>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                ))
               )}
-            </div>
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-              <button onClick={() => setIsApprovalModalOpen(false)} className="bg-slate-200 text-slate-700 px-5 py-2 rounded-lg text-sm font-bold hover:bg-slate-300 transition-colors">Đóng</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL: THÊM / SỬA NHÂN SỰ */}
-      {isStaffModalOpen && (
+      {/* MODAL: CHI TIẾT THIẾT BỊ TRUY CẬP */}
+      {selectedDevice && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
               <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                {editingStaffId ? <Edit2 className="w-5 h-5 text-sky-500" /> : <UserPlus className="w-5 h-5 text-sky-500" />}
-                {editingStaffId ? 'Sửa thông tin Nhân sự' : 'Thêm Nhân sự mới'}
+                {getDeviceIcon(selectedDevice.type)} Thông tin Thiết bị
               </h2>
-              <button onClick={() => setIsStaffModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="w-5 h-5" /></button>
+              <button onClick={() => setSelectedDevice(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="p-6 space-y-4">
-              {staffMessage.text && <div className="p-3 bg-rose-50 text-rose-600 text-sm font-medium rounded-lg flex items-center gap-2 border border-rose-100"><AlertCircle className="w-4 h-4 shrink-0" /> {staffMessage.text}</div>}
-              <div><label className="block text-xs font-bold text-slate-700 mb-1">Họ và Tên</label><input type="text" value={staffForm.name} onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none text-sm" placeholder="VD: Nguyễn Văn A" /></div>
-              <div><label className="block text-xs font-bold text-slate-700 mb-1">Email đăng nhập</label><input type="email" value={staffForm.email} onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none text-sm" placeholder="VD: nguyenvan.a@domain.com" /></div>
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-2">Định danh phần cứng</p>
+                <p className="font-bold text-slate-800 text-lg">{selectedDevice.name}</p>
+                <p className="text-sm text-slate-600 font-mono mt-1">ID: {selectedDevice.id}</p>
+                {selectedDevice.note && (
+                  <p className="mt-3 text-sm text-amber-700 bg-amber-50 p-2 rounded border border-amber-100 flex gap-2">
+                    <ClipboardEdit className="w-4 h-4 shrink-0 mt-0.5" /> Ghi chú: {selectedDevice.note}
+                  </p>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Quyền truy cập</label><select value={staffForm.role} onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none text-sm cursor-pointer"><option value="TENANT_STAFF">Nhân viên (Staff)</option><option value="TENANT_ADMIN">Quản lý (Admin)</option></select></div>
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Trạng thái</label><select value={staffForm.status} onChange={(e) => setStaffForm({ ...staffForm, status: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none text-sm cursor-pointer"><option value="ACTIVE">Hoạt động</option><option value="DISABLED">Vô hiệu hóa</option>{!editingStaffId && <option value="PENDING">Chờ duyệt</option>}</select></div>
+                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Hệ điều hành</p>
+                  <p className="font-bold text-slate-700 text-sm">{selectedDevice.os}</p>
+                </div>
+                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Trình duyệt / App</p>
+                  <p className="font-bold text-slate-700 text-sm">{selectedDevice.browser}</p>
+                </div>
+                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Địa chỉ IP</p>
+                  <p className="font-bold font-mono text-sky-600 text-sm">{selectedDevice.ip}</p>
+                </div>
+                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Tài khoản</p>
+                  <p className="font-bold text-slate-700 text-sm truncate" title={selectedDevice.account}>{selectedDevice.account}</p>
+                </div>
               </div>
             </div>
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-              <button onClick={() => setIsStaffModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm">Hủy</button>
-              <button onClick={saveStaff} className="bg-[#0EA5E9] text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-sky-600 transition-colors shadow-sm">{editingStaffId ? 'Cập nhật thông tin' : 'Tạo nhân sự'}</button>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+              {selectedDevice.status === 'PENDING' ? (
+                <>
+                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'APPROVED')} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"><Check className="w-4 h-4" /> Duyệt thiết bị</button>
+                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'REJECTED')} className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"><X className="w-4 h-4" /> Từ chối</button>
+                </>
+              ) : selectedDevice.status === 'LOCKED' ? (
+                <>
+                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'APPROVED')} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors">Mở khóa truy cập</button>
+                  <button onClick={() => setSelectedDevice(null)} className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-300 transition-colors">Đóng</button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'LOCKED')} className="bg-rose-50 text-rose-600 hover:bg-rose-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors">Khóa truy cập</button>
+                  <button onClick={() => setSelectedDevice(null)} className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-300 transition-colors">Đóng</button>
+                </>
+              )}
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

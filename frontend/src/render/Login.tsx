@@ -14,9 +14,8 @@ const DEMO_DB = {
     { username: 'owner.an', password: '123456', access: { 'COMPANY_A': 'TENANT_ADMIN', 'COMPANY_B': 'TENANT_ADMIN' } },
     { username: 'staff.a', password: '123456', access: { 'COMPANY_A': 'TENANT_STAFF' } },
     { username: 'staff.b', password: '123456', access: { 'COMPANY_B': 'TENANT_STAFF' } },
-    { username: 'owner.minh', password: '123456', access: { 'COMPANY_C': 'TENANT_ADMIN' } },
+    { username: 'owner.c', password: '123456', access: { 'COMPANY_C': 'TENANT_ADMIN' } },
     { username: 'staff.c', password: '123456', access: { 'COMPANY_C': 'TENANT_STAFF' } },
-    { username: 'admin', password: '123456', access: { 'CORE': 'SYS_ADMIN' } }
   ]
 };
 // ======================================================
@@ -158,7 +157,6 @@ export default function Login() {
               <p>• Mã: <strong className="text-slate-900">CTA2026</strong> | User: <span className="text-emerald-600">owner.an</span> (CTY A)</p>
               <p>• Mã: <strong className="text-slate-900">CTB2026</strong> | User: <span className="text-emerald-600">owner.an</span> (CTY B)</p>
               <p>• Mã: <strong className="text-slate-900">CTC2026</strong> | User: <span className="text-sky-600">staff.c</span> (NV CTY C)</p>
-              <p>• Mã: <strong className="text-slate-900">ADMIN</strong> | User: <span className="text-rose-600">admin</span> (Lõi)</p>
             </div>
             <p className="text-[10px] text-slate-400 mt-3 italic">*Đây là tài khoản demo, dữ liệu thực sẽ được được lên DB</p>
           </div>
