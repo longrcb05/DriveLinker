@@ -1,0 +1,10 @@
+CREATE TABLE AuditLogs (
+    id BIGSERIAL PRIMARY KEY,
+    OrganizationID INTEGER NOT NULL,
+    UserID INTEGER,
+    Action VARCHAR(255) NOT NULL,
+    EntityType VARCHAR(100),
+    EntityID VARCHAR(100),
+    Metadata TEXT,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

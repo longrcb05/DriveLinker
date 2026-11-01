@@ -1,0 +1,30 @@
+package com.drivelinker.rental.repository;
+
+import com.drivelinker.rental.entity.RentalContract;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+/**
+ * Interface thao tác CSDL cho bảng Hợp đồng thuê xe.
+ */
+@Repository
+public interface RentalContractRepository extends JpaRepository<RentalContract, Integer> {
+
+    @Query("SELECT r FROM RentalContract r WHERE r.vehicle.id = :vehicleId AND r.status = :status")
+    List<RentalContract> findByVehicleIdAndStatus(@Param("vehicleId") Integer vehicleId,
+            @Param("status") String status);
+
+    long countByOrganizationIdAndStatus(Integer orgId, String status);
+
+    long countByOrganizationId(Integer orgId);
+
+    @Query("SELECT COUNT(r) FROM RentalContract r WHERE r.organization.id = :orgId AND r.status = 'COMPLETED' AND r.actualReturnTime <= r.endTime")
+    long countOnTimeContracts(@Param("orgId") Integer orgId);
+
+    @Query("SELECT COUNT(r) FROM RentalContract r WHERE r.organization.id = :orgId AND r.status = 'COMPLETED' AND r.actualReturnTime > r.endTime")
+    long countLateContracts(@Param("orgId") Integer orgId);
+}

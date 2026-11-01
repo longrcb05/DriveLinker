@@ -7,7 +7,7 @@
  * cảnh báo AI mà không cần chuyển hướng sang trang khác.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChevronRight, Truck, AlertTriangle,
   MapPin, CheckCircle2, RefreshCw,
@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { dashboardService, alertService } from '../api/dashboardService';
+import { vehicleService } from '../api/vehicleService';
 
 // Sửa lỗi mất icon mặc định của thư viện Leaflet trong môi trường React
 const defaultIcon = new L.Icon({
@@ -38,7 +40,7 @@ function MapUpdater({ center }: { center: [number, number] }) {
   return null;
 }
 
-// === BỘ DỮ LIỆU DEMO ĐA DOANH NGHIỆP ===
+// === BỘ DỮ LIỆU DEMO ĐA DOANH NGHIỆP NGUYÊN BẢN ===
 const MOCK_DATA_BY_TENANT: Record<string, any> = {
   'COMPANY_A': {
     center: [16.047079, 108.206230], // Đà Nẵng
@@ -81,8 +83,8 @@ export default function Overview() {
   const [userRole] = useState(localStorage.getItem('userRole') || 'TENANT_STAFF');
   const [tenantId] = useState(localStorage.getItem('tenantId') || 'COMPANY_A');
 
-  // ĐÃ BỔ SUNG: Kiểm tra quyền để che Doanh thu
-  const isManager = userRole === 'TENANT_ADMIN' || userRole === 'SYS_ADMIN' || userRole === 'SUPER_ADMIN_VIEW';
+  // ĐÃ BỔ SUNG: Kiểm tra quyền để che Doanh thu (Hỗ trợ cả ADMIN và TENANT_ADMIN)
+  const isManager = userRole === 'TENANT_ADMIN' || userRole === 'ADMIN' || userRole === 'SYS_ADMIN' || userRole === 'SUPER_ADMIN_VIEW';
 
   const [activePanel, setActivePanel] = useState<'ALL' | 'RENTING' | 'AVAILABLE' | 'MAINTENANCE' | 'ALERTS' | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -104,15 +106,76 @@ export default function Overview() {
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      const currentData = MOCK_DATA_BY_TENANT[tenantId] || DEFAULT_DATA;
+      const token = localStorage.getItem('token');
+      if (token) {
+        // Gọi song song API Backend
+        const [summaryRes, fleetRes, alertsRes] = await Promise.allSettled([
+          dashboardService.getSummary(),
+          vehicleService.getFleetList(),
+          alertService.getAlerts()
+        ]);
 
+        let beVehicles: any[] = [];
+        let beAlerts: any[] = [];
+
+        if (fleetRes.status === 'fulfilled' && fleetRes.value?.data) {
+          const fleetData = Array.isArray(fleetRes.value.data) ? fleetRes.value.data : (fleetRes.value.data.content || []);
+          beVehicles = fleetData.map((v: any, idx: number) => ({
+            id: v.licensePlate || `XE-${v.id}`,
+            lat: v.latitude ? Number(v.latitude) : (16.047079 + (idx * 0.008)),
+            lng: v.longitude ? Number(v.longitude) : (108.206230 + (idx * 0.009)),
+            status: v.status || 'AVAILABLE',
+            type: `${v.brand || 'Xe'} ${v.model || ''}`.trim() || 'Xe Tải',
+            driver: v.currentDriver || 'Chưa xếp tài',
+            speed: v.speed ? `${v.speed} km/h` : '0 km/h'
+          }));
+        }
+
+        if (alertsRes.status === 'fulfilled' && alertsRes.value?.data) {
+          const alertsData = Array.isArray(alertsRes.value.data) ? alertsRes.value.data : (alertsRes.value.data.content || []);
+          beAlerts = alertsData.map((a: any) => ({
+            id: a.id,
+            time: a.createdAt ? new Date(a.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Vừa xong',
+            vehicle: a.vehicle?.licensePlate || a.vehiclePlate || 'Xe cảnh báo',
+            type: a.alertType === 'DROWSINESS' ? 'Ngủ gật' : a.alertType === 'SPEEDING' ? 'Quá tốc độ' : a.alertType || 'Cảnh báo',
+            message: a.message || 'Hệ thống AI phát hiện bất thường.',
+            severity: a.severity?.toLowerCase() || 'high'
+          }));
+        }
+
+        if (summaryRes.status === 'fulfilled' && summaryRes.value?.data) {
+          const s = summaryRes.value.data;
+          setRevenueData({
+            amount: s.monthlyRevenue ? (s.monthlyRevenue / 1000000).toFixed(1) : '128.5',
+            growth: s.growthRate || 'Tăng 12%',
+            utilization: s.utilizationRate ? `${s.utilizationRate}%` : '66%',
+            collection: s.collectionRate ? `${s.collectionRate}%` : '85%'
+          });
+        }
+
+        if (beVehicles.length > 0) {
+          setVehicles(beVehicles);
+          setAlerts(beAlerts);
+          setMapCenter([beVehicles[0].lat, beVehicles[0].lng]);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Dự phòng Mock Data nguyên bản khi chưa có token hoặc backend trả về mảng rỗng
+      await new Promise(resolve => setTimeout(resolve, 400));
+      const currentData = MOCK_DATA_BY_TENANT[tenantId] || DEFAULT_DATA;
       setMapCenter(currentData.center);
       setVehicles(currentData.vehicles);
       setAlerts(currentData.alerts);
       setRevenueData(currentData.revenue);
     } catch (error) {
-      console.error("Lỗi khi tải dữ liệu Dashboard:", error);
+      console.error("Lỗi khi tải dữ liệu Dashboard, dùng dữ liệu dự phòng:", error);
+      const currentData = MOCK_DATA_BY_TENANT[tenantId] || DEFAULT_DATA;
+      setMapCenter(currentData.center);
+      setVehicles(currentData.vehicles);
+      setAlerts(currentData.alerts);
+      setRevenueData(currentData.revenue);
     } finally {
       setIsLoading(false);
     }
@@ -120,6 +183,8 @@ export default function Overview() {
 
   useEffect(() => {
     fetchDashboardData();
+    window.addEventListener('vehicle_updated', fetchDashboardData);
+    return () => window.removeEventListener('vehicle_updated', fetchDashboardData);
   }, [tenantId]);
 
   const getPanelData = () => {
