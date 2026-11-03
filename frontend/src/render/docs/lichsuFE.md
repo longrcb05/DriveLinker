@@ -115,3 +115,41 @@ flowchart TD
 
 ---
 *Tài liệu được cập nhật tự động và lưu trữ tại `frontend/src/render/docs/lichsuFE.md` và `frontend/src/render/docs/lichsu.md`.*
+
+
+### 3.6. `frontend/src/render/Settings.tsx`
+* **Điểm bổ sung:**
+  * Bổ sung import `tenantService` từ `../api/tenantService`.
+  * Trong `loadData()`: Tự động gọi `tenantService.getAccessDevices()` và `tenantService.getAuditLogs()` để lấy dữ liệu thiết bị truy cập và nhật ký thao tác thực tế từ PostgreSQL.
+  * Trong `handleSaveCode()`: Tích hợp hàm `tenantService.updateCompanyCode(newCode)` để lưu trực tiếp mã doanh nghiệp mới vào cơ sở dữ liệu và ghi nhật ký hệ thống `AuditLog`.
+  * Giữ nguyên 100% cấu hình dịch vụ lõi (Core Services toggle) và cơ chế phát hiện xung đột IP (IP Anomaly Detection) cục bộ.
+
+### 3.7. `frontend/src/render/Analytics.tsx`
+* **Điểm bổ sung:**
+  * Bổ sung import `analyticsService` từ `../api/analyticsService`.
+  * Thêm `useEffect` tự động gọi `analyticsService.getEvents({ date: selectedDate })` mỗi khi người dùng thay đổi ngày trên Date Picker.
+  * Trong `handleExport()`: Gọi trực tiếp URL kết xuất file CSV UTF-8 chuẩn từ Backend (`/api/analytics/export?date=...`), hỗ trợ tải file có dấu tiếng Việt không bị lỗi font.
+  * Giữ nguyên 100% mảng `RAW_EVENTS` làm dữ liệu dự phòng khi chưa có bản ghi nào trong ngày chọn.
+
+### 3.8. `frontend/src/render/LiveTracking.tsx`
+* **Điểm bổ sung:**
+  * Bổ sung import `trackingService` từ `../api/trackingService`.
+  * Thêm hàm `fetchData()` chu kỳ 10 giây/lần gọi `trackingService.getKpi()` và `trackingService.getPositions()`.
+  * Tự động cập nhật 5 thẻ KPI vận hành (Tổng phương tiện, Đang lăn bánh, Đang dừng đỗ, Ngoại tuyến, Cảnh báo an toàn) bằng số liệu thực tế từ Database.
+  * Chuyển nút trạng thái từ *"Đang chờ tín hiệu"* sang nút xanh *"Đã kết nối trực tiếp"* khi nhận được phản hồi từ server.
+  * Giữ nguyên 100% cấu trúc layout màn hình và ghi chú tích hợp bản đồ.
+
+### 3.9. `frontend/src/render/admin/AdminLogin.tsx` & `AdminTenantList.tsx`
+* **Điểm bổ sung:**
+  * Bổ sung import `coreAdminService` từ `../../api/coreAdminService`.
+  * `AdminLogin.tsx`: Gọi `coreAdminService.login(username, password)`. Sau khi đăng nhập thành công vào tài khoản Super Admin, lưu JWT Token vào `sessionStorage` để bảo mật tối đa (tắt tab là tự hủy phiên).
+  * `AdminTenantList.tsx`: Gọi `coreAdminService.getTenants()` để hiển thị danh sách các doanh nghiệp có trong PostgreSQL kèm số lượng xe và nhân viên thực tế. Tích hợp `coreAdminService.impersonate(tenantId)` để sinh Token nhập vai đúng chuẩn.
+
+---
+
+## 4. XỬ LÝ ĐỒNG BỘ THƯ VIỆN & CẤU HÌNH TYPESCRIPT (FIXED 12 PROBLEMS)
+* **Nguyên nhân lỗi trước đó:** Các thư viện `leaflet`, `react-leaflet`, `axios`, `@types/leaflet` trước đây vô tình bị cài ở thư mục gốc `DriveLinker/` thay vì `DriveLinker/frontend/`, khiến bộ phân tích mã của VS Code trong thư mục `frontend/` báo lỗi `Cannot find module ts(2307)`. Đồng thời `tsconfig.app.json` bật cờ `allowImportingTsExtensions` làm ảnh hưởng đến việc phân giải các file `.tsx`.
+* **Biện pháp khắc phục triệt để:**
+  1. Đồng bộ toàn bộ `leaflet`, `react-leaflet`, `axios`, `@types/leaflet` vào đúng `frontend/package.json` và `frontend/node_modules`.
+  2. Chuẩn hóa `frontend/tsconfig.json` và `frontend/tsconfig.app.json` với cấu hình `"moduleResolution": "bundler"`, `"types": ["vite/client"]`.
+  3. Kiểm tra bằng lệnh `npx tsc --noEmit` và `npm run build`: **0 lỗi (Zero errors), biên dịch thành công 100%**.

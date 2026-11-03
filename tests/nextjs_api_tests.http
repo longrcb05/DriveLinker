@@ -259,3 +259,124 @@ Authorization: Bearer {{authToken}}
 ### BƯỚC 8C: Báo Cáo Phân Tích Điều Hành
 GET {{baseUrl}}/api/reports/analytics
 Authorization: Bearer {{authToken}}
+
+
+### ==========================================================
+### PHẦN 9: QUẢN TRỊ CÀI ĐẶT DOANH NGHIỆP (TENANT / SETTINGS)
+### ==========================================================
+
+### BƯỚC 9A: Đổi Mã Doanh Nghiệp (Company Code)
+PUT {{baseUrl}}/api/tenant/security/code
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "newCode": "CTYNEW26"
+}
+
+### BƯỚC 9B: Lấy Danh Sách Thiết Bị Truy Cập Web/App Của Doanh Nghiệp
+GET {{baseUrl}}/api/tenant/devices
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 9C: Quản Lý Phê Duyệt / Khóa Thiết Bị Truy Cập
+PUT {{baseUrl}}/api/tenant/devices/1/status
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "status": "APPROVED"
+}
+
+### BƯỚC 9D: Xem Nhật Ký Thao Tác Hệ Thống (Audit Logs)
+GET {{baseUrl}}/api/tenant/logs
+Authorization: Bearer {{authToken}}
+
+
+### ==========================================================
+### PHẦN 10: BÁO CÁO PHÂN TÍCH AN TOÀN (ANALYTICS & ALERTS)
+### ==========================================================
+
+### BƯỚC 10A: Lấy Danh Sách Sự Kiện Cảnh Báo An Toàn Theo Bộ Lọc
+GET {{baseUrl}}/api/analytics/events?limit=50
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 10B: Tính Toán Chỉ Số Hiệu Suất An Toàn (Safety KPI & Score)
+GET {{baseUrl}}/api/analytics/kpis
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 10C: Xuất Báo Cáo Vi Phạm Định Dạng CSV
+GET {{baseUrl}}/api/analytics/export
+Authorization: Bearer {{authToken}}
+
+
+### ==========================================================
+### PHẦN 11: GIÁM SÁT HÀNH TRÌNH TRỰC TUYẾN (LIVE TRACKING)
+### ==========================================================
+
+### BƯỚC 11A: Lấy KPI Giám Sát Hành Trình (Xe chạy, dừng đỗ, offline, cảnh báo)
+GET {{baseUrl}}/api/tracking/kpi
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 11B: Lấy Vị Trí Thời Gian Thực Của Toàn Bộ Đội Xe Kèm Hợp Đồng
+GET {{baseUrl}}/api/tracking/positions
+Authorization: Bearer {{authToken}}
+
+
+### ==========================================================
+### PHẦN 12: QUẢN TRỊ NỀN TẢNG CỐT LÕI (PLATFORM CORE ADMIN)
+### ==========================================================
+
+### BƯỚC 12A: Đăng Nhập Super Admin Nền Tảng (Core Admin Login)
+# @name adminLogin
+POST {{baseUrl}}/api/core/auth/login
+Content-Type: application/json
+
+{
+    "username": "superadmin",
+    "password": "Password@123"
+}
+
+###
+@adminToken = {{adminLogin.response.body.data.token}}
+
+### BƯỚC 12B: Super Admin Xem Danh Sách Toàn Bộ Doanh Nghiệp (Tenants)
+GET {{baseUrl}}/api/core/tenants
+Authorization: Bearer {{adminToken}}
+
+### BƯỚC 12C: Super Admin Tạo Doanh Nghiệp Mới & Tài Khoản Admin Khởi Tạo
+POST {{baseUrl}}/api/core/tenants
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "name": "Công Ty Vận Tải Miền Trung",
+    "companyCode": "VTMTRUNG",
+    "contactEmail": "contact@mientrung.vn",
+    "contactPhone": "0905123456",
+    "address": "45 Hải Phòng, TP Đà Nẵng",
+    "adminUsername": "admin_mt",
+    "adminPassword": "Password@123",
+    "adminFullName": "Trần Quản Lý"
+}
+
+### BƯỚC 12D: Super Admin Nhập Vai (Impersonate) Vào Doanh Nghiệp 1
+POST {{baseUrl}}/api/core/tenants/1/impersonate
+Authorization: Bearer {{adminToken}}
+
+### BƯỚC 12E: Xem Danh Sách Các Bản Vá Đồng Bộ Hệ Thống (System Patches)
+GET {{baseUrl}}/api/core/patches
+Authorization: Bearer {{adminToken}}
+
+### BƯỚC 12F: Thực Hiện Đồng Bộ Cấu Hình Lên Production (Sync Production)
+POST {{baseUrl}}/api/core/sync-production
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "module": "AI_CAMERA_CALIBRATION",
+    "description": "Cập nhật ngưỡng phát hiện nhắm mắt EAR từ 0.25 xuống 0.22 cho xe tải đường dài",
+    "configData": {
+        "earThreshold": 0.22,
+        "drowsinessFrames": 18
+    }
+}
