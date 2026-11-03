@@ -1,0 +1,382 @@
+###========================================================================
+### TẬP HỢP TOÀN BỘ KỊCH BẢN TEST CỦA BACKEND NEXT.JS (PORT 3000)
+### Code thủ công 100%, chuẩn DTO - Service - Controller - Route Handlers
+### Đã bao gồm Giai đoạn 1 & Giai đoạn 2 (Price Approvals, Web Alerts, Contract Details)
+###========================================================================
+
+@baseUrl = http://localhost:3000
+
+### 0. KIỂM TRA HEALTHCHECK HỆ THỐNG
+GET {{baseUrl}}/api/health
+
+### ==========================================================
+### PHẦN 1: AUTHENTICATION & USER PROFILE
+### ==========================================================
+
+### BƯỚC 1: Đăng nhập lấy Bearer Token
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+    "companyCode": "CTA2026",
+    "username": "owner.an",
+    "password": "123456"
+}
+
+### Lưu token từ kết quả đăng nhập (Dùng cho REST Client Extension):
+@authToken = {{login.response.body.data.token}}
+
+### BƯỚC 1B: Lấy thông tin cá nhân của người dùng đang đăng nhập (/api/auth/me)
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 1C: Kiểm tra bảo mật khi không có Token (Kỳ vọng: 401 Unauthorized)
+GET {{baseUrl}}/api/auth/me
+    
+
+### ==========================================================
+### PHẦN 2: QUẢN LÝ KHÁCH HÀNG (CUSTOMER MODULE)
+### ==========================================================
+
+### BƯỚC 2A: Thêm Khách Hàng Mới (Thành công)
+POST {{baseUrl}}/api/customers
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "fullName": "Nguyen Van test",
+    "phone": "0905028006",
+    "idCardNumber": "049205000760",
+    "drivingLicense": "65B347929",
+    "address": "1234 Nguyen Trai, Ha Noi"
+}
+
+### BƯỚC 2B: Lấy danh sách Khách Hàng của Công ty
+GET {{baseUrl}}/api/customers
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 2C: Lấy chi tiết 1 Khách Hàng (Mới ở Giai đoạn 2)
+GET {{baseUrl}}/api/customers/1
+Authorization: Bearer {{authToken}}
+
+### ==========================================================
+### PHẦN 3: QUẢN LÝ PHƯƠNG TIỆN (VEHICLE MODULE)
+### ==========================================================
+
+### BƯỚC 3A: Thêm Phương Tiện Mới (Thành công)
+POST {{baseUrl}}/api/vehicles
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "licensePlate": "43A-99988",
+    "brand": "VINFAST",
+    "vehicleType": "CAR",
+    "model": "VF8"
+}
+
+### BƯỚC 3B: Lấy danh sách Phương Tiện của Doanh Nghiệp
+GET {{baseUrl}}/api/vehicles
+Authorization: Bearer {{authToken}}
+
+
+### BƯỚC 3C: Lấy chi tiết 1 Phương Tiện (Mới ở Giai đoạn 2)
+GET {{baseUrl}}/api/vehicles/1
+Authorization: Bearer {{authToken}}
+
+
+### ==========================================================
+### PHẦN 4: HỢP ĐỒNG THUÊ XE & VẬN HÀNH (RENTAL CONTRACT MODULE)
+### ==========================================================
+
+### BƯỚC 4A: Tạo Hợp Đồng Thuê Xe (Trạng thái: DRAFT)
+# @name createContract
+POST {{baseUrl}}/api/contracts
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "customerId": 1,
+    "vehicleId": 1,
+    "startTime": "2026-11-05T08:00:00.000Z",
+    "endTime": "2026-11-10T17:00:00.000Z",
+    "price": 5000000,
+    "depositAmount": 2000000,
+    "notes": "Hợp đồng chạy thử nghiệm Next.js Backend Giai đoạn 2"
+}
+
+###
+@contractId = {{createContract.response.body.data.id}}
+
+### BƯỚC 4B: Lấy danh sách toàn bộ Hợp Đồng của Công Ty (Mới ở Giai đoạn 2)
+GET {{baseUrl}}/api/contracts
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 4C: Lọc danh sách Hợp Đồng theo trạng thái (DRAFT / CONFIRMED / ACTIVE)
+GET {{baseUrl}}/api/contracts?status=DRAFT
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 4D: Xem chi tiết 1 Hợp Đồng (Mới ở Giai đoạn 2)
+GET {{baseUrl}}/api/contracts/1
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 4E: Quản lý Duyệt Xác Nhận Hợp Đồng (DRAFT -> CONFIRMED)
+POST {{baseUrl}}/api/contracts/1/confirm
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 4F: Nhân viên Bàn Giao Xe cho Khách (CONFIRMED -> ACTIVE, bật xe RENTED)
+POST {{baseUrl}}/api/contracts/1/handover
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 4G: Thu Hồi / Nhận Lại Xe (ACTIVE -> COMPLETED, đóng phiên giám sát)
+POST {{baseUrl}}/api/contracts/1/return
+Authorization: Bearer {{authToken}}
+
+
+### ==========================================================
+### PHẦN 5: QUY TRÌNH PHÊ DUYỆT ĐỔI GIÁ (PRICE CHANGE REQUESTS)
+### (Tính năng cốt lõi Giai đoạn 2 - Xử lý Transaction an toàn)
+### ==========================================================
+
+### BƯỚC 5A: Nhân viên tạo yêu cầu thay đổi giá cho Hợp đồng 1
+# @name submitPriceRequest
+POST {{baseUrl}}/api/contracts/1/price-requests
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "proposedPrice": 4500000,
+    "reason": "Khách hàng thân thiết xin giảm giá 10% do thuê dài ngày"
+}
+
+###
+@priceRequestId = {{submitPriceRequest.response.body.data.id}}
+
+### BƯỚC 5B: Quản lý xem danh sách các yêu cầu đổi giá đang PENDING
+GET {{baseUrl}}/api/price-requests?status=PENDING
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 5C: Quản lý Phê Duyệt Đổi Giá (Cập nhật giá mới vào Hợp Đồng bằng Transaction)
+POST {{baseUrl}}/api/price-requests/1/approve
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "managerNote": "Đồng ý chiết khấu 10% cho khách hàng thân thiết"
+}
+
+### BƯỚC 5D: (Trường hợp Từ Chối) Quản lý Từ Chối Yêu Cầu Đổi Giá
+# POST {{baseUrl}}/api/price-requests/1/reject
+# Content-Type: application/json
+# Authorization: Bearer {{authToken}}
+# 
+# {
+#     "managerNote": "Không đủ điều kiện giảm giá trong đợt cao điểm"
+# }
+
+
+### ==========================================================
+### PHẦN 6: TRUNG TÂM GIÁM SÁT & XỬ LÝ CẢNH BÁO (ALERTS)
+### ==========================================================
+
+### BƯỚC 6A: Giả lập Thiết Bị IoT gửi Cảnh Báo Nguy Hiểm lên Server
+POST {{baseUrl}}/api/iot/alerts
+Content-Type: application/json
+X-Device-Code: PI-001
+X-Device-Token: admin
+
+{
+  "eventId": "EVT-ALERT-002",
+  "alertType": "DROWSINESS",
+  "severityLevel": "DANGER",
+  "drowsinessScore": 92,
+  "latitude": 16.0544,
+  "longitude": 108.2022,
+  "occurredAt": "2026-11-01T15:30:00.000Z"
+}
+
+### BƯỚC 6B: Web Frontend lấy danh sách Cảnh Báo đang cần xử lý (NEW)
+GET {{baseUrl}}/api/alerts?status=NEW
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 6C: Nhân viên trực bấm Xác Nhận Đã Xử Lý Cảnh Báo (Mới ở Giai đoạn 2)
+POST {{baseUrl}}/api/alerts/1/resolve
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "note": "Đã gọi điện liên hệ qua hotline, tài xế xác nhận tấp xe vào lề nghỉ ngơi",
+    "action": "CALL_DRIVER"
+}
+
+
+### ==========================================================
+### PHẦN 7: THIẾT BỊ PHẦN CỨNG IOT (TELEMETRY & AI RESULTS)
+### ==========================================================
+
+### BƯỚC 7A: Gửi tọa độ GPS thời gian thực từ Thiết Bị IoT
+POST {{baseUrl}}/api/iot/telemetry
+Content-Type: application/json
+X-Device-Code: PI-001
+X-Device-Token: admin
+
+{
+  "eventId": "EVT-GPS-002",
+  "latitude": 16.0600,
+  "longitude": 108.2100,
+  "speed": 55.0,
+  "recordedAt": "2026-11-01T15:35:00.000Z"
+}
+
+### BƯỚC 7B: Thiết Bị Edge AI gửi log phân tích hành vi
+POST {{baseUrl}}/api/iot/ai-results
+Content-Type: application/json
+X-Device-Code: PI-001
+X-Device-Token: admin
+
+{
+  "eventId": "EVT-AI-002",
+  "drowsinessScore": 80,
+  "eyeStatus": "OPEN",
+  "headPoseStatus": "NORMAL",
+  "occurredAt": "2026-11-01T15:35:00.000Z"
+}
+
+
+### ==========================================================
+### PHẦN 8: DASHBOARD & BÁO CÁO PHÂN TÍCH (REPORTS)
+### ==========================================================
+
+### BƯỚC 8A: Lấy số liệu Tổng Quan Dashboard
+GET {{baseUrl}}/api/dashboard/summary
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 8B: Lấy Lịch Sử Hành Trình Xe (GPS Journey)
+GET {{baseUrl}}/api/dashboard/vehicles/1/journey?from=2026-11-01T00:00:00.000Z&to=2026-11-01T23:59:59.000Z
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 8C: Báo Cáo Phân Tích Điều Hành
+GET {{baseUrl}}/api/reports/analytics
+Authorization: Bearer {{authToken}}
+
+
+### ==========================================================
+### PHẦN 9: QUẢN TRỊ CÀI ĐẶT DOANH NGHIỆP (TENANT / SETTINGS)
+### ==========================================================
+
+### BƯỚC 9A: Đổi Mã Doanh Nghiệp (Company Code)
+PUT {{baseUrl}}/api/tenant/security/code
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "newCode": "CTYNEW26"
+}
+
+### BƯỚC 9B: Lấy Danh Sách Thiết Bị Truy Cập Web/App Của Doanh Nghiệp
+GET {{baseUrl}}/api/tenant/devices
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 9C: Quản Lý Phê Duyệt / Khóa Thiết Bị Truy Cập
+PUT {{baseUrl}}/api/tenant/devices/1/status
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "status": "APPROVED"
+}
+
+### BƯỚC 9D: Xem Nhật Ký Thao Tác Hệ Thống (Audit Logs)
+GET {{baseUrl}}/api/tenant/logs
+Authorization: Bearer {{authToken}}
+
+
+### ==========================================================
+### PHẦN 10: BÁO CÁO PHÂN TÍCH AN TOÀN (ANALYTICS & ALERTS)
+### ==========================================================
+
+### BƯỚC 10A: Lấy Danh Sách Sự Kiện Cảnh Báo An Toàn Theo Bộ Lọc
+GET {{baseUrl}}/api/analytics/events?limit=50
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 10B: Tính Toán Chỉ Số Hiệu Suất An Toàn (Safety KPI & Score)
+GET {{baseUrl}}/api/analytics/kpis
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 10C: Xuất Báo Cáo Vi Phạm Định Dạng CSV
+GET {{baseUrl}}/api/analytics/export
+Authorization: Bearer {{authToken}}
+
+
+### ==========================================================
+### PHẦN 11: GIÁM SÁT HÀNH TRÌNH TRỰC TUYẾN (LIVE TRACKING)
+### ==========================================================
+
+### BƯỚC 11A: Lấy KPI Giám Sát Hành Trình (Xe chạy, dừng đỗ, offline, cảnh báo)
+GET {{baseUrl}}/api/tracking/kpi
+Authorization: Bearer {{authToken}}
+
+### BƯỚC 11B: Lấy Vị Trí Thời Gian Thực Của Toàn Bộ Đội Xe Kèm Hợp Đồng
+GET {{baseUrl}}/api/tracking/positions
+Authorization: Bearer {{authToken}}
+
+
+### ==========================================================
+### PHẦN 12: QUẢN TRỊ NỀN TẢNG CỐT LÕI (PLATFORM CORE ADMIN)
+### ==========================================================
+
+### BƯỚC 12A: Đăng Nhập Super Admin Nền Tảng (Core Admin Login)
+# @name adminLogin
+POST {{baseUrl}}/api/core/auth/login
+Content-Type: application/json
+
+{
+    "username": "superadmin",
+    "password": "Password@123"
+}
+
+###
+@adminToken = {{adminLogin.response.body.data.token}}
+
+### BƯỚC 12B: Super Admin Xem Danh Sách Toàn Bộ Doanh Nghiệp (Tenants)
+GET {{baseUrl}}/api/core/tenants
+Authorization: Bearer {{adminToken}}
+
+### BƯỚC 12C: Super Admin Tạo Doanh Nghiệp Mới & Tài Khoản Admin Khởi Tạo
+POST {{baseUrl}}/api/core/tenants
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "name": "Công Ty Vận Tải Miền Trung",
+    "companyCode": "VTMTRUNG",
+    "contactEmail": "contact@mientrung.vn",
+    "contactPhone": "0905123456",
+    "address": "45 Hải Phòng, TP Đà Nẵng",
+    "adminUsername": "admin_mt",
+    "adminPassword": "Password@123",
+    "adminFullName": "Trần Quản Lý"
+}
+
+### BƯỚC 12D: Super Admin Nhập Vai (Impersonate) Vào Doanh Nghiệp 1
+POST {{baseUrl}}/api/core/tenants/1/impersonate
+Authorization: Bearer {{adminToken}}
+
+### BƯỚC 12E: Xem Danh Sách Các Bản Vá Đồng Bộ Hệ Thống (System Patches)
+GET {{baseUrl}}/api/core/patches
+Authorization: Bearer {{adminToken}}
+
+### BƯỚC 12F: Thực Hiện Đồng Bộ Cấu Hình Lên Production (Sync Production)
+POST {{baseUrl}}/api/core/sync-production
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "module": "AI_CAMERA_CALIBRATION",
+    "description": "Cập nhật ngưỡng phát hiện nhắm mắt EAR từ 0.25 xuống 0.22 cho xe tải đường dài",
+    "configData": {
+        "earThreshold": 0.22,
+        "drowsinessFrames": 18
+    }
+}

@@ -1,0 +1,321 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id          Int      @id @default(autoincrement()) @map("organizationid")
+  name        String   @map("name") @db.VarChar(100)
+  companyCode String   @unique @map("companycode") @db.VarChar(50)
+  phone       String?  @map("phone") @db.VarChar(20)
+  email       String?  @map("email") @db.VarChar(100)
+  address     String?  @map("address") @db.VarChar(255)
+  status      String   @default("ACTIVE") @map("status") @db.VarChar(20)
+  createdAt   DateTime @default(now()) @map("createdat")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updatedat")
+
+  users             User[]
+  customers         Customer[]
+  vehicles          Vehicle[]
+  rentalContracts   RentalContract[]
+  devices           Device[]
+  alerts            Alert[]
+  userAccessDevices UserAccessDevice[]
+
+  @@map("organizations")
+}
+
+model Role {
+  id   Int    @id @default(autoincrement()) @map("roleid")
+  name String @unique @map("rolename") @db.VarChar(50)
+
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id             Int          @id @default(autoincrement()) @map("userid")
+  organizationId Int          @map("organizationid")
+  roleId         Int          @map("roleid")
+  username       String       @map("username") @db.VarChar(50)
+  passwordHash   String       @map("passwordhash") @db.VarChar(255)
+  fullName       String       @map("fullname") @db.VarChar(100)
+  phone          String?      @map("phone") @db.VarChar(20)
+  email          String?      @map("email") @db.VarChar(100)
+  status         String       @default("ACTIVE") @map("status") @db.VarChar(20)
+  createdAt      DateTime     @default(now()) @map("createdat")
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  role           Role         @relation(fields: [roleId], references: [id])
+
+  contractsCreated    RentalContract[]     @relation("CreatedContracts")
+  priceRequestsMade   PriceChangeRequest[] @relation("RequestedPriceChanges")
+  priceRequestsReview PriceChangeRequest[] @relation("ReviewedPriceChanges")
+  resolvedAlerts      Alert[]              @relation("ResolvedAlerts")
+  accessDevices       UserAccessDevice[]
+
+  @@unique([organizationId, username], name: "uq_users_org_username")
+  @@map("users")
+}
+
+model Customer {
+  id             Int          @id @default(autoincrement()) @map("customerid")
+  fullName       String       @map("fullname") @db.VarChar(100)
+  phone          String       @unique @map("phone") @db.VarChar(20)
+  idCardNumber   String       @unique @map("idcardnumber") @db.VarChar(20)
+  drivingLicense String?      @map("drivinglicense") @db.VarChar(50)
+  address        String?      @map("address") @db.VarChar(255)
+  organizationId Int          @map("organizationid")
+  createdAt      DateTime     @default(now()) @map("createdat")
+
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  rentalContracts RentalContract[]
+
+  @@map("customers")
+}
+
+model Vehicle {
+  id             Int          @id @default(autoincrement()) @map("vehicleid")
+  licensePlate   String       @unique @map("licenseplate") @db.VarChar(20)
+  vehicleType    String?      @map("vehicletype") @db.VarChar(50)
+  brand          String?      @map("brand") @db.VarChar(50)
+  model          String?      @map("model") @db.VarChar(50)
+  organizationId Int          @map("organizationid")
+  status         String       @default("AVAILABLE") @map("status") @db.VarChar(20)
+  movementStatus String       @default("STOPPED") @map("movementstatus") @db.VarChar(20)
+  lastLatitude   Float?       @map("lastlatitude")
+  lastLongitude  Float?       @map("lastlongitude")
+  lastSpeed      Float?       @default(0) @map("lastspeed")
+  lastSeenAt     DateTime?    @map("lastseenat")
+  createdAt      DateTime     @default(now()) @map("createdat")
+
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  rentalContracts    RentalContract[]
+  monitoringSessions MonitoringSession[]
+  devices            Device[]
+  gpsLogs            GpsLog[]
+  aiResults          AiResult[]
+  alerts             Alert[]
+
+  @@map("vehicles")
+}
+
+model RentalContract {
+  id                     Int          @id @default(autoincrement()) @map("contractid")
+  customerId             Int          @map("customerid")
+  vehicleId              Int          @map("vehicleid")
+  createdByStaffId       Int          @map("createdbystaffid")
+  organizationId         Int          @map("organizationid")
+  startTime              DateTime     @map("starttime")
+  endTime                DateTime     @map("endtime")
+  actualReturnTime       DateTime?    @map("actualreturntime")
+  status                 String       @default("DRAFT") @map("status") @db.VarChar(20)
+  price                  Float?       @default(0) @map("price")
+  depositAmount          Float?       @default(0) @map("depositamount")
+  hasPendingPriceRequest Boolean      @default(false) @map("haspendingpricerequest")
+  notes                  String?      @map("notes")
+  createdAt              DateTime     @default(now()) @map("createdat")
+
+  customer           Customer             @relation(fields: [customerId], references: [id])
+  vehicle            Vehicle              @relation(fields: [vehicleId], references: [id])
+  createdByStaff     User                 @relation("CreatedContracts", fields: [createdByStaffId], references: [id])
+  organization       Organization         @relation(fields: [organizationId], references: [id])
+  monitoringSessions MonitoringSession[]
+  priceRequests      PriceChangeRequest[]
+
+  @@map("rentalcontracts")
+}
+
+model PriceChangeRequest {
+  id                  Int       @id @default(autoincrement()) @map("requestid")
+  contractId          Int       @map("contractid")
+  requestedByStaffId  Int       @map("requestedbystaffid")
+  currentPrice        Float     @map("currentprice")
+  proposedPrice       Float?    @map("proposedprice")
+  reason              String    @map("reason")
+  managerNote         String?   @map("managernote")
+  status              String    @default("PENDING") @map("status") @db.VarChar(20)
+  createdAt           DateTime  @default(now()) @map("createdat")
+  reviewedAt          DateTime? @map("reviewedat")
+  reviewedByManagerId Int?      @map("reviewedbymanagerid")
+
+  contract          RentalContract @relation(fields: [contractId], references: [id])
+  requestedByStaff  User           @relation("RequestedPriceChanges", fields: [requestedByStaffId], references: [id])
+  reviewedByManager User?          @relation("ReviewedPriceChanges", fields: [reviewedByManagerId], references: [id])
+
+  @@map("pricechangerequests")
+}
+
+model MonitoringSession {
+  id         BigInt    @id @default(autoincrement()) @map("sessionid")
+  contractId Int       @map("contractid")
+  vehicleId  Int       @map("vehicleid")
+  startedAt  DateTime  @map("startedat")
+  endedAt    DateTime? @map("endedat")
+  status     String    @default("ACTIVE") @map("status") @db.VarChar(20)
+
+  contract  RentalContract @relation(fields: [contractId], references: [id])
+  vehicle   Vehicle        @relation(fields: [vehicleId], references: [id])
+  gpsLogs   GpsLog[]
+  aiResults AiResult[]
+  alerts    Alert[]
+
+  @@map("monitoringsessions")
+}
+
+model Device {
+  id             Int          @id @default(autoincrement()) @map("deviceid")
+  organizationId Int          @map("organizationid")
+  vehicleId      Int?         @map("vehicleid")
+  deviceCode     String       @unique @map("devicecode") @db.VarChar(50)
+  deviceType     String       @map("devicetype") @db.VarChar(20)
+  secretHash     String       @map("secrethash") @db.VarChar(255)
+  status         String       @default("ACTIVE") @map("status") @db.VarChar(20)
+  lastSeenAt     DateTime?    @map("lastseenat")
+  createdAt      DateTime     @default(now()) @map("createdat")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  vehicle      Vehicle?     @relation(fields: [vehicleId], references: [id])
+
+  @@map("devices")
+}
+
+model GpsLog {
+  id                  BigInt   @id @default(autoincrement()) @map("logid")
+  eventId             String   @unique @map("eventid") @db.VarChar(50)
+  vehicleId           Int      @map("vehicleid")
+  monitoringSessionId BigInt   @map("monitoringsessionid")
+  latitude            Float    @map("latitude")
+  longitude           Float    @map("longitude")
+  speed               Float?   @default(0) @map("speed")
+  recordedAt          DateTime @map("recordedat")
+  receivedAt          DateTime @default(now()) @map("receivedat")
+
+  vehicle           Vehicle           @relation(fields: [vehicleId], references: [id])
+  monitoringSession MonitoringSession @relation(fields: [monitoringSessionId], references: [id])
+
+  @@map("gpslogs")
+}
+
+model AiResult {
+  id                  BigInt   @id @default(autoincrement()) @map("resultid")
+  eventId             String   @unique @map("eventid") @db.VarChar(50)
+  vehicleId           Int      @map("vehicleid")
+  monitoringSessionId BigInt   @map("monitoringsessionid")
+  drowsinessScore     Int?     @map("drowsinessscore")
+  eyeStatus           String?  @map("eyestatus") @db.VarChar(20)
+  headPoseStatus      String?  @map("headposestatus") @db.VarChar(50)
+  occurredAt          DateTime @map("occurredat")
+  receivedAt          DateTime @default(now()) @map("receivedat")
+
+  vehicle           Vehicle           @relation(fields: [vehicleId], references: [id])
+  monitoringSession MonitoringSession @relation(fields: [monitoringSessionId], references: [id])
+
+  @@map("airesults")
+}
+
+model Alert {
+  id                  BigInt    @id @default(autoincrement()) @map("alertid")
+  eventId             String    @unique @map("eventid") @db.VarChar(50)
+  organizationId      Int       @map("organizationid")
+  vehicleId           Int       @map("vehicleid")
+  monitoringSessionId BigInt    @map("monitoringsessionid")
+  alertType           String    @map("alerttype") @db.VarChar(50)
+  severityLevel       String    @map("severitylevel") @db.VarChar(20)
+  drowsinessScore     Int?      @map("drowsinessscore")
+  latitude            Float?    @map("latitude")
+  longitude           Float?    @map("longitude")
+  resolutionStatus    String    @default("NEW") @map("resolutionstatus") @db.VarChar(20)
+  resolvedBy          Int?      @map("resolvedby")
+  resolutionNote      String?   @map("resolutionnote")
+  occurredAt          DateTime  @map("occurredat")
+  receivedAt          DateTime  @default(now()) @map("receivedat")
+  resolvedAt          DateTime? @map("resolvedat")
+
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  vehicle           Vehicle           @relation(fields: [vehicleId], references: [id])
+  monitoringSession MonitoringSession @relation(fields: [monitoringSessionId], references: [id])
+  resolver          User?             @relation("ResolvedAlerts", fields: [resolvedBy], references: [id])
+  actions           AlertAction[]
+
+  @@map("alerts")
+}
+
+model AlertAction {
+  id          BigInt   @id @default(autoincrement()) @map("actionid")
+  alertId     BigInt   @map("alertid")
+  action      String   @map("action") @db.VarChar(50)
+  performedBy Int      @map("performedby")
+  note        String?  @map("note")
+  createdAt   DateTime @default(now()) @map("createdat")
+
+  alert Alert @relation(fields: [alertId], references: [id])
+
+  @@map("alertactions")
+}
+
+model AuditLog {
+  id             BigInt   @id @default(autoincrement()) @map("id")
+  organizationId Int      @map("organizationid")
+  userId         Int?     @map("userid")
+  action         String   @map("action") @db.VarChar(255)
+  entityType     String?  @map("entitytype") @db.VarChar(100)
+  entityId       String?  @map("entityid") @db.VarChar(100)
+  metadata       String?  @map("metadata")
+  createdAt      DateTime @default(now()) @map("createdat")
+
+  @@map("auditlogs")
+}
+
+model UserAccessDevice {
+  id                BigInt    @id @default(autoincrement()) @map("accessdeviceid")
+  userId            Int       @map("userid")
+  organizationId    Int       @map("organizationid")
+  deviceName        String    @map("devicename") @db.VarChar(100)
+  deviceType        String    @map("devicetype") @db.VarChar(50)
+  os                String?   @map("operatingsystem") @db.VarChar(50)
+  browser           String?   @map("browser") @db.VarChar(50)
+  ipAddress         String    @map("ipaddress") @db.VarChar(50)
+  deviceFingerprint String    @map("devicefingerprint") @db.VarChar(255)
+  status            String    @default("PENDING") @map("status") @db.VarChar(20)
+  lastLoginAt       DateTime  @default(now()) @map("lastloginat")
+
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([userId, deviceFingerprint], name: "uq_user_devicefingerprint")
+  @@map("useraccessdevices")
+}
+
+model CoreAdmin {
+  id           Int      @id @default(autoincrement()) @map("adminid")
+  username     String   @unique @map("username") @db.VarChar(50)
+  passwordHash String   @map("passwordhash") @db.VarChar(255)
+  fullName     String   @map("fullname") @db.VarChar(100)
+  email        String   @unique @map("email") @db.VarChar(100)
+  status       String   @default("ACTIVE") @map("status") @db.VarChar(20)
+  createdAt    DateTime @default(now()) @map("createdat")
+
+  @@map("coreadmins")
+}
+
+model SystemPatch {
+  id             BigInt    @id @default(autoincrement()) @map("patchid")
+  patchCode      String    @unique @map("patchcode") @db.VarChar(50)
+  module         String    @map("module") @db.VarChar(50)
+  description    String    @map("description")
+  configData     String    @map("configdata")
+  targetTenantId Int?      @map("targettenantid")
+  status         String    @default("PENDING") @map("status") @db.VarChar(20)
+  authorAdminId  Int       @map("authoradminid")
+  createdAt      DateTime  @default(now()) @map("createdat")
+  appliedAt      DateTime? @map("appliedat")
+
+  @@map("systempatches")
+}
+

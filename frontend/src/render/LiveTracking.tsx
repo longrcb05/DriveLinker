@@ -1,4 +1,6 @@
-import { ChevronRight, RefreshCw, Map as MapIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronRight, RefreshCw, Map as MapIcon, Activity } from 'lucide-react';
+import trackingService, { TrackingKpi, LiveVehiclePosition } from '../api/trackingService';
 
 /**
  * Component: LiveTracking (Giám sát Hành trình RTK)
@@ -12,6 +14,37 @@ import { ChevronRight, RefreshCw, Map as MapIcon } from 'lucide-react';
  * - Real-time: Kết nối WebSocket/Socket.io để lắng nghe stream tọa độ xe liên tục.
  */
 export default function LiveTracking() {
+  const [kpi, setKpi] = useState<TrackingKpi>({
+    totalVehicles: 0,
+    rollingCount: 0,
+    stoppedCount: 0,
+    parkedCount: 0,
+    offlineCount: 0,
+    activeAlertsCount: 0,
+  });
+  const [liveVehicles, setLiveVehicles] = useState<LiveVehiclePosition[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
+
+  const fetchData = () => {
+    trackingService.getKpi().then((res) => {
+      if (res && res.data) {
+        setKpi(res.data);
+        setIsConnected(true);
+      }
+    }).catch(() => setIsConnected(false));
+
+    trackingService.getPositions().then((res) => {
+      if (res && res.data) {
+        setLiveVehicles(res.data);
+      }
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchData();
+    const timer = setInterval(fetchData, 10000);
+    return () => clearInterval(timer);
+  }, []);
   // ==========================================
   // STATE MANAGEMENT (Dự kiến)
   // TODO: Khai báo các state để quản lý dữ liệu bản đồ và luồng video
@@ -55,11 +88,11 @@ export default function LiveTracking() {
       <div className="px-6 grid grid-cols-5 gap-4 mb-4 shrink-0">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
           <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Tổng phương tiện</p>
-          <h3 className="text-2xl font-bold text-slate-400">0</h3>
+          <h3 className="text-2xl font-bold text-slate-800">{kpi.totalVehicles}</h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
           <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Đang lăn bánh</p>
-          <h3 className="text-2xl font-bold text-slate-400">0</h3>
+          <h3 className="text-2xl font-bold text-slate-500">{kpi.offlineCount}</h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
           <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Dừng / Đỗ</p>
