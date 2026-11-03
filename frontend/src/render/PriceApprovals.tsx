@@ -41,8 +41,8 @@ export default function PriceApprovals() {
 
     // Submit phê duyệt hoặc từ chối
     const submitAction = (action: 'APPROVED' | 'REJECTED') => {
-        if (action === 'APPROVED' && !newPrice) return alert('Vui lòng nhập đơn giá mới để phê duyệt.');
-        if (action === 'REJECTED' && !managerNote) return alert('Vui lòng nhập ghi chú lý do từ chối.');
+        if (action === 'APPROVED' && !newPrice) return alert(t('approvals.alertInputNewPrice'));
+        if (action === 'REJECTED' && !managerNote) return alert(t('approvals.alertInputNote'));
 
         // 1. Update Request Status
         const updatedRequests = requests.map(r =>
@@ -68,7 +68,7 @@ export default function PriceApprovals() {
         setProcessingReq(null);
         loadData();
         window.dispatchEvent(new Event('storage'));
-        alert(action === 'APPROVED' ? 'Đã phê duyệt và cập nhật đơn giá thành công!' : 'Đã từ chối yêu cầu.');
+        alert(action === 'APPROVED' ? t('approvals.alertApproveSuccess') : t('approvals.alertRejectSuccess'));
     };
 
     const filteredData = requests.filter(req => activeTab === 'PENDING' ? req.status === 'PENDING' : req.status !== 'PENDING');
@@ -86,7 +86,7 @@ export default function PriceApprovals() {
                         {t('approvals.pendingTab')} ({requests.filter(r => r.status === 'PENDING').length})
                     </button>
                     <button onClick={() => setActiveTab('HISTORY')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'HISTORY' ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                        Lịch sử xử lý
+                        {t('approvals.historyTab')}
                     </button>
                 </div>
 
@@ -130,7 +130,7 @@ export default function PriceApprovals() {
                                                 >{t('approvals.processBtn')}</button>
                                             ) : (
                                                 <span className={`px-2.5 py-1 rounded text-xs font-bold ${req.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                                    {req.status === 'APPROVED' ? 'Đã duyệt' : 'Đã từ chối'}
+                                                    {req.status === 'APPROVED' ? t('approvals.statusApproved') : t('approvals.statusRejected')}
                                                 </span>
                                             )}
                                         </td>
@@ -148,7 +148,7 @@ export default function PriceApprovals() {
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
                         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                             <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                                <Edit3 className="w-5 h-5 text-sky-500" /> Xử lý Yêu cầu Đơn giá
+                                <Edit3 className="w-5 h-5 text-sky-500" /> {t('approvals.modalTitle')}
                             </h3>
                             <button onClick={() => setProcessingReq(null)} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"><X className="w-5 h-5" /></button>
                         </div>
@@ -157,15 +157,15 @@ export default function PriceApprovals() {
                             {/* Thông tin readonly */}
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500 font-medium">Hợp đồng:</span>
+                                    <span className="text-slate-500 font-medium">{t('approvals.contractLabel')}</span>
                                     <span className="font-bold text-slate-800">{processingReq.contractId}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500 font-medium">Đơn giá hiện tại:</span>
+                                    <span className="text-slate-500 font-medium">{t('approvals.currentPriceLabel')}</span>
                                     <span className="font-bold text-rose-600 line-through">{formatMoney(processingReq.currentPrice)}</span>
                                 </div>
                                 <div className="pt-3 border-t border-slate-200">
-                                    <span className="text-xs font-bold text-slate-500 block mb-1">Đề xuất từ {processingReq.staff}:</span>
+                                    <span className="text-xs font-bold text-slate-500 block mb-1">{t('approvals.proposalFrom', { staff: processingReq.staff })}</span>
                                     <p className="text-sm text-slate-700 italic bg-white p-3 rounded border border-slate-200">"{processingReq.reason}"</p>
                                 </div>
                             </div>
@@ -173,21 +173,21 @@ export default function PriceApprovals() {
                             {/* Form nhập liệu của Manager */}
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">Đơn giá chính thức mới (VNĐ) <span className="text-rose-500">*</span></label>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">{t('approvals.newPriceLabel')} <span className="text-rose-500">*</span></label>
                                     <input
                                         type="number"
                                         value={newPrice}
                                         onChange={(e) => setNewPrice(e.target.value)}
-                                        placeholder="Nhập mức giá duyệt (VD: 800000)"
+                                        placeholder={t('approvals.newPricePlaceholder')}
                                         className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0EA5E9] font-bold text-emerald-600 text-lg transition-all"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">Ghi chú phản hồi cho Staff</label>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">{t('approvals.managerNoteLabel')}</label>
                                     <textarea
                                         value={managerNote}
                                         onChange={(e) => setManagerNote(e.target.value)}
-                                        placeholder="Nhập phản hồi (Bắt buộc nếu Từ chối)..."
+                                        placeholder={t('approvals.managerNotePlaceholder')}
                                         rows={2}
                                         className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0EA5E9] text-sm text-slate-700 resize-none transition-all"
                                     />
@@ -197,10 +197,10 @@ export default function PriceApprovals() {
 
                         <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between gap-3">
                             <button onClick={() => submitAction('REJECTED')} className="px-5 py-2.5 text-sm font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-500 hover:text-white rounded-xl transition-all">
-                                Từ chối yêu cầu
+                                {t('approvals.rejectBtn')}
                             </button>
                             <button onClick={() => submitAction('APPROVED')} className="px-6 py-2.5 text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl flex items-center gap-2 transition-all active:scale-95 shadow-sm">
-                                <CheckCircle2 className="w-4 h-4" /> Phê duyệt & Cập nhật
+                                <CheckCircle2 className="w-4 h-4" /> {t('approvals.approveUpdateBtn')}
                             </button>
                         </div>
                     </div>

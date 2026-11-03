@@ -311,7 +311,7 @@ export default function FleetManagement() {
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
           </div>
           <h3 className="text-2xl font-black text-emerald-600">{stats.available}</h3>
-          <p className="text-[10px] text-slate-400 mt-1">Sẵn sàng xuất kho</p>
+          <p className="text-[10px] text-slate-400 mt-1">{t('fleet.subAvailable')}</p>
         </div>
 
         <div
@@ -327,7 +327,7 @@ export default function FleetManagement() {
             <Truck className="w-4 h-4 text-sky-500" />
           </div>
           <h3 className="text-2xl font-black text-sky-600">{stats.rented}</h3>
-          <p className="text-[10px] text-slate-400 mt-1">Đang trên lộ trình</p>
+          <p className="text-[10px] text-slate-400 mt-1">{t('fleet.subRented')}</p>
         </div>
 
         <div
@@ -343,7 +343,7 @@ export default function FleetManagement() {
             <Clock className="w-4 h-4 text-indigo-500" />
           </div>
           <h3 className="text-2xl font-black text-indigo-600">{stats.reserved}</h3>
-          <p className="text-[10px] text-slate-400 mt-1">Đã chốt lịch thuê</p>
+          <p className="text-[10px] text-slate-400 mt-1">{t('fleet.subReserved')}</p>
         </div>
 
         <div
@@ -359,7 +359,7 @@ export default function FleetManagement() {
             <Wrench className="w-4 h-4 text-amber-500" />
           </div>
           <h3 className="text-2xl font-black text-amber-600">{stats.maintenance}</h3>
-          <p className="text-[10px] text-slate-400 mt-1">Đang bảo trì xưởng</p>
+          <p className="text-[10px] text-slate-400 mt-1">{t('fleet.subMaintenance')}</p>
         </div>
 
         <div
@@ -377,7 +377,7 @@ export default function FleetManagement() {
             <AlertTriangle className="w-4 h-4 text-rose-500 animate-pulse" />
           </div>
           <h3 className="text-2xl font-black text-rose-600">{stats.pendingInspection}</h3>
-          <p className="text-[10px] text-slate-400 mt-1">Cần nghiệm thu lại</p>
+          <p className="text-[10px] text-slate-400 mt-1">{t('fleet.subPendingInspection')}</p>
         </div>
       </div>
 
@@ -431,7 +431,7 @@ export default function FleetManagement() {
                   <td colSpan={6} className="p-12 text-center text-slate-400">
                     <Truck className="w-12 h-12 mx-auto mb-3 text-slate-200" />
                     <p className="font-bold text-slate-600 text-sm">{t('common.noData')}</p>
-                    <p className="text-xs text-slate-400 mt-1">Không tìm thấy phương tiện nào phù hợp với bộ lọc.</p>
+                    <p className="text-xs text-slate-400 mt-1">{t('fleet.noVehiclesFiltered')}</p>
                   </td>
                 </tr>
               ) : (
@@ -468,7 +468,7 @@ export default function FleetManagement() {
                           onClick={() => setInspectingVehicle(v)}
                           className="mt-1.5 block text-[10px] font-bold text-rose-600 hover:text-rose-700 underline"
                         >
-                          Kiểm định xe ngay
+                          {t('fleet.inspectNowBtn')}
                         </button>
                       )}
                     </td>
@@ -481,14 +481,14 @@ export default function FleetManagement() {
                           <span>{t('fleet.gpsOnline')}</span>
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          {v.speed || '0 km/h'} • Tọa độ: {v.lat?.toFixed(3)}, {v.lng?.toFixed(3)}
+                          {v.speed || '0 km/h'} • {t('fleet.gpsCoords')} {v.lat?.toFixed(3)}, {v.lng?.toFixed(3)}
                         </div>
                       </div>
                     </td>
 
                     {/* Cột 5: Tài xế phụ trách */}
                     <td className="p-4">
-                      {v.driver && v.driver !== 'Chưa xếp tài' ? (
+                      {v.driver && v.driver !== 'Chưa xếp tài' && v.driver !== 'Unassigned' ? (
                         <div>
                           <p className="font-bold text-slate-800">{v.driver}</p>
                           {v.driverPhone && (
@@ -618,7 +618,7 @@ export default function FleetManagement() {
                     type="text"
                     value={formData.model}
                     onChange={e => setFormData({ ...formData, model: e.target.value })}
-                    placeholder="VD: Solati 16 chỗ, Hino 500..."
+                    placeholder={t('fleet.formModelPlaceholder') || 'VD: Solati 16 seats, Hino 500...'}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium outline-none focus:border-sky-500"
                   />
                 </div>
@@ -645,7 +645,7 @@ export default function FleetManagement() {
                     type="text"
                     value={formData.payload}
                     onChange={e => setFormData({ ...formData, payload: e.target.value })}
-                    placeholder="VD: Xe Tải 5 Tấn, 16 Chỗ..."
+                    placeholder={t('fleet.formPayloadPlaceholder') || 'VD: 5 Ton Truck, 16 Seats...'}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium outline-none focus:border-sky-500"
                   />
                 </div>
@@ -677,7 +677,7 @@ export default function FleetManagement() {
                     type="text"
                     value={formData.driver}
                     onChange={e => setFormData({ ...formData, driver: e.target.value })}
-                    placeholder="Tên tài xế phụ trách"
+                    placeholder={t('fleet.modalDriver') || 'Driver full name'}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium outline-none focus:border-sky-500"
                   />
                 </div>
@@ -727,7 +727,7 @@ export default function FleetManagement() {
             <p className="text-xs text-slate-500 leading-relaxed mb-6">
               {t('fleet.confirmDelete')}
               <br />
-              <strong className="text-slate-800 font-mono mt-1 block">Biển số: {deletingVehicle.plate}</strong>
+              <strong className="text-slate-800 font-mono mt-1 block">{t('fleet.plateLabel')} {deletingVehicle.plate}</strong>
             </p>
             <div className="flex justify-center gap-3">
               <button
@@ -754,9 +754,9 @@ export default function FleetManagement() {
             <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4">
               <Wrench className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-slate-900 text-lg mb-2">Kiểm định Phương tiện sau Chuyến</h3>
+            <h3 className="font-bold text-slate-900 text-lg mb-2">{t('fleet.inspectModalTitle')}</h3>
             <p className="text-xs text-slate-500 mb-6">
-              Xe <strong className="text-slate-800 font-mono">{inspectingVehicle.plate}</strong> vừa hoàn tất thu hồi / trả xe. Vui lòng xác nhận kết quả kiểm tra kỹ thuật:
+              {t('fleet.inspectModalDesc')} (<strong className="text-slate-800 font-mono">{inspectingVehicle.plate}</strong>)
             </p>
             <div className="flex flex-col gap-2.5">
               <button
@@ -764,14 +764,14 @@ export default function FleetManagement() {
                 className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                Đạt tiêu chuẩn kỹ thuật (Chuyển sang: Sẵn sàng cho thuê)
+                {t('fleet.inspectPassLabel')}
               </button>
               <button
                 onClick={() => handleConfirmInspection('MAINTENANCE')}
                 className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow"
               >
                 <Wrench className="w-4 h-4" />
-                Cần bảo dưỡng / sửa chữa (Chuyển sang: Đang bảo dưỡng)
+                {t('fleet.inspectFailLabel')}
               </button>
               <button
                 onClick={() => setInspectingVehicle(null)}
@@ -791,7 +791,7 @@ export default function FleetManagement() {
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <div className="flex items-center gap-2">
                 <Car className="w-5 h-5 text-sky-600" />
-                <h3 className="font-bold text-slate-800 text-base">Hồ sơ Phương tiện</h3>
+                <h3 className="font-bold text-slate-800 text-base">{t('fleet.modalDetailsTitle')}</h3>
               </div>
               <button onClick={() => setViewingVehicle(null)} className="p-1 text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
@@ -808,26 +808,26 @@ export default function FleetManagement() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Tải trọng / Loại xe</span>
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">{t('fleet.modalPayload')}</span>
                   <span className="font-bold text-slate-700">{viewingVehicle.payload}</span>
                 </div>
                 <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Tài xế quản lý</span>
-                  <span className="font-bold text-slate-700">{viewingVehicle.driver || 'Chưa xếp tài'}</span>
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">{t('fleet.modalDriver')}</span>
+                  <span className="font-bold text-slate-700">{viewingVehicle.driver || t('fleet.unassignedDriver')}</span>
                 </div>
                 <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Tọa độ GPS hiện tại</span>
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">{t('fleet.modalGps')}</span>
                   <span className="font-mono text-slate-700 font-bold">{viewingVehicle.lat?.toFixed(4)}, {viewingVehicle.lng?.toFixed(4)}</span>
                 </div>
                 <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Vận tốc cảm biến</span>
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">{t('fleet.modalSpeed')}</span>
                   <span className="font-bold text-emerald-600">{viewingVehicle.speed || '0 km/h'}</span>
                 </div>
               </div>
 
               {viewingVehicle.notes && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
-                  <span className="font-bold block mb-1">Ghi chú vận hành:</span>
+                  <span className="font-bold block mb-1">{t('fleet.modalNotes')}</span>
                   <p>{viewingVehicle.notes}</p>
                 </div>
               )}

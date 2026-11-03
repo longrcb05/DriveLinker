@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { vehicleService } from '../services/vehicleService';
 import {
   ChevronRight, Truck, AlertTriangle,
   MapPin, CheckCircle2, RefreshCw,
@@ -98,9 +99,9 @@ export default function Overview() {
 
   const kpiStats = {
     totalVehicles: vehicles.length,
-    renting: vehicles.filter(v => v.status === 'RENTING').length,
+    renting: vehicles.filter(v => v.status === 'RENTING' || v.status === 'RENTED').length,
     available: vehicles.filter(v => v.status === 'AVAILABLE').length,
-    maintenance: vehicles.filter(v => v.status === 'MAINTENANCE').length,
+    maintenance: vehicles.filter(v => v.status === 'MAINTENANCE' || v.status === 'PENDING_INSPECTION').length,
     aiAlerts: alerts.length
   };
 
@@ -148,7 +149,7 @@ export default function Overview() {
           <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-rose-200">
             <ShieldAlert className="w-10 h-10 animate-bounce" />
           </div>
-          <h2 className="text-2xl font-black text-slate-800 mb-2.5">Không khả dụng cho Quản trị viên</h2>
+          <h2 className="text-2xl font-black text-slate-800 mb-2.5">{t('common.warning')}</h2>
           <p className="text-slate-500 mb-6 text-sm leading-relaxed">
             Trang Tổng quan chỉ chứa dữ liệu vận hành riêng của từng Doanh nghiệp. Vui lòng chuyển sang trang <b>Quản lý Doanh nghiệp (Core Admin)</b> để phân quyền hoặc giám sát toàn hệ thống.
           </p>
@@ -168,13 +169,9 @@ export default function Overview() {
             <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
               <span className="hover:text-slate-800 cursor-pointer transition-colors">{t('overview.breadcrumbHome')}</span>
               <ChevronRight className="w-3.5 h-3.5 mx-1.5 text-slate-400" />
-              <span className="text-sky-600 font-extrabold flex items-center gap-1">
-                <Sparkles className="w-3 h-3" /> Tổng quan
-              </span>
+              <span className="text-sky-600 font-extrabold flex items-center gap-1"><Sparkles className="w-3 h-3" /> {t('overview.breadcrumbOverview')}</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-              Bảng Điều Khiển Đội Xe
-            </h2>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">{t('overview.title')}</h2>
             <p className="text-xs text-slate-500 mt-1">{t('overview.subtitle')}</p>
           </div>
 
@@ -190,7 +187,7 @@ export default function Overview() {
               className="bg-white hover:bg-slate-50 border border-slate-200/80 text-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all duration-200 active:scale-95 disabled:opacity-50 cursor-pointer group"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-sky-500 transition-transform duration-500 ${isLoading ? 'animate-spin' : 'group-hover:rotate-180'}`} />
-              <span>{isLoading ? 'Đang nạp...' : 'Làm mới'}</span>
+              <span>{isLoading ? t('overview.loading') : t('overview.refreshBtn')}</span>
             </button>
           </div>
         </div>
@@ -198,44 +195,44 @@ export default function Overview() {
         {/* HÀNG 1: THẺ THỐNG KÊ KPI TƯƠNG TÁC (MICRO-ANIMATION ICONS) */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
           <StatCard
-            title="Tổng Đội Xe"
+            title={t('overview.kpiTotal')}
             value={isLoading ? '...' : kpiStats.totalVehicles}
             icon={Truck}
             color="sky"
             onClick={() => setActivePanel('ALL')}
             active={activePanel === 'ALL'}
-            desc="{t('overview.kpiTotalSub')}"
+            desc={t('overview.kpiTotalSub')}
             badge="100%"
           />
           <StatCard
-            title="Đang Cho Thuê"
+            title={t('overview.kpiRenting')}
             value={isLoading ? '...' : kpiStats.renting}
             icon={CheckCircle2}
             color="emerald"
             onClick={() => setActivePanel('RENTING')}
             active={activePanel === 'RENTING'}
-            desc="{t('overview.kpiRentingSub')}"
-            badge="Hoạt động"
+            desc={t('overview.kpiRentingSub')}
+            badge={t('overview.badgeActive')}
           />
           <StatCard
-            title="Trống Lịch"
+            title={t('overview.kpiAvailable')}
             value={isLoading ? '...' : kpiStats.available}
             icon={Clock}
             color="indigo"
             onClick={() => setActivePanel('AVAILABLE')}
             active={activePanel === 'AVAILABLE'}
-            desc="{t('overview.kpiAvailableSub')}"
-            badge="Chờ khách"
+            desc={t('overview.kpiAvailableSub')}
+            badge={t('overview.badgeAvailable')}
           />
           <StatCard
-            title="Bảo Dưỡng"
+            title={t('overview.kpiMaintenance')}
             value={isLoading ? '...' : kpiStats.maintenance}
             icon={Wrench}
             color="amber"
             onClick={() => setActivePanel('MAINTENANCE')}
             active={activePanel === 'MAINTENANCE'}
-            desc="{t('overview.kpiMaintenanceSub')}"
-            badge="Tạm dừng"
+            desc={t('overview.kpiMaintenanceSub')}
+            badge={t('overview.badgePaused')}
           />
 
           {/* Thẻ Cảnh Báo AI Nguy Hiểm */}
@@ -250,7 +247,7 @@ export default function Overview() {
             <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/10 rounded-bl-full pointer-events-none transition-all group-hover:scale-110" />
 
             <div className="flex justify-between items-start mb-2 relative z-10">
-              <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Cảnh báo AI (24h)</span>
+              <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">{t('overview.kpiAlerts')}</span>
               <div className="p-2 bg-rose-100/80 text-rose-600 rounded-xl transition-transform duration-300 group-hover:scale-125 group-hover:rotate-12 shadow-sm">
                 <AlertTriangle className="w-4 h-4 animate-pulse" />
               </div>
@@ -279,7 +276,7 @@ export default function Overview() {
                   <MapPin className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Bản Đồ Giám Sát Thời Gian Thực</h3>
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">{t('overview.mapTitle')}</h3>
                   <p className="text-[10px] text-slate-500">{t('overview.mapSubtitle')}</p>
                 </div>
               </div>
@@ -307,12 +304,12 @@ export default function Overview() {
                           <div className="flex items-center justify-between border-b pb-1.5 mb-1.5">
                             <span className="font-black text-slate-900 text-sm font-mono">{vehicle.id}</span>
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${vehicle.status === 'RENTING' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>
-                              {vehicle.status === 'RENTING' ? 'ĐANG CHẠY' : 'SẴN SÀNG'}
+                              {vehicle.status === 'RENTING' ? t('overview.mapRenting') : t('overview.mapAvailable')}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-600">👤 Tài xế: <strong>{vehicle.driver}</strong></p>
-                          <p className="text-xs text-slate-600">⚡ Tốc độ: <strong>{vehicle.speed}</strong></p>
-                          <p className="text-xs text-slate-500 mt-1">Loại: {vehicle.type}</p>
+                          <p className="text-xs text-slate-600">👤 {t('overview.driverLabel')} <strong>{vehicle.driver}</strong></p>
+                          <p className="text-xs text-slate-600">⚡ {t('overview.speedLabel')} <strong>{vehicle.speed}</strong></p>
+                          <p className="text-xs text-slate-500 mt-1">{t('overview.typeLabel')} {vehicle.type}</p>
                         </div>
                       </Popup>
                     </Marker>
@@ -326,11 +323,11 @@ export default function Overview() {
           <div className="flex-[1] bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col overflow-hidden relative">
             <div className="p-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-emerald-500" /> Hiệu Suất Doanh Thu
+                <Wallet className="w-4 h-4 text-emerald-500" /> {t('overview.revPerformance')}
               </h3>
               {!isManager ? (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                  <Lock className="w-3 h-3" /> Bảo mật
+                  <Lock className="w-3 h-3" /> {t('overview.restricted')}
                 </span>
               ) : (
                 <span className="text-[10px] font-bold text-slate-400 font-mono">{t('overview.revCurrentMonth')}</span>
@@ -340,7 +337,7 @@ export default function Overview() {
             <div className="p-6 flex-1 flex flex-col justify-between">
               <div className="text-center py-2">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                  Tổng Doanh Thu Ước Tính
+                  {t('overview.revTotalEstimated')}
                 </span>
                 <h3 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
                   {isManager ? (isLoading ? '...' : revenueData.amount) : '***'}
@@ -351,7 +348,7 @@ export default function Overview() {
                   revenueData.growth.includes('Tăng') ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/60' : 'bg-rose-50 text-rose-600 border border-rose-200/60'
                 }`}>
                   <TrendingUp className="w-3 h-3" />
-                  {isManager ? revenueData.growth : '***'} so với kỳ trước
+                  {isManager ? revenueData.growth : '***'} {t('overview.vsPrevious')}
                 </span>
               </div>
 
@@ -359,7 +356,7 @@ export default function Overview() {
               <div className="space-y-4 pt-4 border-t border-slate-100">
                 <div>
                   <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <span className="text-slate-600">Tỷ lệ lấp đầy phương tiện</span>
+                    <span className="text-slate-600">{t('overview.revUtilization')}</span>
                     <span className="text-sky-600 font-mono">{isManager ? revenueData.utilization : '***'}</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
@@ -372,7 +369,7 @@ export default function Overview() {
 
                 <div>
                   <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <span className="text-slate-600">Tỷ lệ thu hồi công nợ</span>
+                    <span className="text-slate-600">{t('overview.revCollection')}</span>
                     <span className="text-emerald-600 font-mono">{isManager ? revenueData.collection : '***'}</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
@@ -386,7 +383,7 @@ export default function Overview() {
 
               {!isManager && (
                 <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200/60 text-center">
-                  <p className="text-[11px] text-slate-500 font-medium">Chỉ Quản lý (Tenant Admin) mới có quyền truy cập chỉ số tài chính.</p>
+                  <p className="text-[11px] text-slate-500 font-medium">{t('overview.revLocked')}</p>
                 </div>
               )}
             </div>
@@ -404,12 +401,12 @@ export default function Overview() {
               {activePanel === 'ALERTS' ? (
                 <>
                   <BellRing className="w-4 h-4 text-rose-500 animate-bounce" />
-                  <span>Cảnh Báo An Toàn AI (24h)</span>
+                  <span>{t('overview.drawerAlertList')}</span>
                 </>
               ) : (
                 <>
                   <Navigation className="w-4 h-4 text-sky-500" />
-                  <span>Danh Sách Phương Tiện ({getPanelData().length})</span>
+                  <span>{t('overview.drawerVehicleList')} ({getPanelData().length})</span>
                 </>
               )}
             </h3>
@@ -427,7 +424,7 @@ export default function Overview() {
               <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
               <input
                 type="text"
-                placeholder={activePanel === 'ALERTS' ? "Tìm theo biển số, loại cảnh báo..." : "Tìm theo biển số, tên tài xế..."}
+                placeholder={activePanel === 'ALERTS' ? t('overview.drawerSearchAlert') : t('overview.drawerSearchVehicle')}
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all font-medium text-slate-700"
@@ -456,10 +453,10 @@ export default function Overview() {
                       <Clock className="w-3 h-3" /> {a.time}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-800 mb-1">Phương tiện: <span className="font-bold font-mono">{a.vehicle}</span></p>
+                  <p className="text-xs text-slate-800 mb-1">{t('overview.vehicleLabel')} <span className="font-bold font-mono">{a.vehicle}</span></p>
                   <p className="text-xs text-slate-500 mb-3 bg-slate-50 p-2 rounded border border-slate-100">{a.message}</p>
                   <button className="text-xs font-bold bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white border border-rose-200 py-1.5 rounded-lg transition-colors w-full cursor-pointer flex items-center justify-center gap-1">
-                    <span>Xác minh & Xử lý ngay</span>
+                    <span>{t('overview.verifyNowBtn')}</span>
                     <ArrowUpRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -479,7 +476,7 @@ export default function Overview() {
                   <div className="flex justify-between items-end text-xs text-slate-500">
                     <div>
                       <p className="font-medium text-slate-700">{v.type}</p>
-                      <p className="mt-0.5">Tài xế: <span className="text-slate-800 font-semibold">{v.driver}</span></p>
+                      <p className="mt-0.5">{t('overview.driverLabel')} <span className="text-slate-800 font-semibold">{v.driver}</span></p>
                     </div>
                     {v.status !== 'MAINTENANCE' && (
                       <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">
@@ -495,8 +492,8 @@ export default function Overview() {
             {((activePanel === 'ALERTS' && alerts.length === 0) || (activePanel !== 'ALERTS' && getPanelData().length === 0)) && (
               <div className="text-center py-12">
                 <CheckCircle2 className="w-12 h-12 text-slate-300 mx-auto mb-2.5" />
-                <p className="text-sm font-semibold text-slate-600">Không tìm thấy dữ liệu phù hợp</p>
-                <p className="text-xs text-slate-400 mt-1">Thử thay đổi từ khóa tìm kiếm</p>
+                <p className="text-sm font-semibold text-slate-600">{t('overview.noMatchingData')}</p>
+                <p className="text-xs text-slate-400 mt-1">{t('overview.adjustFilterPrompt')}</p>
               </div>
             )}
           </div>

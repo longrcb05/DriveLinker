@@ -72,7 +72,7 @@ export default function Analytics() {
     setIsExporting(true);
 
     setTimeout(() => {
-      const headers = ['Mã Sự kiện', 'Ngày', 'Giờ', 'Phương tiện', 'Tài xế', 'Loại vi phạm', 'Mức độ', 'Trạng thái'];
+      const headers = [t('analytics.colId'), 'Date', t('analytics.colTime'), t('analytics.colVehicle'), t('analytics.colDriver'), t('analytics.colType'), t('analytics.colSeverity'), t('analytics.colStatus')];
       const csvRows = [headers.join(',')];
 
       filteredEvents.forEach(e => {
@@ -127,7 +127,7 @@ export default function Analytics() {
               className="bg-[#0EA5E9] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-sky-600 transition-all shadow-sm disabled:opacity-50"
             >
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {isExporting ? 'Đang xử lý...' : 'Xuất báo cáo'}
+              {isExporting ? t('analytics.exporting') : t('analytics.exportCsv')}
             </button>
           </div>
         </div>
@@ -172,29 +172,29 @@ export default function Analytics() {
       <div className="px-6 flex gap-4 mb-6">
         <div className="flex-[2] bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col min-h-[300px]">
           <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-6">
-            <BarChart3 className="w-4 h-4 text-sky-500" /> Phân phối sự kiện theo thời gian
+            <BarChart3 className="w-4 h-4 text-sky-500" /> {t('analytics.distributionTitle')}
           </h3>
           <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50 relative">
             <BarChart3 className="w-10 h-10 text-slate-300 mb-2" />
-            <p className="text-slate-500 text-sm font-medium">Khu vực nhúng Recharts/Chart.js</p>
-            <p className="text-[10px] text-slate-400 mt-1">Đồ thị sẽ render dữ liệu mảng: filteredEvents</p>
+            <p className="text-slate-500 text-sm font-medium">{t('analytics.chartEmbedNotice')}</p>
+            <p className="text-[10px] text-slate-400 mt-1">{t('analytics.chartEmbedSub')}</p>
           </div>
         </div>
 
         <div className="flex-[1] bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <PieChart className="w-4 h-4 text-rose-500" /> Phân loại vi phạm
+              <PieChart className="w-4 h-4 text-rose-500" /> {t('analytics.classificationTitle')}
             </h3>
-            <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-1 rounded">{stats.total} vụ</span>
+            <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-1 rounded">{stats.total} {t('analytics.casesCount')}</span>
           </div>
 
           <div className="flex-1 space-y-5">
             {[
-              { label: 'Ngủ gật / Nhắm mắt', type: 'Nhắm mắt kéo dài', color: 'bg-rose-500' },
-              { label: 'Ngáp liên tục', type: 'Ngáp liên tục', color: 'bg-amber-500' },
-              { label: 'Mất tập trung', type: 'Mất tập trung', color: 'bg-sky-500' },
-              { label: 'Quá tốc độ', type: 'Vượt tốc độ', color: 'bg-indigo-500' }
+              { label: t('analytics.typeDrowsy'), type: 'Nhắm mắt kéo dài', color: 'bg-rose-500' },
+              { label: t('analytics.typeYawn'), type: 'Ngáp liên tục', color: 'bg-amber-500' },
+              { label: t('analytics.typeDistracted'), type: 'Mất tập trung', color: 'bg-sky-500' },
+              { label: t('analytics.typeSpeeding'), type: 'Vượt tốc độ', color: 'bg-indigo-500' }
             ].map((item, i) => {
               const count = filteredEvents.filter(e => e.type === item.type).length;
               const percentage = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
@@ -222,7 +222,7 @@ export default function Analytics() {
       <div className="px-6 pb-6">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-slate-100 bg-slate-50">
-            <h3 className="text-sm font-bold text-slate-800">Lịch sử Sự kiện & Cảnh báo chi tiết</h3>
+            <h3 className="text-sm font-bold text-slate-800">{t('analytics.historyTableTitle')}</h3>
           </div>
           <div className="flex-1 overflow-auto max-h-[400px]">
             <table className="w-full text-left border-collapse text-sm">
@@ -255,7 +255,7 @@ export default function Analytics() {
                     <td className="p-4 text-center">
                       <span className={`inline-flex px-2 py-1 text-[10px] font-bold rounded-full ${e.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700 animate-pulse'
                         }`}>
-                        {e.status === 'RESOLVED' ? 'Đã xử lý' : 'Chờ xử lý'}
+                        {e.status === 'RESOLVED' ? t('analytics.resolved') : t('analytics.unresolved')}
                       </span>
                     </td>
                   </tr>
@@ -266,8 +266,8 @@ export default function Analytics() {
                   <tr>
                     <td colSpan={5} className="p-12 text-center">
                       <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                      <p className="text-slate-500 text-sm font-medium">Không có sự kiện nào trong ngày {selectedDate}</p>
-                      <p className="text-xs text-slate-400 mt-1">Hãy thử chọn một khoảng thời gian khác.</p>
+                      <p className="text-slate-500 text-sm font-medium">{t('analytics.emptyDate', { date: selectedDate || '---' })}</p>
+                      <p className="text-xs text-slate-400 mt-1">{t('analytics.emptyDatePrompt')}</p>
                     </td>
                   </tr>
                 )}
