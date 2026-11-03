@@ -4,8 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Clock, ChevronRight, Edit3, X, CheckCircle2 } from 'lucide-react';
-import priceService from '../api/priceService';
+import { ChevronRight, Edit3, X, CheckCircle2 } from 'lucide-react';
 
 export default function PriceApprovals() {
     const [requests, setRequests] = useState<any[]>([]);
@@ -17,39 +16,9 @@ export default function PriceApprovals() {
     const [newPrice, setNewPrice] = useState<string>('');
     const [managerNote, setManagerNote] = useState<string>('');
 
-    const loadData = async () => {
-        let localReqs = JSON.parse(localStorage.getItem('sys_price_requests') || '[]');
-        setContracts(JSON.parse(localStorage.getItem('sys_contracts') || '[]'));
-
-        try {
-            const token = localStorage.getItem('token');
-            if (token) {
-                const res = await priceService.getRequests();
-                if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-                    const beReqs = res.data.map((r: any) => ({
-                        id: `REQ-${r.id}`,
-                        backendId: r.id,
-                        contractId: `HD-${r.rentalContractId}`,
-                        customer: r.rentalContract?.customer?.fullName || 'Khách hàng',
-                        staff: r.requestedBy?.fullName || r.requestedBy?.username || 'Nhân viên',
-                        date: r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : '',
-                        reason: r.reason,
-                        status: r.status,
-                        managerNote: r.managerNote || '',
-                        proposedPrice: r.proposedPrice,
-                        currentPrice: r.rentalContract?.price || 0
-                    }));
-
-                    const beIds = new Set(beReqs.map((b: any) => b.id));
-                    const remainingLocal = localReqs.filter((l: any) => !beIds.has(l.id));
-                    localReqs = [...beReqs, ...remainingLocal];
-                }
-            }
-        } catch (err) {
-            console.warn("Không thể tải yêu cầu giá từ Backend, dùng dữ liệu cục bộ:", err);
-        }
-
-        setRequests(localReqs);
+    const loadData = () => {
+        setRequests(JSON.parse(localStorage.getItem('sys_price_requests') || '[]'));
+        setContracts(JSON.parse(localStorage.getItem('sys_e_contracts') || '[]'));
     };
 
     useEffect(() => {
@@ -63,29 +32,15 @@ export default function PriceApprovals() {
     // Mở modal xử lý
     const openProcessModal = (req: any) => {
         const contract = contracts.find(c => c.id === req.contractId);
-        setProcessingReq({ ...req, currentPrice: contract?.price || req.currentPrice || 0 });
-        setNewPrice(req.proposedPrice ? String(req.proposedPrice) : '');
+        setProcessingReq({ ...req, currentPrice: contract?.price || 0 });
+        setNewPrice('');
         setManagerNote('');
     };
 
     // Submit phê duyệt hoặc từ chối
-    const submitAction = async (action: 'APPROVED' | 'REJECTED') => {
+    const submitAction = (action: 'APPROVED' | 'REJECTED') => {
         if (action === 'APPROVED' && !newPrice) return alert('Vui lòng nhập đơn giá mới để phê duyệt.');
         if (action === 'REJECTED' && !managerNote) return alert('Vui lòng nhập ghi chú lý do từ chối.');
-
-        if (processingReq?.backendId) {
-            try {
-                if (action === 'APPROVED') {
-                    await priceService.approve(processingReq.backendId, managerNote || undefined);
-                } else {
-                    await priceService.reject(processingReq.backendId, managerNote);
-                }
-            } catch (beErr: any) {
-                console.warn("Lỗi cập nhật trên Backend:", beErr);
-                alert(`Lỗi Backend: ${beErr?.response?.data?.message || beErr.message}`);
-                return;
-            }
-        }
 
         // 1. Update Request Status
         const updatedRequests = requests.map(r =>
@@ -99,12 +54,14 @@ export default function PriceApprovals() {
                 return {
                     ...c,
                     hasPendingRequest: false, // Gỡ cờ chờ duyệt
-                    price: action === 'APPROVED' ? Number(newPrice) : c.price // Ghi đè giá nếu duyệt
+                    value: action === 'APPROVED' ? `${Number(newPrice).toLocaleString('vi-VN')} VNĐ` : c.value,
+                    rentPrice: action === 'APPROVED' ? String(newPrice) : c.rentPrice,
+                    price: action === 'APPROVED' ? Number(newPrice) : c.price
                 };
             }
             return c;
         });
-        localStorage.setItem('sys_contracts', JSON.stringify(updatedContracts));
+        localStorage.setItem('sys_e_contracts', JSON.stringify(updatedContracts));
 
         setProcessingReq(null);
         loadData();
@@ -135,46 +92,59 @@ export default function PriceApprovals() {
                     <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase">
                         <tr>
                             <th className="p-4">Mã Hợp đồng</th>
-                            <th className="p-4">Nhân viên gửi</th>
-                            <th className="p-4 w-1/3">Nội dung Ghi chú (Note)</th>
-                            <th className="p-4 text-center">Thao tác / Trạng thái</th>
+                            <th className="p-4">Nhân viên đề xuất</th>
+                            <th className="p-4">Lý do & Ghi chú</th>
+                            <th className="p-4">Đơn giá ban đầu</th>
+                            <th className="p-4">Đơn giá đề xuất</th>
+                            <th className="p-4 text-center">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {filteredData.map(req => (
-                            <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="p-4 font-bold text-slate-800">{req.contractId}</td>
-                                <td className="p-4">
-                                    <span className="font-medium text-slate-700">{req.staff}</span>
-                                    <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" /> {req.date}</p>
-                                </td>
-                                <td className="p-4 text-sm text-slate-600 italic">"{req.reason}"</td>
-                                <td className="p-4 text-center">
-                                    {req.status === 'PENDING' ? (
-                                        <button onClick={() => openProcessModal(req)} className="px-4 py-2 bg-sky-50 text-sky-600 hover:bg-sky-500 hover:text-white rounded-lg transition-colors font-bold text-xs border border-sky-200">
-                                            Xem & Xử lý
-                                        </button>
-                                    ) : (
-                                        <div>
-                                            <span className={`inline-flex px-2.5 py-1 text-[10px] font-bold rounded-full ${req.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                                {req.status === 'APPROVED' ? 'Đã phê duyệt' : 'Đã từ chối'}
-                                            </span>
-                                            {req.managerNote && <p className="text-[10px] text-slate-500 mt-2">P.Hồi: {req.managerNote}</p>}
-                                        </div>
-                                    )}
+                        {filteredData.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center text-slate-400">
+                                    Không có yêu cầu nào trong danh sách.
                                 </td>
                             </tr>
-                        ))}
-                        {filteredData.length === 0 && (
-                            <tr><td colSpan={4} className="p-10 text-center text-slate-500 font-medium">Không có dữ liệu yêu cầu.</td></tr>
+                        ) : (
+                            filteredData.map(req => {
+                                const contract = contracts.find(c => c.id === req.contractId);
+                                return (
+                                    <tr key={req.id} className="hover:bg-slate-50">
+                                        <td className="p-4 font-mono font-bold text-sky-600">{req.contractId}</td>
+                                        <td className="p-4 font-medium text-slate-700">{req.staff}</td>
+                                        <td className="p-4 text-slate-600 max-w-xs truncate" title={req.reason}>{req.reason}</td>
+                                        <td className="p-4 text-slate-400 font-bold line-through">
+                                            {formatMoney(contract?.price || 0)}
+                                        </td>
+                                        <td className="p-4 text-emerald-600 font-bold">
+                                            {formatMoney(req.suggestedPrice)}
+                                        </td>
+                                        <td className="p-4 text-center">
+                                            {req.status === 'PENDING' ? (
+                                                <button
+                                                    onClick={() => openProcessModal(req)}
+                                                    className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm"
+                                                >
+                                                    Xử lý
+                                                </button>
+                                            ) : (
+                                                <span className={`px-2.5 py-1 rounded text-xs font-bold ${req.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                                    {req.status === 'APPROVED' ? 'Đã duyệt' : 'Đã từ chối'}
+                                                </span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>
             </div>
 
-            {/* MODAL MANAGER XỬ LÝ YÊU CẦU */}
+            {/* MODAL XỬ LÝ DUYỆT ĐƠN GIÁ (MANAGER NHẬP TRỰC TIẾP GIÁ MỚI) */}
             {processingReq && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
                         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                             <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">

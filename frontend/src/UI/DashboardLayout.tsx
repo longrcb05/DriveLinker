@@ -6,13 +6,14 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Plus, LayoutDashboard, Truck, Map as MapIcon,
-  BarChart3, Settings, Handshake, LogOut, Settings2, RefreshCw, XCircle, X,
-  ClipboardCheck // ĐÃ BỔ SUNG: Import icon cho menu Duyệt đơn giá
+  LayoutDashboard, Truck, Map as MapIcon,
+  BarChart3, Settings, Handshake, LogOut, Settings2, RefreshCw, XCircle,
+  ClipboardCheck, Globe
 } from 'lucide-react';
-import { vehicleService } from '../api/vehicleService';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function DashboardLayout() {
+  const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -21,26 +22,19 @@ export default function DashboardLayout() {
   const isAdminImpersonating = localStorage.getItem('isAdminImpersonating') === 'true';
   const [syncState, setSyncState] = useState<'IDLE' | 'STAGED' | 'SYNCING'>('IDLE');
 
-  // State quản lý hiển thị Modal Thêm Xe
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newLicensePlate, setNewLicensePlate] = useState('');
-  const [newBrand, setNewBrand] = useState('');
-  const [newModelYear, setNewModelYear] = useState('');
-  const [isAddingVehicle, setIsAddingVehicle] = useState(false);
-
   useEffect(() => {
     setUserRole(localStorage.getItem('userRole') || 'TENANT_STAFF');
     setTenantName(localStorage.getItem('tenantName') || 'DriveLinker');
   }, [location.pathname]);
 
   const menuItems = [
-    { id: 'overview', label: 'Tổng quan', icon: LayoutDashboard, path: '/overview', roles: ['TENANT_ADMIN', 'ADMIN', 'TENANT_STAFF', 'STAFF', 'SUPER_ADMIN_VIEW'] },
-    { id: 'tracking', label: 'Theo dõi', icon: MapIcon, path: '/tracking', roles: ['TENANT_ADMIN', 'ADMIN', 'TENANT_STAFF', 'STAFF', 'SUPER_ADMIN_VIEW'] },
-    { id: 'analytics', label: 'Phân tích', icon: BarChart3, path: '/analytics', roles: ['TENANT_ADMIN', 'ADMIN', 'TENANT_STAFF', 'STAFF', 'SUPER_ADMIN_VIEW'] },
-    { id: 'partners', label: 'Đối tác & Hợp đồng', icon: Handshake, path: '/partners', roles: ['TENANT_ADMIN', 'ADMIN', 'TENANT_STAFF', 'STAFF', 'SUPER_ADMIN_VIEW'] },
-    // ĐÃ BỔ SUNG: Menu Duyệt đơn giá (Dành cho Quản lý)
-    { id: 'approvals', label: 'Duyệt đơn giá', icon: ClipboardCheck, path: '/approvals', roles: ['TENANT_ADMIN', 'ADMIN', 'SUPER_ADMIN_VIEW'] },
-    { id: 'settings', label: 'Cài đặt', icon: Settings, path: '/settings', roles: ['TENANT_ADMIN', 'ADMIN', 'SUPER_ADMIN_VIEW'] },
+    { id: 'overview', label: t('nav.overview'), icon: LayoutDashboard, path: '/overview', roles: ['TENANT_ADMIN', 'TENANT_STAFF', 'SUPER_ADMIN_VIEW'] },
+    { id: 'fleet', label: t('nav.fleet'), icon: Truck, path: '/fleet', roles: ['TENANT_ADMIN', 'TENANT_STAFF', 'SUPER_ADMIN_VIEW'] },
+    { id: 'tracking', label: t('nav.tracking'), icon: MapIcon, path: '/tracking', roles: ['TENANT_ADMIN', 'TENANT_STAFF', 'SUPER_ADMIN_VIEW'] },
+    { id: 'analytics', label: t('nav.analytics'), icon: BarChart3, path: '/analytics', roles: ['TENANT_ADMIN', 'TENANT_STAFF', 'SUPER_ADMIN_VIEW'] },
+    { id: 'partners', label: t('nav.contract'), icon: Handshake, path: '/partners', roles: ['TENANT_ADMIN', 'TENANT_STAFF', 'SUPER_ADMIN_VIEW'] },
+    { id: 'approvals', label: t('nav.approvals'), icon: ClipboardCheck, path: '/approvals', roles: ['TENANT_ADMIN', 'SUPER_ADMIN_VIEW'] },
+    { id: 'settings', label: t('nav.settings'), icon: Settings, path: '/settings', roles: ['TENANT_ADMIN', 'SUPER_ADMIN_VIEW'] },
   ];
 
   const filteredMenu = menuItems.filter(item => !item.roles || item.roles.includes(userRole));
@@ -69,40 +63,6 @@ export default function DashboardLayout() {
     }, 2000);
   };
 
-  const handleSaveVehicle = async () => {
-    if (!newLicensePlate.trim()) {
-      alert('Vui lòng nhập biển số xe.');
-      return;
-    }
-
-    setIsAddingVehicle(true);
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        await vehicleService.addVehicle({
-          licensePlate: newLicensePlate.trim().toUpperCase(),
-          brand: newBrand.trim().toUpperCase() || 'VINFAST',
-          vehicleType: 'TRUCK',
-          model: newModelYear ? `Model ${newModelYear}` : 'VF8'
-        });
-        alert('Thêm phương tiện mới vào hệ thống thành công!');
-        window.dispatchEvent(new Event('vehicle_updated'));
-      } else {
-        alert('Giả lập lưu dữ liệu thành công!');
-      }
-      setShowAddModal(false);
-      setNewLicensePlate('');
-      setNewBrand('');
-      setNewModelYear('');
-    } catch (err: any) {
-      console.error('Lỗi khi thêm xe:', err);
-      const errMsg = err?.response?.data?.message || err.message || 'Lỗi khi lưu phương tiện.';
-      alert(`Không thể lưu phương tiện: ${errMsg}`);
-    } finally {
-      setIsAddingVehicle(false);
-    }
-  };
-
   return (
     <div className="flex h-screen bg-[#F1F5F9] font-sans overflow-hidden relative print:bg-white">
       <style>{`
@@ -115,37 +75,81 @@ export default function DashboardLayout() {
       <aside className="w-[260px] bg-[#0F172A] text-slate-300 flex flex-col justify-between shrink-0 z-50">
         <div className="flex-1 overflow-auto overflow-x-hidden">
           <div className="h-16 flex items-center px-6 border-b border-slate-800 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#0EA5E9] rounded-lg flex items-center justify-center shadow-sm">
-                <Truck className="w-5 h-5 text-white" />
+            <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate('/overview')}>
+              <div className="w-9 h-9 bg-gradient-to-tr from-[#0284C7] to-[#0EA5E9] rounded-xl flex items-center justify-center shadow-md shadow-sky-500/20 transition-all duration-300 group-hover:scale-105 group-hover:shadow-sky-500/40">
+                <Truck className="w-5 h-5 text-white transition-transform duration-300 group-hover:translate-x-0.5" />
               </div>
               <div>
-                <h1 className="text-white font-bold text-lg leading-tight">DriveLinker</h1>
+                <h1 className="text-white font-bold text-lg leading-tight tracking-wide flex items-center gap-1.5">
+                  DriveLinker
+                </h1>
                 <p className="text-[10px] text-slate-400 font-semibold tracking-widest uppercase">Drive Safe - Arrive Alive</p>
               </div>
             </div>
           </div>
 
-          <div className="py-6 px-4">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-4 px-2">Menu</p>
-            <nav className="space-y-1">
+          <div className="py-6 px-3">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-4 px-3 flex items-center justify-between">
+              <span>{t('auth.menu')}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            </p>
+            <nav className="space-y-1.5">
               {filteredMenu.map((item) => {
                 const Icon = item.icon;
+                const isCurrent = (item.path === '/overview' && location.pathname === '/overview') || location.pathname === item.path;
+
+                const getIconAnimation = (id: string) => {
+                  switch (id) {
+                    case 'overview':
+                      return 'group-hover:rotate-12 group-hover:scale-125 group-hover:text-sky-400';
+                    case 'fleet':
+                      return 'group-hover:translate-x-1 group-hover:scale-125 group-hover:text-cyan-400';
+                    case 'tracking':
+                      return 'group-hover:-translate-y-1 group-hover:scale-125 group-hover:text-emerald-400';
+                    case 'analytics':
+                      return 'group-hover:scale-125 group-hover:text-amber-400';
+                    case 'partners':
+                      return 'group-hover:-rotate-12 group-hover:scale-125 group-hover:text-indigo-400';
+                    case 'approvals':
+                      return 'group-hover:scale-125 group-hover:rotate-6 group-hover:text-emerald-400';
+                    case 'settings':
+                      return 'group-hover:rotate-90 group-hover:scale-125 group-hover:text-rose-400 duration-500';
+                    default:
+                      return 'group-hover:scale-125 group-hover:text-sky-400';
+                  }
+                };
+
                 return (
                   <NavLink
                     key={item.id}
                     to={item.path}
-                    className={({ isActive }) =>
-                      `w-full flex items-center justify-between px-3 py-3 font-medium transition-all duration-200 border-l-4 ${isActive || (item.path === '/overview' && location.pathname === '/overview')
-                        ? 'border-[#0EA5E9] text-[#0EA5E9] bg-slate-800/30'
-                        : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-800/50'
-                      }`
-                    }
+                    className={({ isActive }) => {
+                      const active = isActive || isCurrent;
+                      return `group w-full flex items-center justify-between px-3.5 py-3 font-medium transition-all duration-300 rounded-xl relative overflow-hidden select-none ${
+                        active
+                          ? 'bg-gradient-to-r from-sky-500/20 via-sky-500/10 to-transparent text-sky-400 font-bold shadow-sm'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`;
+                    }}
                   >
-                    <div className="flex items-center gap-3">
-                      <Icon className="w-5 h-5" />
-                      <span className="text-sm">{item.label}</span>
-                    </div>
+                    {({ isActive }) => {
+                      const active = isActive || isCurrent;
+                      return (
+                        <>
+                          {active && (
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-[#0EA5E9] rounded-r-full shadow-[0_0_10px_#0EA5E9]" />
+                          )}
+                          <div className="flex items-center gap-3">
+                            <div className={`p-1.5 rounded-lg transition-all duration-300 ${
+                              active ? 'bg-sky-500/20 text-sky-400' : 'text-slate-400 group-hover:text-white group-hover:bg-slate-800'
+                            }`}>
+                              <Icon className={`w-5 h-5 transition-transform duration-300 ease-out ${getIconAnimation(item.id)}`} />
+                            </div>
+                            <span className="text-sm tracking-wide">{item.label}</span>
+                          </div>
+                        </>
+                      );
+                    }}
                   </NavLink>
                 );
               })}
@@ -153,13 +157,19 @@ export default function DashboardLayout() {
           </div>
         </div>
 
-        <div className="p-4 flex flex-col gap-3 shrink-0 border-t border-slate-800">
+        <div className="p-4 flex flex-col gap-3 shrink-0 border-t border-slate-800/80">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors font-medium text-sm border border-transparent hover:border-rose-500/20"
+            className="group w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all duration-300 font-medium text-sm border border-transparent hover:border-rose-500/20 cursor-pointer"
           >
-            {isAdminImpersonating ? <XCircle className="w-5 h-5" /> : <LogOut className="w-5 h-5" />}
-            {isAdminImpersonating ? 'Thoát chế độ Admin' : 'Đăng xuất'}
+            <div className="p-1 rounded-lg text-slate-400 group-hover:text-rose-400 transition-colors">
+              {isAdminImpersonating ? (
+                <XCircle className="w-5 h-5 transition-transform duration-300 group-hover:rotate-90 group-hover:scale-110" />
+              ) : (
+                <LogOut className="w-5 h-5 transition-transform duration-300 group-hover:-translate-x-1 group-hover:scale-110" />
+              )}
+            </div>
+            <span>{isAdminImpersonating ? 'Thoát chế độ Admin' : t('auth.logout')}</span>
           </button>
         </div>
       </aside>
@@ -167,24 +177,28 @@ export default function DashboardLayout() {
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-end px-6 shrink-0 z-40 shadow-sm">
           <div className="flex items-center gap-4">
-            {/* Nút gọi Modal Thêm Mới */}
+            {/* Language Switcher */}
             <button
-              onClick={() => setShowAddModal(true)}
-              className="bg-[#0EA5E9] hover:bg-sky-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm transition-all active:scale-95"
+              onClick={toggleLanguage}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-sky-300 hover:bg-sky-50/50 text-xs font-bold text-slate-700 transition-all shadow-sm"
+              title="Chuyển đổi ngôn ngữ / Switch Language"
             >
-              <Plus className="w-4 h-4" /> Thêm mới
+              <Globe className="w-3.5 h-3.5 text-sky-500" />
+              <span>{language === 'vi' ? 'VI' : 'EN'}</span>
             </button>
-            <div className="w-px h-8 bg-slate-200 mx-2"></div>
+
+            <div className="w-px h-6 bg-slate-200"></div>
+
             <div className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg transition-colors">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isAdminImpersonating ? 'bg-rose-100 text-rose-600 border border-rose-200' : (userRole === 'TENANT_ADMIN' || userRole === 'ADMIN') ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : 'bg-sky-100 text-sky-600 border border-sky-200'}`}>
-                {isAdminImpersonating ? 'A' : (userRole === 'TENANT_ADMIN' || userRole === 'ADMIN') ? 'M' : 'S'}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isAdminImpersonating ? 'bg-rose-100 text-rose-600 border border-rose-200' : 'bg-sky-100 text-sky-600 border border-sky-200'}`}>
+                {isAdminImpersonating ? 'A' : 'U'}
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-700 leading-none">Tài khoản</p>
+                <p className="text-xs font-bold text-slate-700 leading-none">{t('common.account')}</p>
                 <p className="text-[10px] text-slate-500 mt-1 font-medium tracking-wide">
                   {tenantName} •
-                  <span className={isAdminImpersonating ? 'text-rose-600 font-bold ml-1' : (userRole === 'TENANT_ADMIN' || userRole === 'ADMIN') ? 'text-emerald-600 font-bold ml-1' : 'text-sky-600 font-bold ml-1'}>
-                    {isAdminImpersonating ? 'ADMIN_HỆ_THỐNG' : (userRole === 'TENANT_ADMIN' || userRole === 'ADMIN') ? 'QUẢN LÝ' : 'NHÂN VIÊN'}
+                  <span className={isAdminImpersonating ? 'text-rose-600 font-bold ml-1' : userRole === 'TENANT_ADMIN' ? 'text-emerald-600 font-bold ml-1' : 'text-sky-600 font-bold ml-1'}>
+                    {isAdminImpersonating ? 'ADMIN_HỆ_THỐNG' : userRole}
                   </span>
                 </p>
               </div>
@@ -215,90 +229,6 @@ export default function DashboardLayout() {
           </div>
         )}
       </main>
-
-      {/* ================= MODAL THÊM MỚI PHƯƠNG TIỆN ================= */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-sky-100 text-sky-600 rounded-lg">
-                  <Truck className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-slate-800 text-lg">Thêm phương tiện mới</h3>
-              </div>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="p-1.5 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-700 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Form Fields */}
-            <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">
-                  Biển số xe <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={newLicensePlate}
-                  onChange={(e) => setNewLicensePlate(e.target.value)}
-                  placeholder="VD: 43A-12345"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0EA5E9] focus:ring-1 focus:ring-[#0EA5E9] transition-all uppercase placeholder:normal-case font-medium text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">
-                  Thương hiệu xe
-                </label>
-                <input
-                  type="text"
-                  value={newBrand}
-                  onChange={(e) => setNewBrand(e.target.value)}
-                  placeholder="VD: Hyundai, Toyota, Ford..."
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0EA5E9] focus:ring-1 focus:ring-[#0EA5E9] transition-all font-medium text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">
-                  Đời xe (Năm sản xuất)
-                </label>
-                <input
-                  type="number"
-                  value={newModelYear}
-                  onChange={(e) => setNewModelYear(e.target.value)}
-                  placeholder="VD: 2023"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0EA5E9] focus:ring-1 focus:ring-[#0EA5E9] transition-all font-medium text-slate-700"
-                />
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                disabled={isAddingVehicle}
-                onClick={handleSaveVehicle}
-                className="px-6 py-2.5 text-sm font-bold text-white bg-[#0EA5E9] hover:bg-sky-600 rounded-xl shadow-sm transition-all active:scale-95 disabled:opacity-50"
-              >
-                {isAddingVehicle ? 'Đang lưu...' : 'Lưu phương tiện'}
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
     </div>
   );
 }

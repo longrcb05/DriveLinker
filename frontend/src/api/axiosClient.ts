@@ -1,8 +1,9 @@
-// src/API/axiosClient.ts
 import axios from 'axios';
 
+const baseURL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000/api';
+
 const axiosClient = axios.create({
-  baseURL: 'http://localhost:3000/api',
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -12,14 +13,12 @@ const axiosClient = axios.create({
 axiosClient.interceptors.request.use((config) => {
   // Lấy mã định danh công ty từ LocalStorage
   const tenantId = localStorage.getItem('tenantId');
-
-  // Nhét mã này vào Header (X-Tenant-ID là chuẩn thông lệ quốc tế)
   if (tenantId) {
     config.headers['X-Tenant-ID'] = tenantId;
   }
 
-  // Tương tự với Token bảo mật JWT
-  const token = localStorage.getItem('token');
+  // Token bảo mật JWT (hỗ trợ cả token chuẩn lẫn token phiên admin)
+  const token = localStorage.getItem('token') || sessionStorage.getItem('sys_core_token');
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
   }
