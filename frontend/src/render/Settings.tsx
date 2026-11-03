@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import {
   Key, CheckCircle2, AlertCircle, Eye, EyeOff,
   History, Clock, ShieldAlert,
@@ -59,6 +60,7 @@ const initDemoData = () => {
 };
 
 export default function Settings() {
+  const { t } = useLanguage();
   const [userRole] = useState(localStorage.getItem('userRole') || 'TENANT_STAFF');
   const [tenantId] = useState(localStorage.getItem('tenantId') || 'COMPANY_A');
   const currentUserEmail = localStorage.getItem('username') || 'admin@drivelinker.vn';
@@ -511,7 +513,7 @@ export default function Settings() {
                 <th className="p-4">Địa chỉ IP</th>
                 <th className="p-4">Tài khoản truy cập</th>
                 <th className="p-4 text-center">Trạng thái</th>
-                <th className="p-4 text-right">Thao tác</th>
+                <th className="p-4 text-right">{t('settings.colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -547,7 +549,7 @@ export default function Settings() {
                         {d.status === 'PENDING' ? (
                           <button onClick={() => setIsApprovalModalOpen(true)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white rounded transition-colors text-xs font-bold px-3">Xử lý ngay</button>
                         ) : d.status === 'LOCKED' ? (
-                          <button onClick={() => handleDeviceAction(d.id, 'APPROVED')} className="text-xs font-bold text-emerald-500 hover:bg-emerald-50 px-2 py-1 rounded transition-colors">Mở khóa</button>
+                          <button onClick={() => handleDeviceAction(d.id, 'APPROVED')} className="text-xs font-bold text-emerald-500 hover:bg-emerald-50 px-2 py-1 rounded transition-colors">{t('settings.unlockAccount')}</button>
                         ) : (
                           <button onClick={() => handleDeviceAction(d.id, 'LOCKED')} className="text-xs font-bold text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition-colors">Khóa</button>
                         )}
@@ -594,10 +596,10 @@ export default function Settings() {
         <div className="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3 bg-slate-50/50">
           <div>
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <Users className="w-5 h-5 text-sky-500" /> Quản lý Tài khoản & Phân quyền Doanh nghiệp
+              <Users className="w-5 h-5 text-sky-500" /> {t('settings.accountSectionTitle')}
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              Danh sách nhân sự thuộc doanh nghiệp. Phân quyền chặt chẽ giữa Quản trị viên (TENANT_ADMIN) và Nhân viên (TENANT_STAFF).
+              {t('settings.accountSectionSubtitle')}
             </p>
           </div>
           <button
@@ -616,13 +618,13 @@ export default function Settings() {
           <table className="w-full text-left text-sm">
             <thead className="bg-white text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
               <tr>
-                <th className="p-4">Họ và tên</th>
-                <th className="p-4">Tên đăng nhập</th>
-                <th className="p-4">Email</th>
-                <th className="p-4">Vai trò</th>
-                <th className="p-4">Trạng thái</th>
-                <th className="p-4">Ngày tạo</th>
-                <th className="p-4 text-right">Thao tác</th>
+                <th className="p-4">{t('settings.colFullName')}</th>
+                <th className="p-4">{t('settings.colUsername')}</th>
+                <th className="p-4">{t('settings.colEmail')}</th>
+                <th className="p-4">{t('settings.colRole')}</th>
+                <th className="p-4">{t('settings.colStatus')}</th>
+                <th className="p-4">{t('settings.colCreatedAt')}</th>
+                <th className="p-4 text-right">{t('settings.colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

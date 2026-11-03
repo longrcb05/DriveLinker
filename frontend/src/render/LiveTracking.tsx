@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { ChevronRight, RefreshCw, Map as MapIcon, Activity } from 'lucide-react';
 import trackingService, { TrackingKpi, LiveVehiclePosition } from '../api/trackingService';
 
@@ -14,6 +15,7 @@ import trackingService, { TrackingKpi, LiveVehiclePosition } from '../api/tracki
  * - Real-time: Kết nối WebSocket/Socket.io để lắng nghe stream tọa độ xe liên tục.
  */
 export default function LiveTracking() {
+  const { t } = useLanguage();
   const [kpi, setKpi] = useState<TrackingKpi>({
     totalVehicles: 0,
     rollingCount: 0,
@@ -65,18 +67,18 @@ export default function LiveTracking() {
           <div className="flex items-center text-xs font-medium text-slate-500">
             <span className="hover:text-slate-800 cursor-pointer transition-colors">MENU</span>
             <ChevronRight className="w-3 h-3 mx-1" />
-            <span className="text-slate-800 font-bold">THEO DÕI</span>
+            <span className="text-slate-800 font-bold">{t('nav.tracking')}</span>
           </div>
         </div>
 
         {/* Tiêu đề & Nút trạng thái */}
         <div className="flex items-end justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 leading-tight">Giám sát Hành trình</h2>
+            <h2 className="text-2xl font-bold text-slate-800 leading-tight">{t('tracking.title')}</h2>
           </div>
           {/* TODO: Đổi UI nút này thành màu xanh lá (Connected) khi WebSocket kết nối thành công */}
           <button className="bg-white border border-slate-200 text-slate-400 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 cursor-not-allowed">
-            <RefreshCw className="w-4 h-4" /> Đang chờ tín hiệu
+            <RefreshCw className="w-4 h-4" /> {t('common.loading')}
           </button>
         </div>
       </div>
@@ -87,23 +89,23 @@ export default function LiveTracking() {
           ========================================== */}
       <div className="px-6 grid grid-cols-5 gap-4 mb-4 shrink-0">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Tổng phương tiện</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">{t('tracking.kpiTotal')}</p>
           <h3 className="text-2xl font-bold text-slate-800">{kpi.totalVehicles}</h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Đang lăn bánh</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">{t('tracking.kpiRolling')}</p>
           <h3 className="text-2xl font-bold text-slate-500">{kpi.offlineCount}</h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Dừng / Đỗ</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">{t('tracking.kpiStationary')}</p>
           <h3 className="text-2xl font-bold text-slate-400">0</h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Cảnh báo</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">{t('tracking.kpiDrowsyAlert')}</p>
           <h3 className="text-2xl font-bold text-slate-400">0</h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Định vị</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">{t('tracking.kpiRtk')}</p>
           <h3 className="text-2xl font-bold text-slate-400">Mất kết nối</h3>
         </div>
       </div>
@@ -146,7 +148,7 @@ export default function LiveTracking() {
           {/* Widget: Log Sự kiện Hệ thống */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col flex-1 min-h-[250px]">
             <div className="p-3 border-b border-slate-100 bg-slate-50 rounded-t-xl">
-              <h3 className="font-bold text-slate-600 text-xs">Cập nhật hệ thống</h3>
+              <h3 className="font-bold text-slate-600 text-xs">{t('common.system')}</h3>
             </div>
             {/* TODO: Map() danh sách mảng dữ liệu log (vd: "[12:30:45] Xe 29C-12345 mất tín hiệu") */}
             <div className="flex-1 flex items-center justify-center p-6 text-center">

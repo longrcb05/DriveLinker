@@ -7,6 +7,7 @@
  */
 
 import { useState, useMemo } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import {
   Download, ChevronRight, AlertTriangle, ShieldCheck,
   Activity, BarChart3, PieChart, FileText, Loader2
@@ -33,6 +34,7 @@ const RAW_EVENTS = [
 ];
 
 export default function Analytics() {
+  const { t } = useLanguage();
   // Lấy ngày hiện tại format YYYY-MM-DD làm giá trị mặc định cho DatePicker
   const today = new Date().toISOString().split('T')[0];
 
@@ -98,13 +100,13 @@ export default function Analytics() {
         <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
           <span className="hover:text-slate-800 cursor-pointer transition-colors">MENU</span>
           <ChevronRight className="w-3 h-3 mx-2" />
-          <span className="text-sky-600 cursor-pointer">Phân tích & Cảnh báo</span>
+          <span className="text-sky-600 cursor-pointer">{t('nav.analytics')}</span>
         </div>
 
         <div className="flex items-end justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 leading-tight">Báo cáo Vận hành</h2>
-            <p className="text-xs text-slate-500 mt-1">Tổng hợp số liệu chuyến xe, cảnh báo an toàn và hiệu suất xử lý sự cố.</p>
+            <h2 className="text-2xl font-bold text-slate-800 leading-tight">{t('analytics.title')}</h2>
+            <p className="text-xs text-slate-500 mt-1">{t('analytics.subtitle')}</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -135,7 +137,7 @@ export default function Analytics() {
       <div className="px-6 grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
           <div className="flex justify-between items-start mb-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tổng Sự kiện</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('analytics.totalViolations')}</p>
             <Activity className="w-4 h-4 text-sky-500" />
           </div>
           <h3 className="text-3xl font-bold text-slate-800">{stats.total}</h3>
@@ -143,7 +145,7 @@ export default function Analytics() {
 
         <div className="bg-rose-50 p-5 rounded-xl border border-rose-100 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
           <div className="flex justify-between items-start mb-2">
-            <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Cảnh báo nghiêm trọng</p>
+            <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">{t('tracking.kpiDrowsyAlert')}</p>
             <AlertTriangle className="w-4 h-4 text-rose-500" />
           </div>
           <h3 className="text-3xl font-bold text-rose-600">{stats.highRiskCount}</h3>
@@ -151,7 +153,7 @@ export default function Analytics() {
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
           <div className="flex justify-between items-start mb-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tỷ lệ xử lý sự cố</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('analytics.resolved')}</p>
             <ShieldCheck className="w-4 h-4 text-emerald-500" />
           </div>
           <h3 className="text-3xl font-bold text-slate-800">{stats.resolveRate}%</h3>
@@ -159,7 +161,7 @@ export default function Analytics() {
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
           <div className="flex justify-between items-start mb-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Chỉ số an toàn DMS</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('analytics.safetyScore')}</p>
             <ShieldCheck className="w-4 h-4 text-indigo-500" />
           </div>
           <h3 className="text-3xl font-bold text-slate-800">{stats.safetyScore} <span className="text-sm font-medium text-slate-500">/ 100</span></h3>
@@ -226,11 +228,11 @@ export default function Analytics() {
             <table className="w-full text-left border-collapse text-sm">
               <thead className="bg-slate-50/80 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 sticky top-0 backdrop-blur-sm">
                 <tr>
-                  <th className="p-4">Thời gian</th>
-                  <th className="p-4">Phương tiện</th>
-                  <th className="p-4">Tài xế phụ trách</th>
-                  <th className="p-4">Loại vi phạm & Mức độ</th>
-                  <th className="p-4 text-center">Trạng thái xử lý</th>
+                  <th className="p-4">{t('analytics.colTime')}</th>
+                  <th className="p-4">{t('analytics.colVehicle')}</th>
+                  <th className="p-4">{t('analytics.colDriver')}</th>
+                  <th className="p-4">{t('analytics.colType')}</th>
+                  <th className="p-4 text-center">{t('analytics.colStatus')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">

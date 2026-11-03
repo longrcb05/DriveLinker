@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import {
   ChevronRight, Truck, AlertTriangle,
   MapPin, CheckCircle2, RefreshCw,
@@ -79,6 +80,7 @@ const MOCK_DATA_BY_TENANT: Record<string, any> = {
 const DEFAULT_DATA = MOCK_DATA_BY_TENANT['COMPANY_A'];
 
 export default function Overview() {
+  const { t } = useLanguage();
   const [userRole] = useState(localStorage.getItem('userRole') || 'TENANT_STAFF');
   const [tenantId] = useState(localStorage.getItem('tenantId') || 'COMPANY_A');
 
@@ -164,7 +166,7 @@ export default function Overview() {
         <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4">
           <div>
             <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-              <span className="hover:text-slate-800 cursor-pointer transition-colors">TRANG CHỦ</span>
+              <span className="hover:text-slate-800 cursor-pointer transition-colors">{t('overview.breadcrumbHome')}</span>
               <ChevronRight className="w-3.5 h-3.5 mx-1.5 text-slate-400" />
               <span className="text-sky-600 font-extrabold flex items-center gap-1">
                 <Sparkles className="w-3 h-3" /> Tổng quan
@@ -173,13 +175,13 @@ export default function Overview() {
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
               Bảng Điều Khiển Đội Xe
             </h2>
-            <p className="text-xs text-slate-500 mt-1">Giám sát vị trí, phân bổ phương tiện và cảnh báo an toàn thời gian thực.</p>
+            <p className="text-xs text-slate-500 mt-1">{t('overview.subtitle')}</p>
           </div>
 
           <div className="flex items-center gap-2.5">
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200/60 text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Đang kết nối WebSocket</span>
+              <span>{t('overview.wsConnected')}</span>
             </div>
 
             <button
@@ -202,7 +204,7 @@ export default function Overview() {
             color="sky"
             onClick={() => setActivePanel('ALL')}
             active={activePanel === 'ALL'}
-            desc="Toàn bộ phương tiện"
+            desc="{t('overview.kpiTotalSub')}"
             badge="100%"
           />
           <StatCard
@@ -212,7 +214,7 @@ export default function Overview() {
             color="emerald"
             onClick={() => setActivePanel('RENTING')}
             active={activePanel === 'RENTING'}
-            desc="Đang trên lộ trình"
+            desc="{t('overview.kpiRentingSub')}"
             badge="Hoạt động"
           />
           <StatCard
@@ -222,7 +224,7 @@ export default function Overview() {
             color="indigo"
             onClick={() => setActivePanel('AVAILABLE')}
             active={activePanel === 'AVAILABLE'}
-            desc="Sẵn sàng nhận khách"
+            desc="{t('overview.kpiAvailableSub')}"
             badge="Chờ khách"
           />
           <StatCard
@@ -232,7 +234,7 @@ export default function Overview() {
             color="amber"
             onClick={() => setActivePanel('MAINTENANCE')}
             active={activePanel === 'MAINTENANCE'}
-            desc="Bảo trì định kỳ"
+            desc="{t('overview.kpiMaintenanceSub')}"
             badge="Tạm dừng"
           />
 
@@ -259,13 +261,13 @@ export default function Overview() {
                 {isLoading ? '...' : kpiStats.aiAlerts}
               </h3>
               <p className="text-[11px] font-semibold text-rose-500/90 mt-1 flex items-center gap-1">
-                <Radio className="w-3 h-3 animate-ping text-rose-500" /> Cần kiểm tra ngay
+                <Radio className="w-3 h-3 animate-ping text-rose-500" /> {t('overview.kpiAlertsSub')}
               </p>
             </div>
           </div>
         </div>
 
-        {/* HÀNG 2: BẢN ĐỒ LIVE TRACKING & HIỆU SUẤT DOANH THU */}
+        {/* HÀNG 2: BẢN ĐỒ LIVE TRACKING & {t('overview.revPerformance')} */}
         <div className="flex flex-col lg:flex-row gap-6 h-[480px]">
 
           {/* Bản đồ Live Tracking */}
@@ -278,16 +280,16 @@ export default function Overview() {
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Bản Đồ Giám Sát Thời Gian Thực</h3>
-                  <p className="text-[10px] text-slate-500">Tọa độ cập nhật tự động từ thiết bị IoT</p>
+                  <p className="text-[10px] text-slate-500">{t('overview.mapSubtitle')}</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-3 text-xs font-medium">
                 <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Đang thuê ({kpiStats.renting})
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> {t('overview.mapRenting')} ({kpiStats.renting})
                 </span>
                 <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
-                  <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> Trống ({kpiStats.available})
+                  <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> {t('overview.mapAvailable')} ({kpiStats.available})
                 </span>
               </div>
             </div>
@@ -331,7 +333,7 @@ export default function Overview() {
                   <Lock className="w-3 h-3" /> Bảo mật
                 </span>
               ) : (
-                <span className="text-[10px] font-bold text-slate-400 font-mono">THÁNG HIỆN TẠI</span>
+                <span className="text-[10px] font-bold text-slate-400 font-mono">{t('overview.revCurrentMonth')}</span>
               )}
             </div>
 
@@ -342,7 +344,7 @@ export default function Overview() {
                 </span>
                 <h3 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
                   {isManager ? (isLoading ? '...' : revenueData.amount) : '***'}
-                  <span className="text-lg font-bold text-slate-400 ml-1.5">Triệu</span>
+                  <span className="text-lg font-bold text-slate-400 ml-1.5">{t('overview.revMillion')}</span>
                 </h3>
 
                 <span className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full mt-3 ${
@@ -471,7 +473,7 @@ export default function Overview() {
                       v.status === 'RENTING' ? 'bg-emerald-100 text-emerald-700' :
                       v.status === 'AVAILABLE' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'
                     }`}>
-                      {v.status === 'RENTING' ? 'ĐANG CHẠY' : v.status === 'AVAILABLE' ? 'SẴN SÀNG' : 'BẢO DƯỠNG'}
+                      {v.status === 'RENTING' ? t('overview.kpiRenting') : v.status === 'AVAILABLE' ? t('overview.kpiAvailable') : t('overview.kpiMaintenance')}
                     </span>
                   </div>
                   <div className="flex justify-between items-end text-xs text-slate-500">

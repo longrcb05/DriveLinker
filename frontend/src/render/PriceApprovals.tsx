@@ -4,9 +4,11 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { ChevronRight, Edit3, X, CheckCircle2 } from 'lucide-react';
 
 export default function PriceApprovals() {
+    const { t } = useLanguage();
     const [requests, setRequests] = useState<any[]>([]);
     const [contracts, setContracts] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'PENDING' | 'HISTORY'>('PENDING');
@@ -74,14 +76,14 @@ export default function PriceApprovals() {
     return (
         <div className="flex-1 overflow-auto bg-[#F8FAFC] p-6 relative">
             <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                <span>MENU</span> <ChevronRight className="w-3 h-3 mx-2" /> <span className="text-sky-600">Duyệt đơn giá</span>
+                <span>MENU</span> <ChevronRight className="w-3 h-3 mx-2" /> <span className="text-sky-600">{t('approvals.breadcrumb')}</span>
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">Yêu cầu thay đổi Đơn giá</h2>
+            <h2 className="text-2xl font-bold text-slate-800 mb-6">{t('approvals.title')}</h2>
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="flex border-b border-slate-200">
                     <button onClick={() => setActiveTab('PENDING')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'PENDING' ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                        Chờ xử lý ({requests.filter(r => r.status === 'PENDING').length})
+                        {t('approvals.pendingTab')} ({requests.filter(r => r.status === 'PENDING').length})
                     </button>
                     <button onClick={() => setActiveTab('HISTORY')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'HISTORY' ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
                         Lịch sử xử lý
@@ -91,19 +93,19 @@ export default function PriceApprovals() {
                 <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase">
                         <tr>
-                            <th className="p-4">Mã Hợp đồng</th>
-                            <th className="p-4">Nhân viên đề xuất</th>
-                            <th className="p-4">Lý do & Ghi chú</th>
-                            <th className="p-4">Đơn giá ban đầu</th>
-                            <th className="p-4">Đơn giá đề xuất</th>
-                            <th className="p-4 text-center">Thao tác</th>
+                            <th className="p-4">{t('approvals.colContract')}</th>
+                            <th className="p-4">{t('approvals.colStaff')}</th>
+                            <th className="p-4">{t('approvals.colReason')}</th>
+                            <th className="p-4">{t('approvals.colOldPrice')}</th>
+                            <th className="p-4">{t('approvals.colProposedPrice')}</th>
+                            <th className="p-4 text-center">{t('approvals.colAction')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {filteredData.length === 0 ? (
                             <tr>
                                 <td colSpan={6} className="p-8 text-center text-slate-400">
-                                    Không có yêu cầu nào trong danh sách.
+                                    {t('approvals.noRequests')}
                                 </td>
                             </tr>
                         ) : (
@@ -125,9 +127,7 @@ export default function PriceApprovals() {
                                                 <button
                                                     onClick={() => openProcessModal(req)}
                                                     className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm"
-                                                >
-                                                    Xử lý
-                                                </button>
+                                                >{t('approvals.processBtn')}</button>
                                             ) : (
                                                 <span className={`px-2.5 py-1 rounded text-xs font-bold ${req.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                                                     {req.status === 'APPROVED' ? 'Đã duyệt' : 'Đã từ chối'}
@@ -142,7 +142,7 @@ export default function PriceApprovals() {
                 </table>
             </div>
 
-            {/* MODAL XỬ LÝ DUYỆT ĐƠN GIÁ (MANAGER NHẬP TRỰC TIẾP GIÁ MỚI) */}
+            {/* MODAL XỬ LÝ {t('approvals.breadcrumb')} (MANAGER NHẬP TRỰC TIẾP GIÁ MỚI) */}
             {processingReq && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
