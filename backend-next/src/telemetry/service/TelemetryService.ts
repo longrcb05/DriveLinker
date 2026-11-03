@@ -23,15 +23,36 @@ export class TelemetryService {
 
     const vehicle = device.vehicle;
 
-    const activeSession = await prisma.monitoringSession.findFirst({
+    let activeSession = await prisma.monitoringSession.findFirst({
       where: {
         vehicleId: vehicle.id,
         status: MonitoringStatus.ACTIVE,
       },
     });
 
+    // Tự động kích hoạt phiên giám sát nếu chưa có để không làm mất dữ liệu IoT thực tế
     if (!activeSession) {
-      throw new Error('Xe không trong phiên giám sát nào. Không thể lưu GPS.');
+      const contract =
+        (await prisma.rentalContract.findFirst({
+          where: { vehicleId: vehicle.id },
+          orderBy: { id: 'desc' },
+        })) ||
+        (await prisma.rentalContract.findFirst({
+          orderBy: { id: 'desc' },
+        }));
+
+      if (contract) {
+        activeSession = await prisma.monitoringSession.create({
+          data: {
+            contractId: contract.id,
+            vehicleId: vehicle.id,
+            startedAt: new Date(),
+            status: MonitoringStatus.ACTIVE,
+          },
+        });
+      } else {
+        throw new Error('Xe chưa có hợp đồng nào để khởi tạo phiên giám sát GPS.');
+      }
     }
 
     const recordedAtDate = new Date(request.recordedAt);
@@ -42,7 +63,7 @@ export class TelemetryService {
         data: {
           eventId: request.eventId,
           vehicleId: vehicle.id,
-          monitoringSessionId: activeSession.id,
+          monitoringSessionId: activeSession!.id,
           latitude: request.latitude,
           longitude: request.longitude,
           speed: request.speed ?? 0,
@@ -50,7 +71,7 @@ export class TelemetryService {
         },
       });
 
-      const movementStatus = (request.speed && request.speed > 0) ? 'MOVING' : 'STOPPED';
+      const movementStatus = request.speed && request.speed > 0 ? 'MOVING' : 'STOPPED';
 
       await tx.vehicle.update({
         where: { id: vehicle.id },
@@ -74,9 +95,10 @@ export class TelemetryService {
     );
 
     // Log tracking
-    console.log(`[Telemetry] Recorded GPS for vehicle ${vehicle.licensePlate} (${vehicle.id}): ${request.latitude}, ${request.longitude}`);
+    console.log(
+      `[Telemetry] Recorded GPS for vehicle ${vehicle.licensePlate} (${vehicle.id}): ${request.latitude}, ${request.longitude}`
+    );
   }
 }
 
 export default TelemetryService;
-

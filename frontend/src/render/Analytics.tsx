@@ -6,7 +6,8 @@
  * Dữ liệu được cách ly theo định danh doanh nghiệp (tenantId).
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import analyticsService, { AnalyticsEvent } from '../api/analyticsService';
 import {
   Download, ChevronRight, Truck, AlertTriangle, ShieldCheck,
   Activity, BarChart3, PieChart, FileText, Loader2
@@ -38,6 +39,33 @@ export default function Analytics() {
 
   const [selectedDate, setSelectedDate] = useState(today);
   const [isExporting, setIsExporting] = useState(false);
+  const [serverEvents, setServerEvents] = useState<any[] | null>(null);
+
+  // Tải dữ liệu vi phạm thực tế từ Backend API
+  useEffect(() => {
+    analyticsService.getEvents({ date: selectedDate })
+      .then((res) => {
+        if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+          const mapped = res.data.map((e: AnalyticsEvent) => {
+            const timePart = e.timestamp.split('T')[1] || '';
+            return {
+              id: `EVT-${e.id}`,
+              date: e.timestamp.split('T')[0],
+              time: timePart.substring(0, 8),
+              vehicle: e.plateNumber,
+              driver: e.resolvedBy || 'Tài xế lái xe',
+              type: e.alertType === 'DROWSINESS' ? 'Nhắm mắt kéo dài' : e.alertType === 'YAWN' ? 'Ngáp liên tục' : e.alertType,
+              severity: e.severity,
+              status: e.status === 'RESOLVED' ? 'RESOLVED' : 'UNRESOLVED'
+            };
+          });
+          setServerEvents(mapped);
+        } else {
+          setServerEvents(null);
+        }
+      })
+      .catch(() => setServerEvents(null));
+  }, [selectedDate]);
 
   /**
    * Thuật toán Lọc tuyến tính (Linear Search / Filter) và Ghi nhớ (Memoization).

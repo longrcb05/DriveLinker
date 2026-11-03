@@ -36,15 +36,36 @@ export class AlertService {
 
     const vehicle = device.vehicle;
 
-    const activeSession = await prisma.monitoringSession.findFirst({
+    let activeSession = await prisma.monitoringSession.findFirst({
       where: {
         vehicleId: vehicle.id,
         status: MonitoringStatus.ACTIVE,
       },
     });
 
+    // Tự động kích hoạt phiên giám sát nếu chưa có
     if (!activeSession) {
-      throw new Error('Xe không trong phiên giám sát nào');
+      const contract =
+        (await prisma.rentalContract.findFirst({
+          where: { vehicleId: vehicle.id },
+          orderBy: { id: 'desc' },
+        })) ||
+        (await prisma.rentalContract.findFirst({
+          orderBy: { id: 'desc' },
+        }));
+
+      if (contract) {
+        activeSession = await prisma.monitoringSession.create({
+          data: {
+            contractId: contract.id,
+            vehicleId: vehicle.id,
+            startedAt: new Date(),
+            status: MonitoringStatus.ACTIVE,
+          },
+        });
+      } else {
+        throw new Error('Xe chưa có hợp đồng nào để khởi tạo phiên giám sát Cảnh báo.');
+      }
     }
 
     const occurredAtDate = new Date(request.occurredAt);
@@ -58,24 +79,27 @@ export class AlertService {
         alertType: request.alertType,
         severityLevel: request.severityLevel,
         drowsinessScore: request.drowsinessScore ?? null,
-        latitude: request.latitude ?? null,
-        longitude: request.longitude ?? null,
+        latitude: request.latitude ?? vehicle.lastLatitude ?? null,
+        longitude: request.longitude ?? vehicle.lastLongitude ?? null,
+        resolutionStatus: 'NEW',
         occurredAt: occurredAtDate,
-        resolutionStatus: ResolutionStatus.NEW,
       },
     });
 
-    const event = new RealtimeAlertEvent(
+    // Realtime Alert Event
+    const realtimeEvent = new RealtimeAlertEvent(
       savedAlert.id.toString(),
       savedAlert.alertType,
       savedAlert.severityLevel,
       vehicle.id,
       savedAlert.latitude,
       savedAlert.longitude,
-      savedAlert.occurredAt
+      occurredAtDate
     );
 
-    console.log(`[Alert] Triggered ${savedAlert.alertType} (${savedAlert.severityLevel}) on Vehicle ${vehicle.licensePlate}`);
+    console.log(
+      `[Alert] Triggered ${savedAlert.severityLevel} Alert: ${savedAlert.alertType} for vehicle ${vehicle.licensePlate} (${vehicle.id})`
+    );
   }
 
   /**
@@ -98,7 +122,7 @@ export class AlertService {
         resolver: true,
       },
       orderBy: { occurredAt: 'desc' },
-      take: 100, // Giới hạn 100 cảnh báo gần nhất để tối ưu hiệu năng
+      take: 100,
     });
 
     return list.map((item) => new AlertDetailResponse(item));

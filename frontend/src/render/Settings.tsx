@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import tenantService from '../api/tenantService';
 import {
   Key, CheckCircle2, AlertCircle, Eye, EyeOff,
   History, Clock, ShieldAlert,
@@ -87,6 +88,40 @@ export default function Settings() {
   }, [tenantId]);
 
   const loadData = () => {
+    // Gọi API Backend lấy danh sách thiết bị và audit logs nếu có kết nối
+    tenantService.getAccessDevices().then((res) => {
+      if (res && res.data && res.data.length > 0) {
+        const mapped = res.data.map((d: any) => ({
+          id: String(d.id),
+          tenantId,
+          name: d.deviceName,
+          type: d.deviceType,
+          ip: d.ipAddress,
+          account: d.user?.fullName || d.user?.username || 'N/A',
+          lastLogin: new Date(d.lastLoginAt).toLocaleString('vi-VN'),
+          status: d.status,
+          os: d.os || 'Windows',
+          browser: d.browser || 'Browser'
+        }));
+        setDeviceList(mapped);
+      }
+    }).catch(() => {});
+
+    tenantService.getAuditLogs().then((res) => {
+      if (res && res.data && res.data.length > 0) {
+        const mappedLogs = res.data.map((l: any) => ({
+          id: `LOG_${l.id}`,
+          tenantId,
+          user: l.user?.fullName || l.user?.username || 'System',
+          action: l.action,
+          target: l.entityType ? `${l.entityType} #${l.entityId || ''}` : '',
+          result: 'Thành công',
+          timestamp: new Date(l.createdAt).getTime(),
+          timeStr: new Date(l.createdAt).toLocaleString('vi-VN')
+        }));
+        setActivityLogs(mappedLogs);
+      }
+    }).catch(() => {});
     // 1. Tải Mã CTY
     const tenants = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
     const currentTenant = tenants.find((t: any) => t.id === tenantId);
@@ -171,6 +206,7 @@ export default function Settings() {
     localStorage.setItem('tenantCode', newCode.toUpperCase());
 
     logActivity('Đổi mã doanh nghiệp', `Mã mới: ${newCode.toUpperCase()}`);
+    tenantService.updateCompanyCode(newCode.toUpperCase()).catch(() => {});
 
     setCurrentCode(newCode.toUpperCase());
     setIsEditingCode(false);
