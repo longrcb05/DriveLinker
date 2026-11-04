@@ -1,3 +1,4 @@
+import axiosClient from '../api/axiosClient';
 import { useLanguage } from '../context/LanguageContext';
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -58,8 +59,8 @@ export default function Login() {
   }, []);
 
   // Nhận diện Doanh nghiệp realtime khi người dùng nhập mã
-  const getMatchedTenant = () => {
-    const code = tenantCode.trim().toUpperCase();
+  const getMatchedTenant = (targetCode?: string) => {
+    const code = (targetCode || tenantCode).trim().toUpperCase();
     const stored = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
     let match = DEMO_DB.tenants.find(t => t.code === code) || stored.find((t: any) => t.code === code);
     if (!match) {
@@ -79,15 +80,71 @@ export default function Login() {
     setError(null);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
-    // Bắt đầu luồng kiểm tra logic Multi-tenant
+    const codeInput = tenantCode.trim().toUpperCase();
+    const userInput = username.trim().toLowerCase();
+
+    // 1. Thử xác thực trực tiếp qua Backend API PostgreSQL
+    try {
+      const authRes = await axiosClient.post('/auth/login', {
+        companyCode: codeInput === 'CTYA26' ? 'CTA2026' : codeInput,
+        username: userInput,
+        password: password,
+      });
+
+      if (authRes.data?.data?.token) {
+        const { token, role, username: authUsername, companyCode: resCode, organizationName: resName } = authRes.data.data;
+        const matched = getMatchedTenant(resCode || codeInput);
+
+        let tenantId = 'COMPANY_A';
+        let tenantName = 'Demo CTY A';
+        let finalCode = resCode || codeInput;
+
+        if (matched) {
+          tenantId = matched.id;
+          tenantName = matched.name;
+          finalCode = matched.code;
+        } else if (codeInput === 'CTB2026' || codeInput.includes('CTYB') || codeInput.endsWith('B')) {
+          tenantId = 'COMPANY_B';
+          tenantName = 'Demo CTY B';
+        } else if (codeInput === 'CTC2026' || codeInput.includes('CTYC') || codeInput.endsWith('C')) {
+          tenantId = 'COMPANY_C';
+          tenantName = 'Demo CTY C';
+        } else {
+          tenantId = 'COMPANY_A';
+          tenantName = 'Demo CTY A';
+        }
+
+        if (resName) {
+          tenantName = resName;
+        }
+
+        localStorage.setItem('token', token);
+        localStorage.setItem('tenantId', tenantId);
+        localStorage.setItem('tenantCode', finalCode);
+        localStorage.setItem('tenantName', tenantName);
+        localStorage.setItem('username', authUsername || userInput);
+        localStorage.setItem('userRole', role === 'ADMIN' ? 'TENANT_ADMIN' : 'TENANT_STAFF');
+
+        navigate('/overview');
+        return;
+      }
+    } catch (apiErr: any) {
+      const serverMsg = apiErr.response?.data?.message;
+      if (serverMsg && (serverMsg.includes('mật khẩu') || serverMsg.includes('vô hiệu hóa'))) {
+        setError(serverMsg);
+        setIsLoading(false);
+        return;
+      }
+      // Fallback sang kiểm tra local nếu API chưa bật hoặc đang demo offline
+    }
+
+    // 2. Fallback logic kiểm tra Multi-tenant Local
     setTimeout(() => {
-      const codeInput = tenantCode.trim().toUpperCase();
-      const userInput = username.trim().toLowerCase();
 
       // 1. Tìm Doanh nghiệp theo Mã đăng nhập (ưu tiên DEMO_DB chuẩn và hỗ trợ sys_tenants tùy biến)
       const storedTenants = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
@@ -111,10 +168,11 @@ export default function Login() {
         return;
       }
 
-      // 2. Tìm Người dùng: Kiểm tra DEMO_DB.users hoặc sys_accounts
-      const demoUser = DEMO_DB.users.find(u => u.username === userInput);
+      // 2. Tìm Người dùng: Kiểm tra DEMO_DB.users hoặc sys_accounts (Hỗ trợ cả username lẫn email)
+      const userInputClean = userInput.trim().toLowerCase();
+      const demoUser = DEMO_DB.users.find(u => u.username.toLowerCase() === userInputClean || (u as any).email?.toLowerCase() === userInputClean);
       const storedAccounts = JSON.parse(localStorage.getItem('sys_accounts') || '[]');
-      const customAccount = storedAccounts.find((a: any) => a.username.toLowerCase() === userInput);
+      const customAccount = storedAccounts.find((a: any) => a.username?.toLowerCase() === userInputClean || a.email?.toLowerCase() === userInputClean);
 
       if (!demoUser && !customAccount) {
         setError(language === 'vi' ? 'Tài khoản đăng nhập không tồn tại.' : 'User account does not exist.');
@@ -178,7 +236,7 @@ export default function Login() {
       localStorage.setItem('tenantId', tenant.id);
       localStorage.setItem('tenantCode', tenant.code);
       localStorage.setItem('tenantName', tenant.name);
-      localStorage.setItem('username', userInput);
+      localStorage.setItem('username', customAccount?.username || demoUser?.username || userInput);
       localStorage.setItem('userRole', userRoleForTenant);
 
       navigate('/overview');

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { dlDialog } from '../../context/DialogContext';
 import coreAdminService from '../../api/coreAdminService';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -75,7 +76,7 @@ export default function AdminTenantList() {
   const handleAddTenant = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.ownerName) {
-      alert("Vui lòng nhập ít nhất Tên doanh nghiệp và Tên chủ doanh nghiệp!");
+      dlDialog.alert('Vui lòng nhập ít nhất Tên doanh nghiệp và Tên chủ doanh nghiệp!', { title: 'Thiếu thông tin', type: 'warning' });
       return;
     }
 

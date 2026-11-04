@@ -1,18 +1,13 @@
+import extractAuth from '@/common/security/authHelper';
 import { NextRequest, NextResponse } from 'next/server';
 import ApiResponse from '@/common/response/ApiResponse';
 import JwtService from '@/common/security/JwtService';
 import AnalyticsService from '@/analytics/service/AnalyticsService';
+import prisma from '@/lib/prisma';
 
 export class AnalyticsController {
   private static async extractAuth(request: NextRequest) {
-    const authHeader = request.headers.get('authorization');
-    const token = JwtService.getTokenFromHeader(authHeader);
-    if (!token) throw new Error('Chưa xác thực người dùng.');
-
-    const user = await JwtService.extractUser(token);
-    if (!user) throw new Error('Token không hợp lệ hoặc đã hết hạn.');
-
-    return user;
+    return extractAuth(request);
   }
 
   /**

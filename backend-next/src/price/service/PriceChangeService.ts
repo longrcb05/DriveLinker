@@ -15,10 +15,6 @@ export class PriceChangeService {
     staffId: number,
     dto: PriceChangeRequestDto
   ): Promise<PriceChangeResponse> {
-    if (dto.proposedPrice === undefined || dto.proposedPrice === null || dto.proposedPrice < 0) {
-      throw new Error('Giá đề xuất không hợp lệ (phải >= 0).');
-    }
-
     if (!dto.reason || dto.reason.trim() === '') {
       throw new Error('Vui lòng nêu rõ lý do yêu cầu thay đổi giá.');
     }
@@ -49,6 +45,11 @@ export class PriceChangeService {
       throw new Error('Hợp đồng này đang có một yêu cầu đổi giá chờ duyệt.');
     }
 
+    const proposedPrice =
+      dto.proposedPrice !== undefined && dto.proposedPrice !== null && dto.proposedPrice >= 0
+        ? dto.proposedPrice
+        : contract.price ?? 0;
+
     // Thực hiện trong Transaction để đảm bảo tính toàn vẹn
     const savedRequest = await prisma.$transaction(async (tx) => {
       // 1. Đánh dấu cờ trên hợp đồng
@@ -63,7 +64,7 @@ export class PriceChangeService {
           contractId: contract.id,
           requestedByStaffId: staff.id,
           currentPrice: contract.price ?? 0,
-          proposedPrice: dto.proposedPrice,
+          proposedPrice: proposedPrice,
           reason: dto.reason.trim(),
           status: 'PENDING',
         },
@@ -80,21 +81,24 @@ export class PriceChangeService {
   }
 
   /**
-   * Lấy danh sách các yêu cầu thay đổi giá theo Organization (Mặc định PENDING)
+   * Lấy danh sách các yêu cầu thay đổi giá theo Organization (Mặc định tất cả hoặc theo filter)
    */
   public static async getRequests(
     organizationId: number,
     statusFilter?: string
   ): Promise<PriceChangeResponse[]> {
-    const status = statusFilter && statusFilter.trim() !== '' ? statusFilter.trim() : 'PENDING';
+    const where: any = {
+      contract: {
+        organizationId: organizationId,
+      },
+    };
+
+    if (statusFilter && statusFilter !== 'ALL' && statusFilter.trim() !== '') {
+      where.status = statusFilter.trim();
+    }
 
     const list = await prisma.priceChangeRequest.findMany({
-      where: {
-        status: status,
-        contract: {
-          organizationId: organizationId,
-        },
-      },
+      where,
       include: {
         contract: true,
         requestedByStaff: true,
@@ -112,7 +116,8 @@ export class PriceChangeService {
   public static async approveRequest(
     requestId: number,
     managerId: number,
-    managerNote?: string
+    managerNote?: string,
+    newPrice?: number
   ): Promise<PriceChangeResponse> {
     const existingReq = await prisma.priceChangeRequest.findUnique({
       where: { id: requestId },
@@ -147,10 +152,15 @@ export class PriceChangeService {
       });
 
       // 2. Cập nhật giá mới vào Hợp đồng và tắt cờ pending
+      const finalPrice =
+        newPrice !== undefined && newPrice !== null && newPrice > 0
+          ? newPrice
+          : existingReq.proposedPrice ?? existingReq.currentPrice;
+
       await tx.rentalContract.update({
         where: { id: existingReq.contractId },
         data: {
-          price: existingReq.proposedPrice ?? existingReq.currentPrice,
+          price: finalPrice,
           hasPendingPriceRequest: false,
         },
       });
@@ -185,7 +195,7 @@ export class PriceChangeService {
     const now = new Date();
 
     const updated = await prisma.$transaction(async (tx) => {
-      // 1. Cập nhật trạng thái yêu cầu thành REJECTED
+      // 1. Cập nhật trạng thái yêu cầu từ chối
       const req = await tx.priceChangeRequest.update({
         where: { id: requestId },
         data: {
@@ -201,7 +211,7 @@ export class PriceChangeService {
         },
       });
 
-      // 2. Mở lại cờ trên Hợp đồng
+      // 2. Tắt cờ pending trên hợp đồng, giữ nguyên giá hợp đồng
       await tx.rentalContract.update({
         where: { id: existingReq.contractId },
         data: {
@@ -214,7 +224,26 @@ export class PriceChangeService {
 
     return new PriceChangeResponse(updated);
   }
+
+  /**
+   * Xem chi tiết 1 yêu cầu thay đổi giá
+   */
+  public static async getRequestById(requestId: number): Promise<PriceChangeResponse> {
+    const req = await prisma.priceChangeRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        contract: true,
+        requestedByStaff: true,
+        reviewedByManager: true,
+      },
+    });
+
+    if (!req) {
+      throw new Error('Không tìm thấy yêu cầu thay đổi giá.');
+    }
+
+    return new PriceChangeResponse(req);
+  }
 }
 
 export default PriceChangeService;
-

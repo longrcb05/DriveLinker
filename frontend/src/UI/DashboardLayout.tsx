@@ -1,3 +1,4 @@
+import { dlDialog } from '../context/DialogContext';
 /**
  * @file DashboardLayout.tsx
  * @description Layout chính của toàn bộ hệ thống sau khi người dùng đăng nhập.
@@ -45,21 +46,30 @@ export default function DashboardLayout() {
       localStorage.removeItem('userRole');
       navigate('/overview/admin');
     } else {
-      localStorage.clear();
+      // Xóa phiên đăng nhập, giữ nguyên dữ liệu CSDL đệm và cấu hình hệ thống
+      localStorage.removeItem('token');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('username');
+      localStorage.removeItem('tenantId');
+      localStorage.removeItem('tenantCode');
+      localStorage.removeItem('tenantName');
+      localStorage.removeItem('sys_core_token');
+      localStorage.removeItem('sys_core_role');
+      sessionStorage.clear();
       navigate('/portal/login');
     }
   };
 
   const handleFixSystem = () => {
     setSyncState('STAGED');
-    alert('Đã thiết lập cấu hình vá lỗi cho doanh nghiệp này. Vui lòng bấm Đồng bộ để lưu thay đổi.');
+    dlDialog.alert('Đã thiết lập cấu hình vá lỗi cho doanh nghiệp này. Vui lòng bấm Đồng bộ để lưu thay đổi.', { title: 'Cấu hình bản vá', type: 'info' });
   };
 
   const handleSync = () => {
     setSyncState('SYNCING');
     setTimeout(() => {
       setSyncState('IDLE');
-      alert('Đồng bộ hoàn tất! Manager và Staff của doanh nghiệp đã nhận được bản cập nhật.');
+      dlDialog.alert('Đồng bộ hoàn tất! Manager và Staff của doanh nghiệp đã nhận được bản cập nhật.', { title: 'Đồng bộ hệ thống', type: 'success' });
     }, 2000);
   };
 

@@ -8,4 +8,3 @@ export async function POST(
   const contractId = parseInt(params.id, 10);
   return PriceChangeController.createRequest(request, contractId);
 }
-

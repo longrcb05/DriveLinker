@@ -1,3 +1,4 @@
+import { dlDialog } from '../context/DialogContext';
 /**
  * @file ContractManagement.tsx
  * @description Quản lý Đối tác, Hợp đồng Vận chuyển & Bản nháp.
@@ -14,6 +15,9 @@ import { useNavigate } from 'react-router-dom';
 import RequestPriceChangeModal from '../components/RequestPriceChangeModal';
 import VehicleRecallModal from '../components/VehicleRecallModal';
 import { useLanguage } from '../context/LanguageContext';
+import { ensureInitialContractSeed } from '../services/contractSeedData';
+import contractService from '../api/contractService';
+import axiosClient from '../api/axiosClient';
 
 export default function ContractManagement() {
   const { t } = useLanguage();
@@ -32,6 +36,7 @@ export default function ContractManagement() {
   const [recallingContract, setRecallingContract] = useState<any | null>(null);
   const [editingPriceContract, setEditingPriceContract] = useState<any | null>(null);
   const [managerNewPrice, setManagerNewPrice] = useState<string>('');
+  const [previewEvidenceContract, setPreviewEvidenceContract] = useState<any | null>(null);
 
   useEffect(() => {
     loadData();
@@ -39,11 +44,49 @@ export default function ContractManagement() {
     return () => window.removeEventListener('storage', loadData);
   }, [tenantId]);
 
-  const loadData = () => {
-    if (!localStorage.getItem('sys_price_requests')) localStorage.setItem('sys_price_requests', JSON.stringify([]));
-
+  const loadData = async () => {
+    ensureInitialContractSeed();
     const allContracts = JSON.parse(localStorage.getItem('sys_e_contracts') || '[]');
     setContracts(allContracts.filter((c: any) => c.tenantId === tenantId).reverse());
+
+    try {
+      const res = await contractService.getAll();
+      const rawList = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      if (rawList.length > 0) {
+        const mappedFromDb = rawList.map((c: any) => ({
+          id: typeof c.id === 'number' ? `HD-2026-${String(c.id).padStart(3, '0')}` : c.id,
+          numericId: c.id,
+          partnerName: c.customerName || c.customer?.fullName || 'Khách hàng',
+          partnerPhone: c.customerPhone || c.customer?.phone || '---',
+          customer: c.customerName || c.customer?.fullName,
+          phone: c.customerPhone || c.customer?.phone,
+          carPlate: c.licensePlate || c.vehicle?.licensePlate || '---',
+          vehiclePlate: c.licensePlate || c.vehicle?.licensePlate || '---',
+          carModel: c.vehicleModel || (c.vehicle ? `${c.vehicle.brand || ''} ${c.vehicle.model || ''}`.trim() : ''),
+          vehicleName: c.vehicleModel || (c.vehicle ? `${c.vehicle.brand || ''} ${c.vehicle.model || ''}`.trim() : ''),
+          rentStartDate: c.startTime,
+          rentEndDate: c.endTime,
+          startDate: c.startTime ? String(c.startTime).split('T')[0] : '',
+          endDate: c.endTime ? String(c.endTime).split('T')[0] : '',
+          value: `${Number(c.price || 0).toLocaleString('vi-VN')} VNĐ`,
+          rentPrice: String(c.price || 0),
+          price: Number(c.price || 0),
+          rentalPrice: Number(c.price || 0),
+          deposit: `${Number(c.depositAmount || 0).toLocaleString('vi-VN')} VNĐ`,
+          depositAmount: Number(c.depositAmount || 0),
+          status: c.status === 'ACTIVE' || c.status === 'OFFICIAL' ? 'OFFICIAL' : c.status,
+          rawStatus: c.status,
+          type: 'E_CONTRACT',
+          hasPendingRequest: !!c.hasPendingPriceRequest,
+          tenantId: tenantId,
+          notes: c.notes,
+        }));
+        setContracts(mappedFromDb);
+        localStorage.setItem('sys_e_contracts', JSON.stringify(mappedFromDb));
+      }
+    } catch (apiErr) {
+      console.warn('Lỗi gọi API contracts từ BE:', apiErr);
+    }
 
     // Hỗ trợ gộp cả key sys_contract_drafts và sys_contract_drafts_${tenantId}
     const legacyDrafts = JSON.parse(localStorage.getItem(`sys_contract_drafts_${tenantId}`) || '[]');
@@ -145,7 +188,7 @@ export default function ContractManagement() {
     if (!editingPriceContract || !managerNewPrice) return;
     const numPrice = Number(managerNewPrice.replace(/[^0-9]/g, ''));
     if (!numPrice || numPrice <= 0) {
-      alert(t('contracts.alertInvalidPrice'));
+      dlDialog.alert(t('contracts.alertInvalidPrice'), { title: 'Đơn giá không hợp lệ', type: 'warning' });
       return;
     }
 
@@ -168,20 +211,30 @@ export default function ContractManagement() {
     setManagerNewPrice('');
     loadData();
     window.dispatchEvent(new Event('storage'));
-    alert(t('contracts.alertPriceUpdateSuccess'));
+    dlDialog.alert(t('contracts.alertPriceUpdateSuccess'), { title: 'Cập nhật thành công', type: 'success' });
   };
 
-  const handleSubmitPriceRequest = (reason: string) => {
+  const handleSubmitPriceRequest = async (reason: string) => {
     if (!requestContractId) return;
 
     const allContracts = JSON.parse(localStorage.getItem('sys_e_contracts') || '[]');
     const targetContract = allContracts.find((c: any) => c.id === requestContractId);
     const userName = localStorage.getItem('sys_core_role') === 'SUPER_ADMIN' ? 'Hệ thống Admin' : 'Nhân viên A';
+    const numericContractId = Number(String(requestContractId).replace(/\D/g, '')) || requestContractId;
+
+    try {
+      await axiosClient.post(`/contracts/${numericContractId}/price-requests`, {
+        reason,
+        proposedPrice: targetContract?.price || 0
+      });
+    } catch (err) {
+      console.warn('Lỗi gọi API price-requests từ BE:', err);
+    }
 
     const newRequest = {
       id: `REQ-${Date.now()}`,
       contractId: requestContractId,
-      customer: targetContract?.partnerName || 'Khách hàng',
+      customer: targetContract?.partnerName || targetContract?.customerName || 'Khách hàng',
       staff: userName,
       date: new Date().toLocaleString('vi-VN'),
       reason: reason,
@@ -197,14 +250,15 @@ export default function ContractManagement() {
     );
     localStorage.setItem('sys_e_contracts', JSON.stringify(updatedContracts));
 
-    loadData();
+    await loadData();
     setRequestContractId(null);
-    alert(t('contracts.alertPriceRequestSuccess'));
+    dlDialog.alert(t('contracts.alertPriceRequestSuccess'), { title: 'Đã gửi trình duyệt', type: 'success' });
     window.dispatchEvent(new Event('storage'));
   };
 
-  const handleDeleteDraft = (id: string) => {
-    if (window.confirm(t('contracts.confirmDeleteDraft'))) {
+  const handleDeleteDraft = async (id: string) => {
+    const ok = await dlDialog.confirm(t('contracts.confirmDeleteDraft'), { title: 'Xác nhận xóa bản nháp', type: 'danger' });
+    if (ok) {
       const updated = drafts.filter(d => d.id !== id);
       localStorage.setItem('sys_contract_drafts', JSON.stringify(updated));
       setDrafts(updated);
@@ -212,7 +266,12 @@ export default function ContractManagement() {
   };
 
   const totalClients = contracts.length;
-  const eContractCount = contracts.filter(c => c.type === 'E_CONTRACT' || c.status === 'OFFICIAL').length;
+  const eContractCount = contracts.filter(c => c.type === 'E_CONTRACT' || c.status === 'OFFICIAL' || c.status === 'ACTIVE').length;
+  const estimatedRevenue = contracts.reduce((sum, c) => {
+    const rawVal = c.price || c.rentPrice || c.rentalPrice || c.value || 0;
+    const num = Number(String(rawVal).replace(/[^0-9]/g, '')) || 0;
+    return sum + num;
+  }, 0);
   const displayData = activeTab === 'OFFICIAL' ? contracts : drafts;
   const filteredData = displayData.filter(c =>
     (c.partnerName || c.partyB?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -502,7 +561,7 @@ export default function ContractManagement() {
           </div>
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t('contracts.kpiExpectedRevenue')}</p>
-            <h3 className="text-3xl font-bold text-slate-300 leading-none">{isManager ? '---' : '***'}</h3>
+            <h3 className="text-2xl font-bold text-emerald-600 leading-none">{isManager ? formatMoney(estimatedRevenue) : '***'}</h3>
           </div>
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t('contracts.kpiDrafts')}</p>
@@ -558,27 +617,33 @@ export default function ContractManagement() {
                   ) : (
                     filteredData.map((item) => {
                       const expiry = calculateContractExpiry(item);
-                      const plate = item.carPlate || item.vehicle?.plate || item.contractData?.carPlate || '---';
-                      const startDate = item.rentStartDate || item.contractData?.rentStartDate || item.date || '---';
-                      const endDate = item.rentEndDate || item.contractData?.rentEndDate || '---';
+                      const plate = item.licensePlate || item.carPlate || item.vehiclePlate || item.vehicle?.plate || item.vehicle?.licensePlate || item.contractData?.carPlate || '---';
+                      const carModel = item.vehicleModel || item.carModel || item.vehicleName || (item.vehicle?.brand ? `${item.vehicle.brand} ${item.vehicle.model}` : '');
+                      const customerName = item.customerName || item.customer?.fullName || item.partnerName || item.customer || item.partyB?.name || '(Chưa nhập tên)';
+                      const customerPhone = item.customerPhone || item.customer?.phone || item.partnerPhone || item.phone || item.partyB?.phone || '---';
+                      const startDate = item.rentStartDate || item.startDate || item.contractData?.rentStartDate || item.date || '---';
+                      const endDate = item.rentEndDate || item.endDate || item.contractData?.rentEndDate || '---';
 
                       return (
                         <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                           {/* Cột 1: Mã HĐ & Xe */}
                           <td className="p-4 pl-6">
-                            <span className="font-mono text-slate-800 font-bold text-xs">{item.id}</span>
+                            <span className="font-mono text-sky-600 font-extrabold text-xs">{item.id}</span>
                             <div className="flex items-center gap-1.5 mt-1">
                               <Car className="w-3.5 h-3.5 text-sky-500" />
-                              <span className="font-mono font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              <span className="font-mono font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-xs">
                                 {plate}
                               </span>
                             </div>
+                            {carModel && <p className="text-[10px] text-slate-400 mt-0.5">{carModel}</p>}
                           </td>
 
                           {/* Cột 2: Khách hàng */}
                           <td className="p-4">
-                            <p className="font-bold text-slate-800">{item.partnerName || item.partyB?.name || '(Chưa nhập tên)'}</p>
-                            <p className="text-[10px] font-mono text-slate-500">{item.partnerPhone || item.partyB?.phone || '---'}</p>
+                            <p className="font-bold text-slate-900 text-sm">{customerName}</p>
+                            <p className="text-[11px] font-mono text-slate-500 flex items-center gap-1 mt-0.5">
+                              📞 {customerPhone}
+                            </p>
                           </td>
 
                           {/* Cột 3: Thời hạn & Tình trạng hạn HĐ */}
@@ -788,6 +853,72 @@ export default function ContractManagement() {
         </div>
       )}
 
+      {/* MODAL XEM BẰNG CHỨNG VI PHẠM TỪ YOLO AI CỦA HỢP ĐỒNG */}
+      {previewEvidenceContract && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-rose-500" />
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm">Hồ Sơ Bằng Chứng Vi Phạm An Toàn (YOLO AI)</h4>
+                  <p className="text-[11px] text-slate-500">
+                    Hợp đồng: <b className="font-mono text-slate-700">{previewEvidenceContract.id}</b> • Xe: <b className="font-mono text-slate-700">{previewEvidenceContract.carPlate}</b>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewEvidenceContract(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {(previewEvidenceContract.evidenceList || [
+                  { file: 'NGU_GAT_(1.5s)_20261022_214414.jpg', type: 'DROWSINESS', score: 92, time: '2026-11-04 23:45' },
+                  { file: 'CANH_BAO_DO_5_LAN_VANG_10P_-_NGAP_SAU_3.0s_20261029_100635.jpg', type: 'YAWN', score: 65, time: '2026-11-04 23:42' },
+                  { file: 'GUC_DAU_(NHAM_MAT)_(3.2s)_20261022_220933.jpg', type: 'HEAD_DROP', score: 82, time: '2026-11-03 21:10' },
+                  { file: 'BUON_NGU_20261024_094018.jpg', type: 'DROWSINESS', score: 90, time: '2026-11-01 23:05' },
+                ]).map((item: any, idx: number) => (
+                  <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden bg-slate-950 text-white flex flex-col">
+                    <div className="h-44 flex items-center justify-center overflow-hidden bg-black relative">
+                      <img
+                        src={`/evidence/${item.file}`}
+                        alt={item.file}
+                        className="w-full h-full object-contain"
+                        onError={(e: any) => {
+                          e.target.onerror = null;
+                          e.target.src = '/evidence/NGU_GAT_(1.5s)_20261022_214414.jpg';
+                        }}
+                      />
+                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] font-black uppercase bg-rose-600 text-white shadow">
+                        {item.type} ({item.score}/100)
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-slate-900 border-t border-slate-800 text-[11px] font-mono">
+                      <p className="text-sky-400 font-bold truncate">{item.file}</p>
+                      <p className="text-slate-400 mt-0.5">Thời gian: {item.time}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-xs">
+              <span className="text-slate-500 font-medium">Bằng chứng trích xuất tự động từ Camera AI trên hành trình thuê</span>
+              <button
+                onClick={() => setPreviewEvidenceContract(null)}
+                className="px-4 py-1.5 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-700"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

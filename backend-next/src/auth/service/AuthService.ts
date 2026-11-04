@@ -29,12 +29,15 @@ export class AuthService {
       throw new Error('Tổ chức đã bị vô hiệu hóa.');
     }
 
-    const user = await prisma.user.findUnique({
+    const trimmedUser = username.trim();
+    // Cho phép đăng nhập linh hoạt bằng cả Tên đăng nhập (username) HOẶC Email
+    const user = await prisma.user.findFirst({
       where: {
-        uq_users_org_username: {
-          organizationId: org.id,
-          username: username.trim(),
-        },
+        organizationId: org.id,
+        OR: [
+          { username: trimmedUser },
+          { email: trimmedUser },
+        ],
       },
       include: {
         role: true,
@@ -42,7 +45,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error('Đăng nhập thất bại.');
+      throw new Error('Đăng nhập thất bại. Tài khoản không tồn tại.');
     }
 
     if (user.status !== 'ACTIVE') {
@@ -51,7 +54,7 @@ export class AuthService {
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      throw new Error('Đăng nhập thất bại.');
+      throw new Error('Sai mật khẩu đăng nhập.');
     }
 
     const jwtToken = await JwtService.generateToken({
@@ -62,7 +65,7 @@ export class AuthService {
       companyCode: org.companyCode,
     });
 
-    return new AuthResponse(jwtToken, user.username, user.role.name, org.id);
+    return new AuthResponse(jwtToken, user.username, user.role.name, org.id, org.companyCode, org.name);
   }
 
   static async getMe(userId: number): Promise<UserMeResponse> {
@@ -94,4 +97,3 @@ export class AuthService {
 }
 
 export default AuthService;
-

@@ -1,3 +1,4 @@
+import { dlDialog } from '../context/DialogContext';
 /**
  * @file Settings.tsx
  * @description Phân hệ Cài đặt hệ thống (Settings) dành cho Quản trị viên doanh nghiệp (Tenant Admin).
@@ -9,6 +10,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import axiosClient from '../api/axiosClient';
 import { useLanguage } from '../context/LanguageContext';
 import {
   Key, CheckCircle2, AlertCircle, Eye, EyeOff,
@@ -113,7 +115,7 @@ export default function Settings() {
     loadData();
   }, [tenantId]);
 
-  const loadData = () => {
+  const loadData = async () => {
     // 1. Tải Mã CTY
     const tenants = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
     const currentTenant = tenants.find((t: any) => t.id === tenantId);
@@ -126,6 +128,27 @@ export default function Settings() {
     // 3. Tải Danh sách Tài khoản
     const allAccounts = JSON.parse(localStorage.getItem('sys_accounts') || '[]');
     setAccountList(allAccounts.filter((a: any) => a.tenantId === tenantId));
+
+    try {
+      const usersRes = await axiosClient.get('/tenant/users');
+      if (usersRes.data?.data && Array.isArray(usersRes.data.data)) {
+        const beUsers = usersRes.data.data.map((u: any) => ({
+          id: u.id,
+          tenantId: tenantId,
+          username: u.username,
+          fullName: u.fullName,
+          email: u.email,
+          role: u.role === 'ADMIN' ? 'TENANT_ADMIN' : 'TENANT_STAFF',
+          status: u.status,
+          createdAt: u.createdAt ? String(u.createdAt).split('T')[0] : new Date().toLocaleDateString('vi-VN'),
+        }));
+        if (beUsers.length > 0) {
+          setAccountList(beUsers);
+        }
+      }
+    } catch (err) {
+      console.warn('Lỗi tải danh sách người dùng từ BE:', err);
+    }
 
     // 4. Tải Thiết bị truy cập & Phân tích IP
     const allDevices = JSON.parse(localStorage.getItem('sys_access_devices') || '[]');
@@ -211,13 +234,14 @@ export default function Settings() {
   };
 
   // ================= LOGIC THIẾT BỊ TRUY CẬP =================
-  const handleDeviceAction = (id: string, action: 'APPROVED' | 'REJECTED' | 'LOCKED', customNote?: string) => {
+  const handleDeviceAction = async (id: string, action: 'APPROVED' | 'REJECTED' | 'LOCKED', customNote?: string) => {
     const actionText = action === 'LOCKED' ? 'khóa' : action === 'APPROVED' ? 'mở khóa/duyệt' : 'từ chối';
 
     // Xử lý ghi chú
     const finalNote = customNote !== undefined ? customNote : approvalNotes[id] || '';
 
-    if (window.confirm(`Xác nhận ${actionText} thiết bị này?`)) {
+    const confirmed = await dlDialog.confirm(`Xác nhận ${actionText} thiết bị này?`, { title: 'Kiểm soát truy cập thiết bị', type: action === 'LOCKED' ? 'danger' : 'warning' });
+    if (confirmed) {
       const allDevices = JSON.parse(localStorage.getItem('sys_access_devices') || '[]');
       const updated = allDevices.map((d: any) => d.id === id && d.tenantId === tenantId ? { ...d, status: action, note: finalNote } : d);
       localStorage.setItem('sys_access_devices', JSON.stringify(updated));
@@ -240,7 +264,7 @@ export default function Settings() {
   };
 
   // ================= LOGIC TẠO TÀI KHOẢN MỚI =================
-  const handleCreateAccount = (e: React.FormEvent) => {
+  const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setAccountFormError('');
 
@@ -289,18 +313,43 @@ export default function Settings() {
     allAccounts.push(newAccount);
     localStorage.setItem('sys_accounts', JSON.stringify(allAccounts));
 
+    // Đồng bộ tạo tài khoản thật vào CSDL PostgreSQL qua Backend API
+    try {
+      await axiosClient.post('/tenant/users', {
+        username: cleanUsername,
+        fullName: accountForm.fullName.trim(),
+        email: cleanEmail,
+        password: accountForm.password,
+        role: accountForm.role === 'TENANT_ADMIN' ? 'ADMIN' : 'STAFF',
+      });
+    } catch (apiErr: any) {
+      console.warn('Lỗi tạo tài khoản trên BE:', apiErr);
+    }
+
     logActivity('Tạo tài khoản mới', `Tài khoản: ${cleanUsername} (${accountForm.role === 'TENANT_ADMIN' ? 'Quản trị viên' : 'Nhân viên'})`);
     loadData();
 
     setIsAddAccountModalOpen(false);
     setAccountForm({ fullName: '', username: '', email: '', password: '', role: 'TENANT_STAFF' });
-    alert(`Tạo tài khoản "${cleanUsername}" thành công! Tài khoản đã sẵn sàng để đăng nhập.`);
+    dlDialog.alert(`Tạo tài khoản "${cleanUsername}" thành công!\nTài khoản đã sẵn sàng để đăng nhập vào hệ thống.`, { title: 'Tạo tài khoản thành công', type: 'success' });
   };
 
-  const handleToggleAccountStatus = (account: any) => {
+  const handleToggleAccountStatus = async (account: any) => {
     const nextStatus = account.status === 'ACTIVE' ? 'LOCKED' : 'ACTIVE';
     const actionText = nextStatus === 'LOCKED' ? 'khóa' : 'mở khóa';
-    if (!window.confirm(`Xác nhận ${actionText} tài khoản "${account.username}"?`)) return;
+    const confirmed = await dlDialog.confirm(`Bạn có chắc chắn muốn ${actionText} tài khoản "${account.username}"?\nThao tác này sẽ cập nhật quyền truy cập ngay lập tức.`, { title: 'Xác nhận thay đổi trạng thái', type: nextStatus === 'LOCKED' ? 'danger' : 'info' });
+    if (!confirmed) return;
+
+    // Gọi API Backend để khóa/mở khóa tài khoản trong PostgreSQL
+    if (typeof account.id === 'number') {
+      try {
+        await axiosClient.put(`/tenant/users/${account.id}/status`, {
+          status: nextStatus
+        });
+      } catch (err) {
+        console.warn('Lỗi đổi trạng thái tài khoản trên BE:', err);
+      }
+    }
 
     const allAccounts = JSON.parse(localStorage.getItem('sys_accounts') || '[]');
     const updated = allAccounts.map((a: any) =>
@@ -334,7 +383,7 @@ export default function Settings() {
       .join(', ');
 
     logActivity('Cấu hình dịch vụ Lõi', `Kích hoạt các module: [${activeModules}]`);
-    alert(t('settings.saveServicesSuccess'));
+    dlDialog.alert(t('settings.saveServicesSuccess'), { title: 'Lưu cấu hình thành công', type: 'success' });
   };
 
   // Tính toán số lượng thiết bị đang chờ duyệt

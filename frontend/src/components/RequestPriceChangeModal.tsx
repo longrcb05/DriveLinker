@@ -1,3 +1,4 @@
+import { dlDialog } from '../context/DialogContext';
 import React, { useState } from 'react';
 import { X, Send, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
@@ -14,7 +15,7 @@ export default function RequestPriceChangeModal({ contractId, onClose, onSubmit 
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!reason.trim()) return alert(t('contracts.requestPriceModalAlert'));
+        if (!reason.trim()) return dlDialog.alert(t('contracts.requestPriceModalAlert'), { type: 'warning' });
         onSubmit(reason);
     };
 

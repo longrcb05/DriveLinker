@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const baseURL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const baseURL = (import.meta as any).env?.VITE_API_BASE_URL || '/api';
 
 const axiosClient = axios.create({
   baseURL,
@@ -15,6 +15,11 @@ axiosClient.interceptors.request.use((config) => {
   const tenantId = localStorage.getItem('tenantId');
   if (tenantId) {
     config.headers['X-Tenant-ID'] = tenantId;
+  }
+
+  const tenantCode = localStorage.getItem('tenantCode');
+  if (tenantCode) {
+    config.headers['X-Tenant-Code'] = tenantCode;
   }
 
   // Token bảo mật JWT (hỗ trợ cả token chuẩn lẫn token phiên admin)
