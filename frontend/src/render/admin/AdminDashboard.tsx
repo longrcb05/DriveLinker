@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Server, Activity, ShieldCheck, AlertTriangle,
     Settings, RefreshCw, CheckCircle2, XCircle, Database, FileText
@@ -40,7 +40,7 @@ export default function AdminDashboard() {
             await new Promise(resolve => setTimeout(resolve, 1500));
 
             setSyncState('SYNCING');
-            setSyncMessage('Đang áp dụng thay đổi vào Database (Production)...');
+            setSyncMessage('Đang áp dụng thay đổi vào cơ sở dữ liệu...');
             await new Promise(resolve => setTimeout(resolve, 2000));
 
             const sysLogs = JSON.parse(localStorage.getItem('sys_core_audit_logs') || '[]');
@@ -123,7 +123,7 @@ export default function AdminDashboard() {
 
                         <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col relative">
                             <div className="p-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
-                                <h2 className="font-bold text-white flex items-center gap-2"><RefreshCw className="w-4 h-4 text-rose-500" /> Quản lý Đồng bộ (Production)</h2>
+                                <h2 className="font-bold text-white flex items-center gap-2"><RefreshCw className="w-4 h-4 text-rose-500" /> Quản lý Đồng bộ</h2>
                                 {stagedChanges.length > 0 && <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/20 text-amber-400 rounded-full">{stagedChanges.length} Pending</span>}
                             </div>
 

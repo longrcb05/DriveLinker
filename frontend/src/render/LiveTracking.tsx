@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import {
   ChevronRight,
   RefreshCw,
@@ -498,6 +499,7 @@ const DEFAULT_DEMO_VEHICLES: LiveVehiclePosition[] = [
 ];
 
 export default function LiveTracking() {
+  const { t } = useLanguage();
   // KPI State: Thiết lập giá trị thực tế theo đội xe đang thuê
   const [kpi, setKpi] = useState<TrackingKpi>({
     totalVehicles: 4,
@@ -772,7 +774,7 @@ export default function LiveTracking() {
           <div className="flex items-center text-xs font-semibold text-slate-500">
             <span className="hover:text-slate-800 cursor-pointer transition-colors">MENU</span>
             <ChevronRight className="w-3.5 h-3.5 mx-1 text-slate-400" />
-            <span className="text-slate-900 font-extrabold uppercase">Giám Sát Xe Đang Cho Thuê</span>
+            <span className="text-slate-900 font-extrabold uppercase">{t('nav.tracking') || 'Giám Sát Xe Đang Cho Thuê'}</span>
           </div>
           <div className="flex items-center gap-2">
             <button
