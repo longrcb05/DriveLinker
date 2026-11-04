@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { dlDialog } from '../../context/DialogContext';
 import {
     Server, Activity, ShieldCheck, AlertTriangle,
     Settings, RefreshCw, CheckCircle2, XCircle, Database, FileText
@@ -32,7 +33,8 @@ export default function AdminDashboard() {
     };
 
     const handleSyncToProduction = async () => {
-        if (!window.confirm('Cảnh báo: Hành động này sẽ áp dụng cấu hình xuống môi trường Production của các Doanh nghiệp. Xác nhận?')) return;
+        const ok = await dlDialog.confirm('Cảnh báo: Hành động này sẽ áp dụng cấu hình và bản vá xuống môi trường Production của các Doanh nghiệp. Bạn có chắc chắn muốn tiếp tục?', { title: 'Đồng bộ hệ thống Production', type: 'warning' });
+        if (!ok) return;
 
         try {
             setSyncState('CHECKING');

@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { vehicleService } from '../services/vehicleService';
 import {
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 // Sửa lỗi mất icon mặc định của thư viện Leaflet trong môi trường React
 const defaultIcon = new L.Icon({
@@ -33,28 +35,41 @@ const defaultIcon = new L.Icon({
 /**
  * Component tự động cập nhật tâm bản đồ.
  */
-function MapUpdater({ center }: { center: [number, number] }) {
+function MapUpdater({ center, count }: { center: [number, number]; count: number }) {
   const map = useMap();
   useEffect(() => {
     map.setView(center, 13);
-  }, [center, map]);
+    const triggerResize = () => {
+      map.invalidateSize();
+    };
+    triggerResize();
+    const t1 = setTimeout(triggerResize, 100);
+    const t2 = setTimeout(triggerResize, 300);
+    const t3 = setTimeout(triggerResize, 600);
+    const t4 = setTimeout(triggerResize, 1200);
+    window.addEventListener('resize', triggerResize);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+      window.removeEventListener('resize', triggerResize);
+    };
+  }, [center, count, map]);
   return null;
 }
 
 // === BỘ DỮ LIỆU DEMO ĐA DOANH NGHIỆP ===
 const MOCK_DATA_BY_TENANT: Record<string, any> = {
   'COMPANY_A': {
-    center: [16.047079, 108.206230], // Đà Nẵng
-    revenue: { amount: '128.5', growth: 'Tăng 12%', utilization: '66%', collection: '85%' },
-    vehicles: [
-      { id: '29C-123.45', lat: 16.047079, lng: 108.206230, status: 'RENTING', type: 'Xe Tải 5T', driver: 'Nguyễn Văn A', speed: '65 km/h' },
-      { id: '51D-987.65', lat: 16.055000, lng: 108.215000, status: 'AVAILABLE', type: 'Xe Tải 8T', driver: 'Chưa xếp tài', speed: '0 km/h' },
-      { id: '15C-456.78', lat: 16.035000, lng: 108.225000, status: 'MAINTENANCE', type: 'Xe Tải 2T', driver: 'Đang sửa chữa', speed: '0 km/h' },
-    ],
+    center: [16.0544, 108.2022], // Đà Nẵng
+    revenue: { amount: '128.5', growth: 'Tăng 12%', utilization: '71%', collection: '85%' },
+    vehicles: [],
     alerts: [
-      { id: 1, time: '10:30', vehicle: '29C-123.45', type: 'Ngủ gật', message: 'Mắt nhắm > 3s. Đã hú còi cabin.', severity: 'high' },
-      { id: 2, time: '09:15', vehicle: '43A-112.22', type: 'Quá tốc độ', message: 'Vượt tốc độ 85/60 km/h tại QL1A.', severity: 'medium' },
-      { id: 3, time: '08:00', vehicle: '92C-555.33', type: 'Lệch làn', message: 'Lệch làn đường liên tục.', severity: 'low' },
+      { id: 1, time: '23:45', vehicle: '43A-999.88', type: 'Ngủ gật (YOLO AI)', message: 'Phát hiện mắt nhắm > 1.5s (Độ tin cậy 92%). Đã hú còi cabin.', severity: 'high' },
+      { id: 2, time: '21:10', vehicle: '43C-678.90', type: 'Quá tốc độ', message: 'Vượt tốc độ 75/60 km/h tại cung đường đèo Hải Vân.', severity: 'medium' },
+      { id: 3, time: '16:15', vehicle: '92A-345.67', type: 'Gục đầu (YOLO AI)', message: 'Tư thế gục đầu mất tập trung lái xe > 3.2s.', severity: 'high' },
+      { id: 4, time: '14:20', vehicle: '43B-888.99', type: 'Ngáp sâu liên tục', message: 'Tần suất ngáp 5 lần trong 10 phút, nguy cơ mệt mỏi cao.', severity: 'medium' },
     ]
   },
   'COMPANY_B': {
@@ -81,6 +96,7 @@ const MOCK_DATA_BY_TENANT: Record<string, any> = {
 const DEFAULT_DATA = MOCK_DATA_BY_TENANT['COMPANY_A'];
 
 export default function Overview() {
+  const navigate = useNavigate();
   const { t } = useLanguage();
   const [userRole] = useState(localStorage.getItem('userRole') || 'TENANT_STAFF');
   const [tenantId] = useState(localStorage.getItem('tenantId') || 'COMPANY_A');
@@ -101,18 +117,19 @@ export default function Overview() {
     totalVehicles: vehicles.length,
     renting: vehicles.filter(v => v.status === 'RENTING' || v.status === 'RENTED').length,
     available: vehicles.filter(v => v.status === 'AVAILABLE').length,
+    reserved: vehicles.filter(v => v.status === 'RESERVED').length,
     maintenance: vehicles.filter(v => v.status === 'MAINTENANCE' || v.status === 'PENDING_INSPECTION').length,
-    aiAlerts: alerts.length
+    aiAlerts: 14 // Đồng bộ với 14 ảnh vi phạm AI thực tế của hệ thống
   };
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 600));
+      const vList = await vehicleService.getVehicles(tenantId);
       const currentData = MOCK_DATA_BY_TENANT[tenantId] || DEFAULT_DATA;
 
       setMapCenter(currentData.center);
-      setVehicles(currentData.vehicles);
+      setVehicles(vList);
       setAlerts(currentData.alerts);
       setRevenueData(currentData.revenue);
     } catch (error) {
@@ -124,18 +141,32 @@ export default function Overview() {
 
   useEffect(() => {
     fetchDashboardData();
+    let debounceTimer: any = null;
+    const handleUpdate = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchDashboardData();
+      }, 500);
+    };
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('dl_vehicles_updated', handleUpdate);
+    return () => {
+      clearTimeout(debounceTimer);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('dl_vehicles_updated', handleUpdate);
+    };
   }, [tenantId]);
 
   const getPanelData = () => {
     let data = vehicles;
-    if (activePanel === 'RENTING') data = vehicles.filter(v => v.status === 'RENTING');
+    if (activePanel === 'RENTING') data = vehicles.filter(v => v.status === 'RENTED' || v.status === 'RENTING');
     if (activePanel === 'AVAILABLE') data = vehicles.filter(v => v.status === 'AVAILABLE');
-    if (activePanel === 'MAINTENANCE') data = vehicles.filter(v => v.status === 'MAINTENANCE');
+    if (activePanel === 'MAINTENANCE') data = vehicles.filter(v => v.status === 'MAINTENANCE' || v.status === 'PENDING_INSPECTION');
 
     if (searchTerm) {
       data = data.filter(v =>
-        v.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.driver.toLowerCase().includes(searchTerm.toLowerCase())
+        (v.plate || v.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (v.driver && v.driver.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
     return data;
@@ -199,7 +230,7 @@ export default function Overview() {
             value={isLoading ? '...' : kpiStats.totalVehicles}
             icon={Truck}
             color="sky"
-            onClick={() => setActivePanel('ALL')}
+            onClick={() => setActivePanel(activePanel === 'ALL' ? null : 'ALL')}
             active={activePanel === 'ALL'}
             desc={t('overview.kpiTotalSub')}
             badge="100%"
@@ -209,7 +240,7 @@ export default function Overview() {
             value={isLoading ? '...' : kpiStats.renting}
             icon={CheckCircle2}
             color="emerald"
-            onClick={() => setActivePanel('RENTING')}
+            onClick={() => setActivePanel(activePanel === 'RENTING' ? null : 'RENTING')}
             active={activePanel === 'RENTING'}
             desc={t('overview.kpiRentingSub')}
             badge={t('overview.badgeActive')}
@@ -219,7 +250,7 @@ export default function Overview() {
             value={isLoading ? '...' : kpiStats.available}
             icon={Clock}
             color="indigo"
-            onClick={() => setActivePanel('AVAILABLE')}
+            onClick={() => setActivePanel(activePanel === 'AVAILABLE' ? null : 'AVAILABLE')}
             active={activePanel === 'AVAILABLE'}
             desc={t('overview.kpiAvailableSub')}
             badge={t('overview.badgeAvailable')}
@@ -229,7 +260,7 @@ export default function Overview() {
             value={isLoading ? '...' : kpiStats.maintenance}
             icon={Wrench}
             color="amber"
-            onClick={() => setActivePanel('MAINTENANCE')}
+            onClick={() => setActivePanel(activePanel === 'MAINTENANCE' ? null : 'MAINTENANCE')}
             active={activePanel === 'MAINTENANCE'}
             desc={t('overview.kpiMaintenanceSub')}
             badge={t('overview.badgePaused')}
@@ -237,7 +268,7 @@ export default function Overview() {
 
           {/* Thẻ Cảnh Báo AI Nguy Hiểm */}
           <div
-            onClick={() => setActivePanel('ALERTS')}
+            onClick={() => setActivePanel(activePanel === 'ALERTS' ? null : 'ALERTS')}
             className={`group p-4 sm:p-5 rounded-2xl border cursor-pointer transition-all duration-300 relative overflow-hidden flex flex-col justify-between ${
               activePanel === 'ALERTS'
                 ? 'border-rose-500 bg-rose-50/90 ring-2 ring-rose-300 shadow-lg scale-[1.02]'
@@ -269,8 +300,8 @@ export default function Overview() {
 
           {/* Bản đồ Live Tracking */}
           <div className="flex-[2] bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col relative z-0 group">
-            {/* Header Overlay Trên Bản Đồ */}
-            <div className="p-3.5 bg-white/95 backdrop-blur-md border-b border-slate-100 flex justify-between items-center absolute top-0 left-0 right-0 z-[400] shadow-sm">
+            {/* Header Của Bản Đồ */}
+            <div className="p-3.5 bg-white border-b border-slate-100 flex justify-between items-center shadow-sm z-10">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-sky-50 text-sky-600 rounded-lg">
                   <MapPin className="w-4 h-4" />
@@ -288,28 +319,45 @@ export default function Overview() {
                 <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
                   <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> {t('overview.mapAvailable')} ({kpiStats.available})
                 </span>
+                <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block" /> {t('fleet.kpiReserved')} ({kpiStats.reserved})
+                </span>
               </div>
             </div>
 
             {/* Khung Leaflet */}
-            <div className="flex-1 w-full h-full mt-14">
+            <div className="flex-1 w-full relative min-h-0">
               {!isLoading && (
                 <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
-                  <MapUpdater center={mapCenter} />
-                  <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  {vehicles.filter(v => v.status !== 'MAINTENANCE').map((vehicle, index) => (
-                    <Marker key={index} position={[vehicle.lat, vehicle.lng]} icon={defaultIcon}>
+                  <MapUpdater center={mapCenter} count={vehicles.length} />
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.esri.com/">Esri</a> &copy; OpenStreetMap'
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+                    maxZoom={19}
+                  />
+                  {vehicles.filter(v => v.status === 'RENTED' || v.status === 'RENTING' || v.status === 'AVAILABLE' || v.status === 'RESERVED').map((vehicle) => (
+                    <Marker key={vehicle.id || vehicle.plate} position={[vehicle.lat || 16.0544, vehicle.lng || 108.2022]} icon={defaultIcon}>
                       <Popup>
                         <div className="font-sans p-1 min-w-[160px]">
                           <div className="flex items-center justify-between border-b pb-1.5 mb-1.5">
-                            <span className="font-black text-slate-900 text-sm font-mono">{vehicle.id}</span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${vehicle.status === 'RENTING' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>
-                              {vehicle.status === 'RENTING' ? t('overview.mapRenting') : t('overview.mapAvailable')}
+                            <span className="font-black text-slate-900 text-sm font-mono">{vehicle.plate || vehicle.id}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              vehicle.status === 'RENTED' || vehicle.status === 'RENTING'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : vehicle.status === 'RESERVED'
+                                ? 'bg-indigo-100 text-indigo-700'
+                                : 'bg-sky-100 text-sky-700'
+                            }`}>
+                              {vehicle.status === 'RENTED' || vehicle.status === 'RENTING'
+                                ? t('overview.mapRenting')
+                                : vehicle.status === 'RESERVED'
+                                ? t('fleet.kpiReserved')
+                                : t('overview.mapAvailable')}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-600">👤 {t('overview.driverLabel')} <strong>{vehicle.driver}</strong></p>
-                          <p className="text-xs text-slate-600">⚡ {t('overview.speedLabel')} <strong>{vehicle.speed}</strong></p>
-                          <p className="text-xs text-slate-500 mt-1">{t('overview.typeLabel')} {vehicle.type}</p>
+                          <p className="text-xs text-slate-600">👤 {t('overview.driverLabel')} <strong>{vehicle.driver || 'Chưa xếp tài'}</strong></p>
+                          <p className="text-xs text-slate-600">⚡ {t('overview.speedLabel')} <strong>{vehicle.speed || '0 km/h'}</strong></p>
+                          <p className="text-xs text-slate-500 mt-1">{t('overview.typeLabel')} {vehicle.payload || (vehicle.brand + ' ' + vehicle.model)}</p>
                         </div>
                       </Popup>
                     </Marker>
@@ -455,7 +503,10 @@ export default function Overview() {
                   </div>
                   <p className="text-xs text-slate-800 mb-1">{t('overview.vehicleLabel')} <span className="font-bold font-mono">{a.vehicle}</span></p>
                   <p className="text-xs text-slate-500 mb-3 bg-slate-50 p-2 rounded border border-slate-100">{a.message}</p>
-                  <button className="text-xs font-bold bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white border border-rose-200 py-1.5 rounded-lg transition-colors w-full cursor-pointer flex items-center justify-center gap-1">
+                  <button
+                    onClick={() => navigate('/tracking', { state: { plateNumber: a.vehicle } })}
+                    className="text-xs font-bold bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white border border-rose-200 py-1.5 rounded-lg transition-colors w-full cursor-pointer flex items-center justify-center gap-1"
+                  >
                     <span>{t('overview.verifyNowBtn')}</span>
                     <ArrowUpRight className="w-3.5 h-3.5" />
                   </button>
@@ -465,7 +516,7 @@ export default function Overview() {
               getPanelData().map(v => (
                 <div key={v.id} className="p-4 border border-slate-200/80 rounded-xl bg-white hover:border-sky-300 hover:shadow-md transition-all cursor-pointer group">
                   <div className="flex justify-between items-start mb-2">
-                    <span className="font-mono font-bold text-slate-800 text-base group-hover:text-sky-600 transition-colors">{v.id}</span>
+                    <span className="font-mono font-bold text-slate-800 text-base group-hover:text-sky-600 transition-colors">{v.plate || v.id}</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       v.status === 'RENTING' ? 'bg-emerald-100 text-emerald-700' :
                       v.status === 'AVAILABLE' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'
@@ -475,7 +526,7 @@ export default function Overview() {
                   </div>
                   <div className="flex justify-between items-end text-xs text-slate-500">
                     <div>
-                      <p className="font-medium text-slate-700">{v.type}</p>
+                      <p className="font-medium text-slate-700">{v.payload || (v.brand + ' ' + v.model)}</p>
                       <p className="mt-0.5">{t('overview.driverLabel')} <span className="text-slate-800 font-semibold">{v.driver}</span></p>
                     </div>
                     {v.status !== 'MAINTENANCE' && (

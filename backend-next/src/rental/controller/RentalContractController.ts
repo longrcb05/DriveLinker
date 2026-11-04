@@ -1,32 +1,27 @@
+import extractAuth from '@/common/security/authHelper';
 import { NextRequest } from 'next/server';
 import ApiResponse from '@/common/response/ApiResponse';
 import JwtService from '@/common/security/JwtService';
 import RentalContractService from '@/rental/service/RentalContractService';
+import prisma from '@/lib/prisma';
 
 /**
  * Controller xử lý các API quản lý Hợp đồng thuê xe và bàn giao xe.
- * Toàn bộ các API đều yêu cầu xác thực JWT.
  * Tương ứng 1:1 với com.drivelinker.rental.controller.RentalContractController trong Java.
  */
 export class RentalContractController {
+  private static async extractAuth(request: NextRequest) {
+    return extractAuth(request);
+  }
+
   /**
    * POST /api/contracts
    */
   static async createContract(request: NextRequest) {
     try {
-      const authHeader = request.headers.get('authorization');
-      const token = JwtService.getTokenFromHeader(authHeader);
-      if (!token) {
-        return ApiResponse.unauthorized('Chưa xác thực người dùng.');
-      }
-
-      const userPayload = await JwtService.extractUser(token);
-      if (!userPayload) {
-        return ApiResponse.unauthorized('Token không hợp lệ hoặc đã hết hạn.');
-      }
-
+      const user = await this.extractAuth(request);
       const body = await request.json();
-      const response = await RentalContractService.createContract(body, userPayload.userId);
+      const response = await RentalContractService.createContract(body, user.userId);
       return ApiResponse.success(response);
     } catch (error: any) {
       return ApiResponse.error(error.message || 'Lỗi lập hợp đồng thuê xe.', 400);
@@ -38,21 +33,11 @@ export class RentalContractController {
    */
   static async getAllContracts(request: NextRequest) {
     try {
-      const authHeader = request.headers.get('authorization');
-      const token = JwtService.getTokenFromHeader(authHeader);
-      if (!token) {
-        return ApiResponse.unauthorized('Chưa xác thực người dùng.');
-      }
-
-      const userPayload = await JwtService.extractUser(token);
-      if (!userPayload) {
-        return ApiResponse.unauthorized('Token không hợp lệ hoặc đã hết hạn.');
-      }
-
+      const user = await this.extractAuth(request);
       const { searchParams } = new URL(request.url);
       const status = searchParams.get('status') || undefined;
 
-      const list = await RentalContractService.getAllContracts(userPayload.organizationId, status);
+      const list = await RentalContractService.getAllContracts(user.organizationId, status);
       return ApiResponse.success(list);
     } catch (error: any) {
       return ApiResponse.error(error.message || 'Lỗi lấy danh sách hợp đồng.', 400);
@@ -64,18 +49,8 @@ export class RentalContractController {
    */
   static async getContractById(request: NextRequest, id: number) {
     try {
-      const authHeader = request.headers.get('authorization');
-      const token = JwtService.getTokenFromHeader(authHeader);
-      if (!token) {
-        return ApiResponse.unauthorized('Chưa xác thực người dùng.');
-      }
-
-      const userPayload = await JwtService.extractUser(token);
-      if (!userPayload) {
-        return ApiResponse.unauthorized('Token không hợp lệ hoặc đã hết hạn.');
-      }
-
-      const contract = await RentalContractService.getContractById(id, userPayload.organizationId);
+      const user = await this.extractAuth(request);
+      const contract = await RentalContractService.getContractById(id, user.organizationId);
       return ApiResponse.success(contract);
     } catch (error: any) {
       return ApiResponse.error(error.message || 'Lỗi lấy chi tiết hợp đồng.', 400);
@@ -87,19 +62,9 @@ export class RentalContractController {
    */
   static async confirmContract(request: NextRequest, id: number) {
     try {
-      const authHeader = request.headers.get('authorization');
-      const token = JwtService.getTokenFromHeader(authHeader);
-      if (!token) {
-        return ApiResponse.unauthorized('Chưa xác thực người dùng.');
-      }
-
-      const userPayload = await JwtService.extractUser(token);
-      if (!userPayload) {
-        return ApiResponse.unauthorized('Token không hợp lệ hoặc đã hết hạn.');
-      }
-
-      await RentalContractService.confirmContract(id);
-      return ApiResponse.success(null, 'Xác nhận hợp đồng thành công.');
+      await this.extractAuth(request);
+      const contract = await RentalContractService.confirmContract(id);
+      return ApiResponse.success(contract, 'Xác nhận hợp đồng thành công.');
     } catch (error: any) {
       return ApiResponse.error(error.message || 'Lỗi xác nhận hợp đồng.', 400);
     }
@@ -110,17 +75,7 @@ export class RentalContractController {
    */
   static async handoverVehicle(request: NextRequest, id: number) {
     try {
-      const authHeader = request.headers.get('authorization');
-      const token = JwtService.getTokenFromHeader(authHeader);
-      if (!token) {
-        return ApiResponse.unauthorized('Chưa xác thực người dùng.');
-      }
-
-      const userPayload = await JwtService.extractUser(token);
-      if (!userPayload) {
-        return ApiResponse.unauthorized('Token không hợp lệ hoặc đã hết hạn.');
-      }
-
+      await this.extractAuth(request);
       await RentalContractService.handoverVehicle(id);
       return ApiResponse.success(null, 'Bàn giao xe thành công. Đã kích hoạt phiên giám sát.');
     } catch (error: any) {
@@ -133,21 +88,39 @@ export class RentalContractController {
    */
   static async returnVehicle(request: NextRequest, id: number) {
     try {
-      const authHeader = request.headers.get('authorization');
-      const token = JwtService.getTokenFromHeader(authHeader);
-      if (!token) {
-        return ApiResponse.unauthorized('Chưa xác thực người dùng.');
-      }
-
-      const userPayload = await JwtService.extractUser(token);
-      if (!userPayload) {
-        return ApiResponse.unauthorized('Token không hợp lệ hoặc đã hết hạn.');
-      }
-
+      await this.extractAuth(request);
       await RentalContractService.returnVehicle(id);
       return ApiResponse.success(null, 'Nhận lại xe thành công. Đã đóng phiên giám sát.');
     } catch (error: any) {
       return ApiResponse.error(error.message || 'Lỗi trả xe.', 400);
+    }
+  }
+
+  /**
+   * POST /api/contracts/[id]/recall (BE-3 Giai đoạn 1 & 2)
+   */
+  static async recallVehicle(request: NextRequest, id: number) {
+    try {
+      await this.extractAuth(request);
+      const body = await request.json().catch(() => ({}));
+      const result = await RentalContractService.recallVehicle(id, body);
+      return ApiResponse.success(result, 'Đã cập nhật biên bản yêu cầu thu hồi phương tiện.');
+    } catch (error: any) {
+      return ApiResponse.error(error.message || 'Lỗi thu hồi phương tiện.', 400);
+    }
+  }
+
+  /**
+   * PUT /api/contracts/[id]/recall/settle (BE-3 Giai đoạn 3)
+   */
+  static async settleRecall(request: NextRequest, id: number) {
+    try {
+      await this.extractAuth(request);
+      const body = await request.json().catch(() => ({}));
+      const result = await RentalContractService.settleRecall(id, body);
+      return ApiResponse.success(result, 'Đã hoàn tất nghiệm thu và quyết toán hợp đồng.');
+    } catch (error: any) {
+      return ApiResponse.error(error.message || 'Lỗi quyết toán thu hồi phương tiện.', 400);
     }
   }
 }

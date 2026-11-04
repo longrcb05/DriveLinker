@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import {
   ChevronRight,
@@ -95,6 +96,20 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   const map = useMap();
   useEffect(() => {
     map.setView(center, zoom, { animate: true });
+    const triggerResize = () => {
+      map.invalidateSize();
+    };
+    triggerResize();
+    const t1 = setTimeout(triggerResize, 100);
+    const t2 = setTimeout(triggerResize, 300);
+    const t3 = setTimeout(triggerResize, 600);
+    window.addEventListener('resize', triggerResize);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      window.removeEventListener('resize', triggerResize);
+    };
   }, [center, zoom, map]);
   return null;
 }
@@ -499,6 +514,7 @@ const DEFAULT_DEMO_VEHICLES: LiveVehiclePosition[] = [
 ];
 
 export default function LiveTracking() {
+  const location = useLocation();
   const { t } = useLanguage();
   // KPI State: Thiết lập giá trị thực tế theo đội xe đang thuê
   const [kpi, setKpi] = useState<TrackingKpi>({
@@ -528,6 +544,28 @@ export default function LiveTracking() {
 
   // Ref chống re-render giật giật khi polling vị trí
   const lastVehiclesDataRef = React.useRef<string>('');
+  const vehicleScrollRef = React.useRef<HTMLDivElement>(null);
+
+  const scrollVehicles = (direction: 'left' | 'right') => {
+    if (vehicleScrollRef.current) {
+      const scrollAmount = 260;
+      vehicleScrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
+
+  // Tự động chọn xe khi được điều hướng từ Tổng quan (Nút Xác minh & Xử lý)
+  useEffect(() => {
+    const targetPlate = location.state?.plateNumber;
+    if (targetPlate && vehicles.length > 0) {
+      const found = vehicles.find((v) => v.plateNumber === targetPlate || v.id === targetPlate);
+      if (found) {
+        setSelectedVehicleId(found.id);
+      }
+    }
+  }, [location.state, vehicles]);
 
   // Tải dữ liệu từ Backend (nếu có API)
   const fetchData = () => {
@@ -802,64 +840,89 @@ export default function LiveTracking() {
       {/* ========================================================= */}
       {/* 2. THANH CHỈ SỐ KPI ĐỘI XE ĐANG CHO THUÊ                  */}
       {/* ========================================================= */}
-      <div className="px-6 py-3 grid grid-cols-5 gap-3 shrink-0">
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+      <div className="px-6 py-2 grid grid-cols-5 gap-2.5 shrink-0">
+        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Xe đang cho thuê</p>
-          <div className="flex items-baseline justify-between mt-1">
-            <h3 className="text-2xl font-black text-slate-900">{kpi.totalVehicles}</h3>
+          <div className="flex items-baseline justify-between mt-0.5">
+            <h3 className="text-xl font-black text-slate-900">{kpi.totalVehicles}</h3>
             <span className="text-[10px] bg-sky-100 text-sky-700 font-bold px-1.5 py-0.5 rounded">Hợp đồng</span>
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Đang lăn bánh</p>
-          <div className="flex items-baseline justify-between mt-1">
-            <h3 className="text-2xl font-black text-emerald-600">{kpi.rollingCount}</h3>
+          <div className="flex items-baseline justify-between mt-0.5">
+            <h3 className="text-xl font-black text-emerald-600">{kpi.rollingCount}</h3>
             <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span> Di chuyển
             </span>
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tạm dừng / Đỗ</p>
-          <div className="flex items-baseline justify-between mt-1">
-            <h3 className="text-2xl font-black text-slate-700">{kpi.stoppedCount}</h3>
+          <div className="flex items-baseline justify-between mt-0.5">
+            <h3 className="text-xl font-black text-slate-700">{kpi.stoppedCount}</h3>
             <span className="text-[10px] text-slate-500 font-medium">Nghỉ chân</span>
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tổng cảnh báo mới</p>
-          <div className="flex items-baseline justify-between mt-1">
-            <h3 className="text-2xl font-black text-rose-600">{kpi.activeAlertsCount}</h3>
+          <div className="flex items-baseline justify-between mt-0.5">
+            <h3 className="text-xl font-black text-rose-600">{kpi.activeAlertsCount}</h3>
             <span className="text-[10px] bg-rose-100 text-rose-700 font-bold px-1.5 py-0.5 rounded animate-pulse">Cần chú ý</span>
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tình trạng GPS</p>
-          <div className="flex items-baseline justify-between mt-1">
-            <h3 className="text-base font-extrabold text-emerald-600">RTK Chuẩn 100%</h3>
+          <div className="flex items-baseline justify-between mt-0.5">
+            <h3 className="text-sm font-extrabold text-emerald-600">RTK Chuẩn 100%</h3>
             <span className="text-[10px] text-slate-400 font-mono">3.0s/lần</span>
           </div>
         </div>
       </div>
 
       {/* ========================================================= */}
-      {/* 3. THANH CHỌN XE ĐANG THUÊ (FLEET QUICK-SELECTOR BAR)     */}
+      {/* 3. THANH CHỌN XE ĐANG THUÊ (DẠNG TRƯỢT NGANG TIẾT KIỆM KHÔNG GIAN) */}
       {/* ========================================================= */}
-      <div className="px-6 mb-3 shrink-0">
-        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-xs">
-          <div className="flex items-center justify-between mb-2 px-1">
+      <div className="px-6 mb-2.5 shrink-0">
+        <div className="bg-white border border-slate-200 rounded-xl p-2 shadow-2xs">
+          <div className="flex items-center justify-between mb-1.5 px-1">
             <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
               <Car className="w-3.5 h-3.5 text-sky-600" />
               Chọn xe đang lưu thông ngoài đường ({vehicles.length} xe):
             </span>
-            <span className="text-[11px] text-slate-400">Click chọn xe để xem bản đồ và bằng chứng vi phạm tương ứng</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400 hidden sm:inline">Click chọn xe để xem bản đồ & bằng chứng</span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => scrollVehicles('left')}
+                  className="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
+                  title="Cuộn sang trái"
+                >
+                  <ArrowLeft className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollVehicles('right')}
+                  className="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
+                  title="Cuộn sang phải"
+                >
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          {/* Dải xe cuộn ngang 1 dòng duy nhất - Không đẩy vỡ bố cục bên dưới */}
+          <div
+            ref={vehicleScrollRef}
+            className="flex items-center gap-2.5 overflow-x-auto pb-1 pt-0.5 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent scroll-smooth"
+            style={{ scrollbarWidth: 'thin' }}
+          >
             {vehicles.map((v) => {
               const isSelected = v.plateNumber === selectedVehicle.plateNumber;
               const hasAlert = isVehicleWithViolation(v.plateNumber);
@@ -874,31 +937,31 @@ export default function LiveTracking() {
                       setMapZoom(14);
                     }
                   }}
-                  className={`p-2.5 rounded-xl border-2 cursor-pointer transition shadow-xs ${
+                  className={`min-w-[210px] max-w-[250px] flex-1 shrink-0 p-2 rounded-xl border-2 cursor-pointer transition-all shadow-2xs select-none ${
                     isSelected
-                      ? 'border-sky-600 bg-sky-50/50 scale-[1.01]'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      ? 'border-sky-600 bg-sky-50/70 shadow-xs scale-[1.01] ring-1 ring-sky-400/30'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
                   }`}
                 >
                   <div className="flex justify-between items-center">
-                    <span className="font-black text-xs text-slate-900">{v.plateNumber}</span>
+                    <span className="font-black text-xs text-slate-900 font-mono tracking-wide">{v.plateNumber}</span>
                     {hasAlert ? (
-                      <span className="bg-rose-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded animate-pulse">
+                      <span className="bg-rose-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-2xs animate-pulse">
                         14 vi phạm
                       </span>
                     ) : (
-                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                      <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.5 rounded">
                         Tỉnh táo
                       </span>
                     )}
                   </div>
                   <div className="mt-1 text-xs">
-                    <p className="font-semibold text-slate-700 truncate">
+                    <p className="font-semibold text-slate-700 truncate text-[11px]">
                       {v.currentContract ? `${v.currentContract.contractNumber} • ${v.currentContract.customerName}` : 'Hợp đồng thuê'}
                     </p>
-                    <div className="flex justify-between items-center mt-1 text-[11px]">
-                      <span className="text-slate-500">{v.make} {v.model}</span>
-                      <span className={`font-bold ${v.speed > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                    <div className="flex justify-between items-center mt-0.5 text-[10px]">
+                      <span className="text-slate-500 truncate max-w-[125px]">{v.make} {v.model}</span>
+                      <span className={`font-bold font-mono ${v.speed > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                         {v.speed > 0 ? `${v.speed} km/h` : 'Tạm dừng (0 km/h)'}
                       </span>
                     </div>
@@ -913,7 +976,7 @@ export default function LiveTracking() {
       {/* ========================================================= */}
       {/* 4. KHU VỰC CHÍNH: MAP 3 PHẦN - BÊN CÒN LẠI RỘNG RÃI       */}
       {/* ========================================================= */}
-      <div className="flex-1 flex gap-4 px-6 pb-5 overflow-hidden">
+      <div className="flex-1 flex gap-3.5 px-6 pb-2.5 overflow-hidden min-h-0">
         
         {/* CỘT TRÁI (3 PHẦN): BẢN ĐỒ LEAFLET OPENSTREETMAP */}
         <div className="w-[32%] min-w-[320px] max-w-[420px] bg-white rounded-2xl border border-slate-200 relative overflow-hidden flex flex-col shadow-xs shrink-0">
@@ -977,10 +1040,11 @@ export default function LiveTracking() {
             >
               <MapController center={mapCenter} zoom={mapZoom} />
               
-              {/* Lớp bản đồ đường phố OpenStreetMap */}
+              {/* Lớp bản đồ đường phố CartoDB Voyager (CDN tốc độ cao, giải quyết triệt để lỗi DNS ERR_NAME_NOT_RESOLVED) */}
               <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.esri.com/">Esri</a> &copy; OpenStreetMap'
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+                maxZoom={19}
               />
 
               {/* Marker cho tất cả các xe đang cho thuê */}
@@ -1067,15 +1131,29 @@ export default function LiveTracking() {
                     {isViolatingVehicle ? 'Kho Bằng Chứng Vi Phạm Thực Tế' : 'Giám Sát Hành Trình An Toàn'}
                   </span>
                 </div>
-                {isViolatingVehicle && filteredEvidence.length > 0 ? (
-                  <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded font-bold">
-                    {filteredEvidence.length} ảnh thật
-                  </span>
-                ) : (
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400" /> 0 vi phạm • Tỉnh táo
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {isViolatingVehicle && filteredEvidence.length > 0 && (
+                    <button
+                      onClick={() => {
+                        const contractId = selectedVehicle.currentContract?.contractId || 3;
+                        window.open(trackingService.getExportDossierUrl(contractId), '_blank');
+                      }}
+                      className="text-[10px] bg-rose-600 hover:bg-rose-700 text-white font-bold px-2 py-0.5 rounded flex items-center gap-1 transition shadow-xs cursor-pointer"
+                      title="Xuất biên bản đối soát vi phạm chính thức (Mẫu 1A)"
+                    >
+                      <FileText className="w-3 h-3" /> Xuất biên bản
+                    </button>
+                  )}
+                  {isViolatingVehicle && filteredEvidence.length > 0 ? (
+                    <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded font-bold">
+                      {filteredEvidence.length} ảnh thật
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" /> 0 vi phạm • Tỉnh táo
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* BỘ LỌC CHỌN NGÀY ĐỒNG BỘ CHU KỲ HỢP ĐỒNG (HIỂN THỊ ĐỦ CẢ 5 NGÀY) */}
@@ -1191,13 +1269,14 @@ export default function LiveTracking() {
                 </div>
               </div>
             ) : (
-              <div className="flex-1 relative bg-slate-950 min-h-[260px] flex items-center justify-center overflow-hidden border-b border-slate-800">
+              <div className="flex-1 relative bg-slate-950 min-h-[180px] flex items-center justify-center overflow-hidden border-b border-slate-800">
                 <img
                   src={selectedEvidence.evidenceUrl}
                   alt={selectedEvidence.label}
                   className="w-full h-full object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
+                  onError={(e: any) => {
+                    e.target.onerror = null;
+                    e.target.src = '/evidence/NGU_GAT_(1.5s)_20261022_214414.jpg';
                   }}
                 />
 
@@ -1239,6 +1318,16 @@ export default function LiveTracking() {
                   >
                     <Download className="w-3 h-3" /> Tải về
                   </a>
+                  <button
+                    onClick={() => {
+                      const contractId = selectedVehicle.currentContract?.contractId || 3;
+                      window.open(trackingService.getExportDossierUrl(contractId), '_blank');
+                    }}
+                    className="bg-amber-600 hover:bg-amber-700 text-white text-[11px] px-2.5 py-1 rounded font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
+                    title="Xuất biên bản đối soát vi phạm (PDF / Printable HTML)"
+                  >
+                    <FileText className="w-3 h-3" /> Xuất biên bản
+                  </button>
                 </div>
               </div>
             )}
@@ -1298,11 +1387,15 @@ export default function LiveTracking() {
                             : 'border-slate-200 bg-white hover:border-slate-400'
                         }`}
                       >
-                        <div className="h-12 bg-slate-900 rounded overflow-hidden">
+                        <div className="h-10 bg-slate-900 rounded overflow-hidden">
                           <img
                             src={item.evidenceUrl}
                             alt={item.label}
                             className="w-full h-full object-cover"
+                            onError={(e: any) => {
+                              e.target.onerror = null;
+                              e.target.src = '/evidence/NGU_GAT_(1.5s)_20261022_214414.jpg';
+                            }}
                           />
                         </div>
                         <span className={`text-[9px] block mt-0.5 truncate ${item.alertType === 'DROWSINESS' ? 'text-rose-600 font-black' : 'text-slate-700 font-bold'}`}>

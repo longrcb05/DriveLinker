@@ -264,6 +264,24 @@ async function main() {
     },
   });
 
+  // Xe thứ 7: Đã đặt trước (Đồng bộ với FleetManagement & Overview)
+  await prisma.vehicle.upsert({
+    where: { licensePlate: '43A-112.22' },
+    update: {},
+    create: {
+      licensePlate: '43A-112.22',
+      brand: 'Hyundai',
+      model: 'Solati 16 Chỗ',
+      vehicleType: 'Van',
+      organizationId: orgA.id,
+      status: 'RESERVED',
+      movementStatus: 'STOPPED',
+      lastLatitude: 16.0544,
+      lastLongitude: 108.2021,
+      lastSpeed: 0,
+    },
+  });
+
   // 6. Hợp đồng thuê ACTIVE cho 4 xe (Luôn cập nhật đúng thời gian và ghi chú để đồng bộ với UI)
   let contract1 = await prisma.rentalContract.findFirst({
     where: { vehicleId: veh1.id, status: 'ACTIVE' },
@@ -407,6 +425,150 @@ async function main() {
   }
 
   console.log('✅ Đã tạo 14 Cảnh báo AI thực tế gắn ảnh từ bang_chung cho CTA2026');
+
+  // 9. Bổ sung các Khách hàng & Hợp đồng thuê đa dạng
+  const cus5 = await prisma.customer.upsert({
+    where: { phone: '0935123456' },
+    update: {},
+    create: {
+      fullName: 'Công ty CP Xây Dựng Miền Trung',
+      phone: '0935123456',
+      idCardNumber: '048099665544',
+      drivingLicense: 'FC-112233',
+      address: '88 Nguyễn Hữu Thọ, Hải Châu, Đà Nẵng',
+      organizationId: orgA.id,
+    },
+  });
+
+  const cus6 = await prisma.customer.upsert({
+    where: { phone: '0978999888' },
+    update: {},
+    create: {
+      fullName: 'Nguyễn Hải Đăng',
+      phone: '0978999888',
+      idCardNumber: '048099443322',
+      drivingLicense: 'B2-887711',
+      address: '254 Điện Biên Phủ, Thanh Khê, Đà Nẵng',
+      organizationId: orgA.id,
+    },
+  });
+
+  // Hợp đồng 5: Có yêu cầu điều chỉnh đơn giá ĐANG CHỜ DUYỆT (PENDING)
+  let contract5 = await prisma.rentalContract.findFirst({
+    where: { organizationId: orgA.id, notes: { contains: 'HĐ-XD' } },
+  });
+  const contract5Data = {
+    customerId: cus5.id,
+    vehicleId: veh1.id,
+    createdByStaffId: staffA.id,
+    organizationId: orgA.id,
+    startTime: new Date('2026-11-05T08:00:00.000Z'),
+    endTime: new Date('2026-11-20T18:00:00.000Z'),
+    status: 'ACTIVE',
+    price: 4500000,
+    depositAmount: 10000000,
+    hasPendingPriceRequest: true,
+    notes: 'HĐ-XD: Hợp đồng thuê 15 ngày xe VinFast VF8 phục vụ công trình dự án',
+  };
+  if (!contract5) {
+    contract5 = await prisma.rentalContract.create({ data: contract5Data });
+  } else {
+    contract5 = await prisma.rentalContract.update({
+      where: { id: contract5.id },
+      data: contract5Data,
+    });
+  }
+
+  // Hợp đồng 6: Có yêu cầu duyệt giá giờ chót ĐANG CHỜ DUYỆT (PENDING)
+  let contract6 = await prisma.rentalContract.findFirst({
+    where: { organizationId: orgA.id, notes: { contains: 'HĐ-VP' } },
+  });
+  const contract6Data = {
+    customerId: cus6.id,
+    vehicleId: veh2.id,
+    createdByStaffId: staffA.id,
+    organizationId: orgA.id,
+    startTime: new Date('2026-11-06T07:00:00.000Z'),
+    endTime: new Date('2026-11-09T19:00:00.000Z'),
+    status: 'ACTIVE',
+    price: 3000000,
+    depositAmount: 8000000,
+    hasPendingPriceRequest: true,
+    notes: 'HĐ-VP: Hợp đồng xe tải phục vụ chuyển văn phòng trọn gói',
+  };
+  if (!contract6) {
+    contract6 = await prisma.rentalContract.create({ data: contract6Data });
+  } else {
+    contract6 = await prisma.rentalContract.update({
+      where: { id: contract6.id },
+      data: contract6Data,
+    });
+  }
+
+  // 10. Seed dữ liệu Bảng Yêu Cầu Duyệt Đơn Giá (PriceChangeRequest)
+  await prisma.priceChangeRequest.deleteMany({
+    where: { contractId: { in: [contract1.id, contract2.id, contract3.id, contract4.id, contract5.id, contract6.id] } },
+  });
+
+  // Request 1: Đang chờ duyệt (PENDING) - Hợp đồng 5
+  await prisma.priceChangeRequest.create({
+    data: {
+      contractId: contract5.id,
+      requestedByStaffId: staffA.id,
+      currentPrice: 4500000,
+      proposedPrice: 3900000,
+      reason: 'Khách hàng đối tác doanh nghiệp thuê dài hạn 15 ngày, đề xuất giảm 600.000đ để chốt hợp đồng dự án.',
+      status: 'PENDING',
+      createdAt: new Date('2026-11-04T10:15:00.000Z'),
+    },
+  });
+
+  // Request 2: Đang chờ duyệt (PENDING) - Hợp đồng 6
+  await prisma.priceChangeRequest.create({
+    data: {
+      contractId: contract6.id,
+      requestedByStaffId: staffA.id,
+      currentPrice: 3000000,
+      proposedPrice: 2600000,
+      reason: 'Xe có lịch trống 3 ngày tới, nhân viên xin điều chỉnh giá giờ chót để tối ưu tỷ lệ vận hành xe.',
+      status: 'PENDING',
+      createdAt: new Date('2026-11-04T11:30:00.000Z'),
+    },
+  });
+
+  // Request 3: Đã phê duyệt (APPROVED) - Hợp đồng 3 (Lịch sử)
+  await prisma.priceChangeRequest.create({
+    data: {
+      contractId: contract3.id,
+      requestedByStaffId: staffA.id,
+      currentPrice: 2400000,
+      proposedPrice: 2200000,
+      reason: 'Khách hàng gia đình có trẻ nhỏ, xin chiết khấu 200.000đ hỗ trợ chi phí vệ sinh nội thất.',
+      status: 'APPROVED',
+      managerNote: 'Đồng ý hỗ trợ khách hàng thân thiết. Nhắc tài xế kiểm tra kỹ dây an toàn ghế trẻ em.',
+      reviewedByManagerId: ownerAn.id,
+      reviewedAt: new Date('2026-11-02T14:30:00.000Z'),
+      createdAt: new Date('2026-11-02T13:00:00.000Z'),
+    },
+  });
+
+  // Request 4: Đã từ chối (REJECTED) - Hợp đồng 4 (Lịch sử)
+  await prisma.priceChangeRequest.create({
+    data: {
+      contractId: contract4.id,
+      requestedByStaffId: staffA.id,
+      currentPrice: 12000000,
+      proposedPrice: 9000000,
+      reason: 'Đoàn du lịch xin giảm 25% tổng đơn giá hợp đồng 8 ngày xe Ford Transit.',
+      status: 'REJECTED',
+      managerNote: 'Từ chối vì mức giảm vượt quá hạn mức tối đa cho phép (10%) đối với dòng xe 16 chỗ mùa cao điểm.',
+      reviewedByManagerId: ownerAn.id,
+      reviewedAt: new Date('2026-11-01T16:00:00.000Z'),
+      createdAt: new Date('2026-11-01T15:20:00.000Z'),
+    },
+  });
+
+  console.log('✅ Đã khởi tạo danh sách Hợp đồng và Yêu cầu Duyệt đơn giá phong phú (Pending & History)');
   console.log('🎉 Seed dữ liệu mẫu chuẩn hoàn tất 100%!');
 }
 

@@ -1,3 +1,4 @@
+import { dlDialog } from '../context/DialogContext';
 /**
  * @file VehicleRecallModal.tsx
  * @description Modal Quy trình Thu hồi Phương tiện trong Hợp đồng có kiểm soát 3 giai đoạn:
@@ -12,6 +13,7 @@ import {
   DollarSign, FileText, ShieldAlert
 } from 'lucide-react';
 import { vehicleService } from '../services/vehicleService';
+import contractService from '../api/contractService';
 import { useLanguage } from '../context/LanguageContext';
 
 export interface VehicleRecallRecord {
@@ -187,6 +189,23 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
 
     // Cập nhật hợp đồng sang RECEIVED, và cập nhật xe sang PENDING_INSPECTION (Chờ kiểm tra)
     updateContractStatus('RECEIVED', 'RECEIVED');
+    
+    // Ghi biên bản thu hồi xuống CSDL PostgreSQL qua Backend API
+    const numericContractId = Number(String(contract.id).replace(/\D/g, '')) || contract.id;
+    try {
+      await contractService.recall(numericContractId, {
+        reason: updatedRecord.reason,
+        mileage: updatedRecord.mileage,
+        fuelLevel: updatedRecord.fuelLevel,
+        damageFee: updatedRecord.damageFee,
+        depositRefund: updatedRecord.depositRefund,
+        outstandingDebt: updatedRecord.outstandingDebt,
+        notes: updatedRecord.exteriorNotes
+      });
+    } catch (apiErr) {
+      console.warn('Lỗi gọi API recall từ BE:', apiErr);
+    }
+
     try {
       await vehicleService.updateVehicleStatus(
         tenantId,
@@ -225,6 +244,28 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
     // Đóng hợp đồng thành COMPLETED (hoặc RECALLED)
     updateContractStatus('COMPLETED', 'RECALLED');
 
+    // Ghi quyết toán và nghiệm thu xuống CSDL PostgreSQL qua Backend API
+    const numericContractId = Number(String(contract.id).replace(/\D/g, '')) || contract.id;
+    try {
+      await contractService.settleRecall(numericContractId, {
+        inspectionResult,
+        mileage: existingRecord?.mileage,
+        fuelLevel: existingRecord?.fuelLevel,
+        damageFee: existingRecord?.damageFee,
+        depositRefund: existingRecord?.depositRefund,
+        outstandingDebt: existingRecord?.outstandingDebt
+      });
+    } catch (apiErr) {
+      console.warn('Lỗi gọi API settle recall từ BE:', apiErr);
+    }
+
+    // Nghiệm thu kiểm định kỹ thuật xe trên CSDL Backend
+    try {
+      await vehicleService.inspectVehicle(tenantId, carPlate, inspectionResult, `Nghiệm thu sau thu hồi HĐ ${contract.id}`);
+    } catch (inspErr) {
+      console.warn('Lỗi kiểm định xe BE:', inspErr);
+    }
+
     // Chuyển trạng thái xe: nếu ĐẠT -> AVAILABLE, nếu HỎNG -> MAINTENANCE
     const targetVehicleStatus = inspectionResult === 'PASS' ? 'AVAILABLE' : 'MAINTENANCE';
     try {
@@ -238,7 +279,7 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
       console.warn(err);
     }
 
-    alert(language === 'vi' ? 'Đã hoàn tất quy trình thu hồi phương tiện và quyết toán hợp đồng thành công!' : 'Vehicle recall and contract settlement completed successfully!');
+    dlDialog.alert(language === 'vi' ? 'Đã hoàn tất quy trình thu hồi phương tiện và quyết toán hợp đồng thành công!' : 'Vehicle recall and contract settlement completed successfully!', { title: 'Quyết toán thành công', type: 'success' });
     onSuccess();
     onClose();
   };

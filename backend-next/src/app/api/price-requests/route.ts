@@ -5,3 +5,6 @@ export async function GET(request: NextRequest) {
   return PriceChangeController.getRequests(request);
 }
 
+export async function POST(request: NextRequest) {
+  return PriceChangeController.createRequest(request);
+}
