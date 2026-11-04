@@ -26,10 +26,10 @@ const DEMO_DB = {
 
 export default function Login() {
   const { language, toggleLanguage, t } = useLanguage();
-  // Khi khởi động lên, dữ liệu sẽ tự mặc định điền vào để tiện demo
-  const [tenantCode, setTenantCode] = useState('CTA2026');
-  const [username, setUsername] = useState('owner.an');
-  const [password, setPassword] = useState('123456');
+  // Khởi tạo các trường thông tin rỗng (không gán sẵn dữ liệu mẫu)
+  const [tenantCode, setTenantCode] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -59,6 +59,7 @@ export default function Login() {
 
   // Nhận diện Doanh nghiệp realtime khi người dùng nhập mã
   const getMatchedTenant = () => {
+    if (!tenantCode.trim()) return null;
     const code = tenantCode.trim().toUpperCase();
     const stored = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
     let match = DEMO_DB.tenants.find(t => t.code === code) || stored.find((t: any) => t.code === code);
@@ -70,14 +71,6 @@ export default function Login() {
     return match;
   };
   const matchedTenant = getMatchedTenant();
-
-  // Hàm hỗ trợ điền nhanh tài khoản demo 1-Click
-  const applyPreset = (code: string, user: string, pass: string = '123456') => {
-    setTenantCode(code);
-    setUsername(user);
-    setPassword(pass);
-    setError(null);
-  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -396,7 +389,7 @@ export default function Login() {
                   required
                   value={tenantCode}
                   onChange={(e) => setTenantCode(e.target.value.toUpperCase())}
-                  placeholder="VD: CTA2026"
+                  placeholder={language === 'vi' ? 'Nhập mã doanh nghiệp (VD: CTA2026)...' : 'Enter company code (e.g. CTA2026)...'}
                   className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-slate-800 transition-all shadow-inner"
                 />
               </div>
@@ -416,7 +409,7 @@ export default function Login() {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder={language === 'vi' ? 'VD: owner.an hoặc staff.a' : 'e.g. owner.an or staff.a'}
+                  placeholder={language === 'vi' ? 'Nhập tên tài khoản hoặc email...' : 'Enter username or email...'}
                   className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-slate-800 transition-all shadow-inner font-mono"
                 />
               </div>
@@ -438,7 +431,7 @@ export default function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={language === 'vi' ? 'Nhập mật khẩu...' : 'Enter your password...'}
+                  placeholder={language === 'vi' ? 'Nhập mật khẩu...' : 'Enter password...'}
                   className="w-full pl-11 pr-11 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-slate-800 transition-all shadow-inner"
                 />
                 <button
@@ -472,83 +465,6 @@ export default function Login() {
               </button>
             </div>
           </form>
-
-          {/* Tiện ích chọn nhanh tài khoản Demo (Dành cho buổi bảo vệ đồ án) */}
-          <div className="mt-8 pt-6 border-t border-slate-800/80">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                {language === 'vi' ? 'Chọn nhanh tài khoản Demo:' : 'Quick Demo Accounts:'}
-              </p>
-              <span className="text-[10px] text-slate-500 font-mono">Pass: 123456</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => applyPreset('CTA2026', 'owner.an')}
-                className={`text-left p-2.5 rounded-xl border text-xs transition-all ${
-                  tenantCode === 'CTA2026' && username === 'owner.an'
-                    ? 'bg-sky-500/20 border-sky-500/60 text-sky-300 ring-1 ring-sky-500/40'
-                    : 'bg-slate-800/50 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
-                }`}
-              >
-                <div className="font-bold flex items-center justify-between">
-                  <span>{language === 'vi' ? 'CTY A • Quản lý' : 'Company A • Manager'}</span>
-                  <span className="text-[10px] font-mono opacity-60">CTA2026</span>
-                </div>
-                <div className="text-[11px] text-slate-400 font-mono mt-0.5">owner.an</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => applyPreset('CTA2026', 'staff.a')}
-                className={`text-left p-2.5 rounded-xl border text-xs transition-all ${
-                  tenantCode === 'CTA2026' && username === 'staff.a'
-                    ? 'bg-sky-500/20 border-sky-500/60 text-sky-300 ring-1 ring-sky-500/40'
-                    : 'bg-slate-800/50 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
-                }`}
-              >
-                <div className="font-bold flex items-center justify-between">
-                  <span>{language === 'vi' ? 'CTY A • Nhân viên' : 'Company A • Staff'}</span>
-                  <span className="text-[10px] font-mono opacity-60">CTA2026</span>
-                </div>
-                <div className="text-[11px] text-slate-400 font-mono mt-0.5">staff.a</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => applyPreset('CTB2026', 'owner.an')}
-                className={`text-left p-2.5 rounded-xl border text-xs transition-all ${
-                  tenantCode === 'CTB2026' && username === 'owner.an'
-                    ? 'bg-sky-500/20 border-sky-500/60 text-sky-300 ring-1 ring-sky-500/40'
-                    : 'bg-slate-800/50 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
-                }`}
-              >
-                <div className="font-bold flex items-center justify-between">
-                  <span>{language === 'vi' ? 'CTY B • Quản lý' : 'Company B • Manager'}</span>
-                  <span className="text-[10px] font-mono opacity-60">CTB2026</span>
-                </div>
-                <div className="text-[11px] text-slate-400 font-mono mt-0.5">owner.an</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => applyPreset('CTC2026', 'staff.c')}
-                className={`text-left p-2.5 rounded-xl border text-xs transition-all ${
-                  tenantCode === 'CTC2026' && username === 'staff.c'
-                    ? 'bg-sky-500/20 border-sky-500/60 text-sky-300 ring-1 ring-sky-500/40'
-                    : 'bg-slate-800/50 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
-                }`}
-              >
-                <div className="font-bold flex items-center justify-between">
-                  <span>{language === 'vi' ? 'CTY C • Nhân viên' : 'Company C • Staff'}</span>
-                  <span className="text-[10px] font-mono opacity-60">CTC2026</span>
-                </div>
-                <div className="text-[11px] text-slate-400 font-mono mt-0.5">staff.c</div>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Bottom: Lối vào Core Admin */}

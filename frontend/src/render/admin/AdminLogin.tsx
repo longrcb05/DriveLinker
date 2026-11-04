@@ -2,25 +2,19 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   ShieldAlert, Key, User, AlertCircle, Eye, EyeOff,
-  ArrowRight, ShieldCheck, Terminal, ArrowLeft, Loader2, Lock, Globe
+  ArrowRight, Terminal, ArrowLeft, Loader2, Lock, Globe
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function AdminLogin() {
   const { language, toggleLanguage } = useLanguage();
-  const [username, setUsername] = useState('ADMINLONG');
-  const [password, setPassword] = useState('123456');
+  // Khởi tạo các trường thông tin rỗng (không gán sẵn dữ liệu mẫu)
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-
-  // Hàm chọn nhanh tài khoản Quản trị viên lõi (1-Click)
-  const applyPreset = (user: string, pass: string = '123456') => {
-    setUsername(user);
-    setPassword(pass);
-    setError('');
-  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +61,7 @@ export default function AdminLogin() {
   return (
     <div className="min-h-screen w-full bg-slate-950 flex flex-col justify-center items-center p-4 sm:p-6 relative font-sans selection:bg-rose-500 selection:text-white overflow-hidden">
 
-      {/* Hiệu ứng hào quang bảo mật nền tối (Cyber Crimson Ambient Light) */}
+      {/* Hiệu ứng hào quang bảo mật nền tối */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-rose-600/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-red-500/10 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
@@ -143,7 +137,7 @@ export default function AdminLogin() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toUpperCase())}
-                placeholder="VD: ADMINLONG hoặc ADMINAN"
+                placeholder={language === 'vi' ? 'Nhập tài khoản Quản trị viên (VD: ADMINLONG)...' : 'Enter Administrator username (e.g. ADMINLONG)...'}
                 className="w-full pl-11 pr-4 py-3 bg-slate-950/70 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:bg-slate-950 transition-all shadow-inner"
               />
             </div>
@@ -163,7 +157,7 @@ export default function AdminLogin() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={language === 'vi' ? 'Nhập mã bảo mật...' : 'Enter secret key...'}
+                placeholder={language === 'vi' ? 'Nhập mật khẩu truy cập...' : 'Enter secret password...'}
                 className="w-full pl-11 pr-11 py-3 bg-slate-950/70 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:bg-slate-950 transition-all shadow-inner font-mono"
               />
               <button
@@ -199,60 +193,8 @@ export default function AdminLogin() {
           </div>
         </form>
 
-        {/* Tiện ích chọn nhanh Admin (Dành cho buổi bảo vệ đồ án) */}
-        <div className="mt-8 pt-6 border-t border-slate-800/80">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
-              {language === 'vi' ? 'Chọn nhanh Quản trị viên:' : 'Quick Admin Selection:'}
-            </p>
-            <span className="text-[10px] text-slate-500 font-mono">Pass: 123456</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <button
-              type="button"
-              onClick={() => applyPreset('ADMINLONG')}
-              className={`text-left p-3 rounded-xl border text-xs transition-all ${
-                username === 'ADMINLONG'
-                  ? 'bg-rose-500/20 border-rose-500/60 text-rose-300 ring-1 ring-rose-500/40'
-                  : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:bg-slate-800/70 hover:border-slate-700'
-              }`}
-            >
-              <div className="font-bold flex items-center justify-between">
-                <span>{language === 'vi' ? 'Quản trị viên 1' : 'Administrator 1'}</span>
-                <span className="text-[10px] font-mono text-rose-400 font-bold">ADMINLONG</span>
-              </div>
-              <div className="text-[11px] text-slate-400 font-medium mt-1 truncate">Nguyễn Nhật Long</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => applyPreset('ADMINAN')}
-              className={`text-left p-3 rounded-xl border text-xs transition-all ${
-                username === 'ADMINAN'
-                  ? 'bg-rose-500/20 border-rose-500/60 text-rose-300 ring-1 ring-rose-500/40'
-                  : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:bg-slate-800/70 hover:border-slate-700'
-              }`}
-            >
-              <div className="font-bold flex items-center justify-between">
-                <span>{language === 'vi' ? 'Quản trị viên 2' : 'Administrator 2'}</span>
-                <span className="text-[10px] font-mono text-rose-400 font-bold">ADMINAN</span>
-              </div>
-              <div className="text-[11px] text-slate-400 font-medium mt-1 truncate">Nguyễn Phạm Thiện Ân</div>
-            </button>
-          </div>
-        </div>
-
-        {/* Ghi chú về cơ chế bảo mật Session Storage */}
-        <p className="text-[11px] text-slate-500 text-center mt-6 leading-relaxed italic">
-          {language === 'vi'
-            ? '*Phiên đăng nhập Super Admin được lưu trữ tạm thời trên SessionStorage và tự động bị vô hiệu hóa khi đóng tab trình duyệt.'
-            : '*Super Admin session is temporarily stored in SessionStorage and automatically revoked when closing the tab.'}
-        </p>
-
         {/* Lối quay về Portal Doanh nghiệp */}
-        <div className="mt-4 pt-4 border-t border-slate-800/50 text-center">
+        <div className="mt-8 pt-6 border-t border-slate-800/50 text-center">
           <Link
             to="/portal/login"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-sky-400 transition-colors py-1.5 px-3 rounded-lg hover:bg-slate-800/40"
