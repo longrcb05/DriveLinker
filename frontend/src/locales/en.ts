@@ -392,7 +392,19 @@ export const en = {
     "roleAdminDesc": "Administrator (TENANT_ADMIN - Approve prices, config, manage staff)",
     "createAccountNotice": "Note: The created account will be stored in the tenant database and can be used to log in immediately.",
     "btnCancel": "Cancel",
-    "btnCreateAccount": "Create Account"
+    "btnCreateAccount": "Create Account",
+    "coreServicesManagedNotice": "This section is managed by the DriveLinker System. Enterprise administrators can only VIEW authorized hardware/software features. Contact DriveLinker for upgrades.",
+    "coreServicesAdminNotice": "Core Admin mode. You are authorized to enable or disable system services for this enterprise.",
+    "confirmCodePlaceholder": "Re-enter new code",
+    "formFullNamePlaceholder": "e.g. John Doe",
+    "codeErrorLength": "Company code must contain exactly 6 alphanumeric characters.",
+    "codeErrorMismatch": "Confirmation code does not match.",
+    "codeErrorSame": "New code must be different from the current code.",
+    "codeErrorDuplicate": "This company code is already in use.",
+    "codeSuccess": "Company code changed successfully. The previous code has been deactivated.",
+    "formErrorRequired": "Please complete all required fields.",
+    "formErrorPasswordLength": "Initial password must be at least 6 characters long.",
+    "saveServicesSuccess": "Core services configuration updated successfully!"
   },
   "tracking": {
     "title": "Real-time Telematics & AI Fatigue Detection",

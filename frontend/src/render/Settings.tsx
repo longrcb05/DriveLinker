@@ -188,13 +188,13 @@ export default function Settings() {
     setCodeMessage({ type: '', text: '' });
     const codeRegex = /^[A-Za-z0-9]{6}$/;
 
-    if (!codeRegex.test(newCode)) return setCodeMessage({ type: 'error', text: 'Mã doanh nghiệp phải gồm đúng 6 ký tự chữ và số.' });
-    if (newCode !== confirmCode) return setCodeMessage({ type: 'error', text: 'Mã xác nhận không khớp.' });
-    if (newCode.toUpperCase() === currentCode.toUpperCase()) return setCodeMessage({ type: 'error', text: 'Mã mới phải khác mã hiện tại.' });
+    if (!codeRegex.test(newCode)) return setCodeMessage({ type: 'error', text: t('settings.codeErrorLength') });
+    if (newCode !== confirmCode) return setCodeMessage({ type: 'error', text: t('settings.codeErrorMismatch') });
+    if (newCode.toUpperCase() === currentCode.toUpperCase()) return setCodeMessage({ type: 'error', text: t('settings.codeErrorSame') });
 
     const tenants = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
     if (tenants.some((t: any) => t.code.toUpperCase() === newCode.toUpperCase())) {
-      return setCodeMessage({ type: 'error', text: 'Mã doanh nghiệp này đã được sử dụng.' });
+      return setCodeMessage({ type: 'error', text: t('settings.codeErrorDuplicate') });
     }
 
     const updatedTenants = tenants.map((t: any) => t.id === tenantId ? { ...t, code: newCode.toUpperCase() } : t);
@@ -206,7 +206,7 @@ export default function Settings() {
     setCurrentCode(newCode.toUpperCase());
     setIsEditingCode(false);
     setNewCode(''); setConfirmCode('');
-    setCodeMessage({ type: 'success', text: 'Đổi mã doanh nghiệp thành công. Mã cũ đã vô hiệu hóa.' });
+    setCodeMessage({ type: 'success', text: t('settings.codeSuccess') });
     setTimeout(() => setCodeMessage({ type: '', text: '' }), 5000);
   };
 
@@ -245,12 +245,12 @@ export default function Settings() {
     setAccountFormError('');
 
     if (!accountForm.fullName.trim() || !accountForm.username.trim() || !accountForm.email.trim() || !accountForm.password) {
-      setAccountFormError('Vui lòng điền đầy đủ tất cả các trường.');
+      setAccountFormError(t('settings.formErrorRequired'));
       return;
     }
 
     if (accountForm.password.length < 6) {
-      setAccountFormError('Mật khẩu khởi tạo phải có độ dài tối thiểu 6 ký tự.');
+      setAccountFormError(t('settings.formErrorPasswordLength'));
       return;
     }
 
@@ -334,7 +334,7 @@ export default function Settings() {
       .join(', ');
 
     logActivity('Cấu hình dịch vụ Lõi', `Kích hoạt các module: [${activeModules}]`);
-    alert('Đã cập nhật cấu hình dịch vụ thành công!');
+    alert(t('settings.saveServicesSuccess'));
   };
 
   // Tính toán số lượng thiết bị đang chờ duyệt
@@ -387,7 +387,7 @@ export default function Settings() {
             <div className="bg-slate-50 p-5 rounded-lg border border-slate-200 space-y-4 animate-in fade-in">
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-xs font-bold text-slate-700 mb-1">{t('settings.newCodeLabel')}</label><input type="text" maxLength={6} value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase())} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none font-mono uppercase" placeholder="VD: CTYA26" /></div>
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">{t('settings.confirmCodeLabel')}</label><input type="text" maxLength={6} value={confirmCode} onChange={(e) => setConfirmCode(e.target.value.toUpperCase())} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none font-mono uppercase" placeholder="Nhập lại mã mới" /></div>
+                <div><label className="block text-xs font-bold text-slate-700 mb-1">{t('settings.confirmCodeLabel')}</label><input type="text" maxLength={6} value={confirmCode} onChange={(e) => setConfirmCode(e.target.value.toUpperCase())} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none font-mono uppercase" placeholder={t('settings.confirmCodePlaceholder')} /></div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => { setIsEditingCode(false); setCodeMessage({ type: '', text: '' }); }} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">{t('common.cancel')}</button>
@@ -414,11 +414,19 @@ export default function Settings() {
         <div className="p-5 space-y-6">
           {!isAdminImpersonating ? (
             <p className="text-xs text-slate-500 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
-              Khu vực này được quản lý bởi Hệ thống DriveLinker. Quản trị viên doanh nghiệp chỉ có thể <strong>XEM</strong> các tính năng phần cứng/phần mềm đang được cấp phép. Liên hệ với DriveLinker để nâng cấp.
+              {language === 'vi' ? (
+                <>Khu vực này được quản lý bởi Hệ thống DriveLinker. Quản trị viên doanh nghiệp chỉ có thể <strong>XEM</strong> các tính năng phần cứng/phần mềm đang được cấp phép. Liên hệ với DriveLinker để nâng cấp.</>
+              ) : (
+                <>This area is managed by the DriveLinker System. Enterprise administrators can only <strong>VIEW</strong> authorized hardware/software features. Contact DriveLinker for upgrades.</>
+              )}
             </p>
           ) : (
             <p className="text-xs text-rose-300 leading-relaxed bg-rose-500/10 p-3 rounded-lg border border-rose-500/20">
-              Chế độ <strong>Core Admin</strong>. Bạn có quyền cấp phép hoặc vô hiệu hóa các dịch vụ cho doanh nghiệp này.
+              {language === 'vi' ? (
+                <>Chế độ <strong>Core Admin</strong>. Bạn có quyền cấp phép hoặc vô hiệu hóa các dịch vụ cho doanh nghiệp này.</>
+              ) : (
+                <><strong>Core Admin</strong> mode. You are authorized to enable or disable system services for this enterprise.</>
+              )}
             </p>
           )}
 
@@ -849,7 +857,7 @@ export default function Settings() {
                 </label>
                 <input
                   type="text"
-                  placeholder="VD: Nguyễn Văn Bình"
+                  placeholder={t('settings.formFullNamePlaceholder')}
                   value={accountForm.fullName}
                   onChange={(e) => setAccountForm({ ...accountForm, fullName: e.target.value })}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-sky-500 focus:bg-white transition-all font-medium"

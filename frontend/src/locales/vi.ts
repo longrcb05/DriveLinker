@@ -392,7 +392,19 @@ export const vi = {
     "roleAdminDesc": "Quản trị viên (TENANT_ADMIN - Duyệt giá, cấu hình, quản lý nhân sự)",
     "createAccountNotice": "Lưu ý: Tài khoản được tạo sẽ lưu vào hệ thống dữ liệu doanh nghiệp và có thể dùng để đăng nhập ngay lập tức.",
     "btnCancel": "Hủy bỏ",
-    "btnCreateAccount": "Tạo tài khoản"
+    "btnCreateAccount": "Tạo tài khoản",
+    "coreServicesManagedNotice": "Khu vực này được quản lý bởi Hệ thống DriveLinker. Quản trị viên doanh nghiệp chỉ có thể XEM các tính năng phần cứng/phần mềm đang được cấp phép. Liên hệ với DriveLinker để nâng cấp.",
+    "coreServicesAdminNotice": "Chế độ Core Admin. Bạn có quyền cấp phép hoặc vô hiệu hóa các dịch vụ cho doanh nghiệp này.",
+    "confirmCodePlaceholder": "Nhập lại mã mới",
+    "formFullNamePlaceholder": "VD: Nguyễn Văn Bình",
+    "codeErrorLength": "Mã doanh nghiệp phải gồm đúng 6 ký tự chữ và số.",
+    "codeErrorMismatch": "Mã xác nhận không khớp.",
+    "codeErrorSame": "Mã mới phải khác mã hiện tại.",
+    "codeErrorDuplicate": "Mã doanh nghiệp này đã được sử dụng.",
+    "codeSuccess": "Đổi mã doanh nghiệp thành công. Mã cũ đã vô hiệu hóa.",
+    "formErrorRequired": "Vui lòng điền đầy đủ tất cả các trường.",
+    "formErrorPasswordLength": "Mật khẩu khởi tạo phải có độ dài tối thiểu 6 ký tự.",
+    "saveServicesSuccess": "Đã cập nhật cấu hình dịch vụ thành công!"
   },
   "tracking": {
     "title": "Giám sát Hành trình & AI Nhận diện Buồn ngủ",
