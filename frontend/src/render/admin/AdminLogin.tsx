@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   ShieldAlert, Key, User, AlertCircle, Eye, EyeOff,
@@ -15,6 +15,12 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Đảm bảo các ô nhập luôn rỗng khi mở trang Admin
+    setUsername('');
+    setPassword('');
+  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +127,7 @@ export default function AdminLogin() {
         )}
 
         {/* Form Đăng Nhập */}
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-4" autoComplete="off">
 
           {/* Ô Tài khoản Root */}
           <div>
@@ -134,10 +140,14 @@ export default function AdminLogin() {
               </div>
               <input
                 type="text"
+                name="admin_username_input"
+                id="admin_username_input"
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toUpperCase())}
                 placeholder={language === 'vi' ? 'Nhập tài khoản Quản trị viên (VD: ADMINLONG)...' : 'Enter Administrator username (e.g. ADMINLONG)...'}
+                autoComplete="off"
+                spellCheck={false}
                 className="w-full pl-11 pr-4 py-3 bg-slate-950/70 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:bg-slate-950 transition-all shadow-inner"
               />
             </div>
@@ -154,10 +164,13 @@ export default function AdminLogin() {
               </div>
               <input
                 type={showPassword ? 'text' : 'password'}
+                name="admin_password_input"
+                id="admin_password_input"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={language === 'vi' ? 'Nhập mật khẩu truy cập...' : 'Enter secret password...'}
+                autoComplete="new-password"
                 className="w-full pl-11 pr-11 py-3 bg-slate-950/70 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:bg-slate-950 transition-all shadow-inner font-mono"
               />
               <button

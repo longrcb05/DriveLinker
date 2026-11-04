@@ -26,7 +26,7 @@ const DEMO_DB = {
 
 export default function Login() {
   const { language, toggleLanguage, t } = useLanguage();
-  // Khởi tạo các trường thông tin rỗng (không gán sẵn dữ liệu mẫu)
+  // Khởi tạo các trường thông tin rỗng - không điền sẵn dữ liệu
   const [tenantCode, setTenantCode] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -37,6 +37,11 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Đảm bảo các ô nhập luôn rỗng khi mở trang
+    setTenantCode('');
+    setUsername('');
+    setPassword('');
+
     try {
       const stored = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
       if (stored.length === 0 || stored.some((t: any) => t.code === 'CTYA26')) {
@@ -59,7 +64,7 @@ export default function Login() {
 
   // Nhận diện Doanh nghiệp realtime khi người dùng nhập mã
   const getMatchedTenant = () => {
-    if (!tenantCode.trim()) return null;
+    if (!tenantCode || !tenantCode.trim()) return null;
     const code = tenantCode.trim().toUpperCase();
     const stored = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
     let match = DEMO_DB.tenants.find(t => t.code === code) || stored.find((t: any) => t.code === code);
@@ -366,7 +371,7 @@ export default function Login() {
           )}
 
           {/* Form Đăng nhập chính */}
-          <form className="space-y-4" onSubmit={handleLogin}>
+          <form className="space-y-4" onSubmit={handleLogin} autoComplete="off">
 
             {/* Ô 1: Mã doanh nghiệp */}
             <div>
@@ -386,10 +391,14 @@ export default function Login() {
                 </div>
                 <input
                   type="text"
+                  name="tenant_code_input"
+                  id="tenant_code_input"
                   required
                   value={tenantCode}
                   onChange={(e) => setTenantCode(e.target.value.toUpperCase())}
                   placeholder={language === 'vi' ? 'Nhập mã doanh nghiệp (VD: CTA2026)...' : 'Enter company code (e.g. CTA2026)...'}
+                  autoComplete="off"
+                  spellCheck={false}
                   className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-slate-800 transition-all shadow-inner"
                 />
               </div>
@@ -406,10 +415,14 @@ export default function Login() {
                 </div>
                 <input
                   type="text"
+                  name="username_input"
+                  id="username_input"
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder={language === 'vi' ? 'Nhập tên tài khoản hoặc email...' : 'Enter username or email...'}
+                  autoComplete="off"
+                  spellCheck={false}
                   className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-slate-800 transition-all shadow-inner font-mono"
                 />
               </div>
@@ -428,10 +441,13 @@ export default function Login() {
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  name="password_input"
+                  id="password_input"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={language === 'vi' ? 'Nhập mật khẩu...' : 'Enter password...'}
+                  autoComplete="new-password"
                   className="w-full pl-11 pr-11 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-slate-800 transition-all shadow-inner"
                 />
                 <button
