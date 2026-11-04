@@ -24,7 +24,7 @@ export default function FleetVehicles() {
       <div className="flex justify-between items-end">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-            Quản lý đội xe (Vehicle Management)
+            Quản lý đội xe
             <span className="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-1 rounded font-bold tracking-wider uppercase border border-emerald-200 flex items-center gap-1">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
               Kết nối Telematics trực tiếp

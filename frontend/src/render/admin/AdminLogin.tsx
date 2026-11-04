@@ -132,7 +132,7 @@ export default function AdminLogin() {
           {/* Ô Tài khoản Root */}
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-              {language === 'vi' ? 'Tài khoản Quản trị viên (Username)' : 'Administrator Username'} <span className="text-rose-400">*</span>
+              {language === 'vi' ? 'Tài khoản Quản trị viên' : 'Administrator Username'} <span className="text-rose-400">*</span>
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
@@ -152,7 +152,7 @@ export default function AdminLogin() {
           {/* Ô Mật khẩu Root */}
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-              {language === 'vi' ? 'Mật khẩu truy cập (Secret Key)' : 'Secret Key / Password'} <span className="text-rose-400">*</span>
+              {language === 'vi' ? 'Mật khẩu truy cập' : 'Secret Key / Password'} <span className="text-rose-400">*</span>
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
@@ -204,7 +204,7 @@ export default function AdminLogin() {
           <div className="flex items-center justify-between mb-3">
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
-              {language === 'vi' ? 'Chọn nhanh Admin (1-Click):' : 'Quick Admin Selection (1-Click):'}
+              {language === 'vi' ? 'Chọn nhanh Quản trị viên:' : 'Quick Admin Selection:'}
             </p>
             <span className="text-[10px] text-slate-500 font-mono">Pass: 123456</span>
           </div>
@@ -258,7 +258,7 @@ export default function AdminLogin() {
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-sky-400 transition-colors py-1.5 px-3 rounded-lg hover:bg-slate-800/40"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>{language === 'vi' ? 'Quay lại Cổng Đăng nhập Doanh nghiệp (DriveLinker)' : 'Return to Enterprise Login Portal (DriveLinker)'}</span>
+            <span>{language === 'vi' ? 'Quay lại Cổng Đăng nhập Doanh nghiệp' : 'Return to Enterprise Login Portal'}</span>
           </Link>
         </div>
 

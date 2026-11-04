@@ -364,7 +364,7 @@ class VehicleService {
     // 1. Xe đang thuê (RENTED) không được phép nhảy trực tiếp sang AVAILABLE
     if (currentStatus === 'RENTED' && targetStatus === 'AVAILABLE') {
       throw new Error(
-        'Vi phạm quy trình: Phương tiện đang thuê (RENTED) bắt buộc phải chuyển sang Chờ kiểm tra (PENDING_INSPECTION) trước khi được xác nhận Sẵn sàng (AVAILABLE)!'
+        'Vi phạm quy trình: Phương tiện đang thuê bắt buộc phải chuyển sang Chờ kiểm tra trước khi được xác nhận Sẵn sàng!'
       );
     }
 
@@ -386,7 +386,7 @@ class VehicleService {
     }
 
     if (target.status === 'RENTED') {
-      throw new Error('Không thể xóa phương tiện đang trong hợp đồng thuê (RENTED). Vui lòng hoàn tất thu hồi xe trước khi xóa!');
+      throw new Error('Không thể xóa phương tiện đang trong hợp đồng thuê. Vui lòng hoàn tất thu hồi xe trước khi xóa!');
     }
 
     const remaining = all.filter(v => !(v.tenantId === tenantId && (v.id === id || v.plate === id)));

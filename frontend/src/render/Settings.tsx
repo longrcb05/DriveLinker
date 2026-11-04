@@ -64,7 +64,7 @@ export default function Settings() {
   const [userRole] = useState(localStorage.getItem('userRole') || 'TENANT_STAFF');
   const [tenantId] = useState(localStorage.getItem('tenantId') || 'COMPANY_A');
   const currentUserEmail = localStorage.getItem('username') || 'admin@drivelinker.vn';
-  
+
   // KIỂM TRA QUYỀN SYSTEM ADMIN NHẬP VAI
   const isAdminImpersonating = localStorage.getItem('isAdminImpersonating') === 'true';
 
@@ -90,7 +90,7 @@ export default function Settings() {
 
   // --- Trạng thái: Xét duyệt thiết bị (MỚI) ---
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
-  const [approvalNotes, setApprovalNotes] = useState<{[key: string]: string}>({});
+  const [approvalNotes, setApprovalNotes] = useState<{ [key: string]: string }>({});
 
   // --- Trạng thái: Quản lý tài khoản doanh nghiệp ---
   const [accountList, setAccountList] = useState<any[]>([]);
@@ -178,7 +178,7 @@ export default function Settings() {
         action: coreAction,
         details: `${action}: ${target} (tại ${tenantName})`
       };
-      
+
       localStorage.setItem('sys_core_audit_logs', JSON.stringify([newCoreLog, ...coreLogs]));
     }
   };
@@ -213,7 +213,7 @@ export default function Settings() {
   // ================= LOGIC THIẾT BỊ TRUY CẬP =================
   const handleDeviceAction = (id: string, action: 'APPROVED' | 'REJECTED' | 'LOCKED', customNote?: string) => {
     const actionText = action === 'LOCKED' ? 'khóa' : action === 'APPROVED' ? 'mở khóa/duyệt' : 'từ chối';
-    
+
     // Xử lý ghi chú
     const finalNote = customNote !== undefined ? customNote : approvalNotes[id] || '';
 
@@ -221,7 +221,7 @@ export default function Settings() {
       const allDevices = JSON.parse(localStorage.getItem('sys_access_devices') || '[]');
       const updated = allDevices.map((d: any) => d.id === id && d.tenantId === tenantId ? { ...d, status: action, note: finalNote } : d);
       localStorage.setItem('sys_access_devices', JSON.stringify(updated));
-      
+
       let logTarget = `Chuyển thiết bị ID ${id} thành ${action}`;
       if (finalNote) logTarget += ` (Ghi chú: ${finalNote})`;
 
@@ -229,7 +229,7 @@ export default function Settings() {
       loadData();
 
       // Clear note sau khi duyệt xong
-      const newNotes = {...approvalNotes};
+      const newNotes = { ...approvalNotes };
       delete newNotes[id];
       setApprovalNotes(newNotes);
 
@@ -323,7 +323,7 @@ export default function Settings() {
 
   // ================= LOGIC DỊCH VỤ LÕI =================
   const handleToggleCoreService = (service: keyof typeof coreServices) => {
-    if (!isAdminImpersonating) return; 
+    if (!isAdminImpersonating) return;
     setCoreServices(prev => ({ ...prev, [service]: !prev[service] }));
   };
 
@@ -431,7 +431,7 @@ export default function Settings() {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
+
             {/* Module Định vị */}
             <div className={`p-4 rounded-xl border flex items-center justify-between transition-colors ${isAdminImpersonating ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
               <div className="flex items-center gap-3">
@@ -500,14 +500,14 @@ export default function Settings() {
             <h3 className="font-bold text-slate-800 flex items-center gap-2"><Monitor className="w-5 h-5 text-indigo-500" /> {t('settings.deviceSectionTitle')}</h3>
             <p className="text-xs text-slate-500 mt-1">{t('settings.deviceSectionSubtitle')} {deviceAnomaly.length > 0 && <span className="text-rose-500 font-bold ml-2">⚠️ {deviceAnomaly.length} IP</span>}</p>
           </div>
-          
+
           {/* NÚT HIỂN THỊ DANH SÁCH CHỜ DUYỆT */}
           {pendingCount > 0 && (
-            <button 
+            <button
               onClick={() => setIsApprovalModalOpen(true)}
               className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-colors animate-pulse hover:animate-none"
             >
-              <CheckSquare className="w-4 h-4" /> 
+              <CheckSquare className="w-4 h-4" />
               {t('settings.pendingApprovalBtn')} ({pendingCount})
             </button>
           )}
@@ -674,11 +674,10 @@ export default function Settings() {
                     <td className="p-4 text-right">
                       <button
                         onClick={() => handleToggleAccountStatus(acc)}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-                          acc.status === 'ACTIVE'
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${acc.status === 'ACTIVE'
                             ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
                             : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200'
-                        }`}
+                          }`}
                       >
                         {acc.status === 'ACTIVE' ? t('settings.lockAccount') : t('settings.unlockAccount')}
                       </button>
@@ -691,7 +690,7 @@ export default function Settings() {
         </div>
       </div>
 
-{/* ================= MODALS ================= */}
+      {/* ================= MODALS ================= */}
 
       {/* MODAL: XÉT DUYỆT HÀNG LOẠT (TÍNH NĂNG MỚI) */}
       {isApprovalModalOpen && (
@@ -719,7 +718,7 @@ export default function Settings() {
                   <div key={d.id} className="bg-white border border-amber-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
                     <div className="flex items-start justify-between gap-4">
-                      
+
                       {/* Cột 1: Thông tin */}
                       <div className="flex-1 space-y-3">
                         <div className="flex items-center gap-3">
@@ -739,11 +738,11 @@ export default function Settings() {
                       <div className="w-64 shrink-0 flex flex-col gap-3">
                         <div className="relative">
                           <ClipboardEdit className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             placeholder={t('settings.deviceNotePlaceholder')}
                             value={approvalNotes[d.id] || ''}
-                            onChange={(e) => setApprovalNotes({...approvalNotes, [d.id]: e.target.value})}
+                            onChange={(e) => setApprovalNotes({ ...approvalNotes, [d.id]: e.target.value })}
                             className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-amber-400 focus:bg-white transition-colors"
                           />
                         </div>

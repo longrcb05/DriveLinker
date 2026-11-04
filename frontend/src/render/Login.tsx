@@ -290,7 +290,7 @@ export default function Login() {
               </div>
               <div>
                 <h4 className="text-sm font-bold text-white mb-0.5">
-                  {language === 'vi' ? 'Kiến trúc Đa Doanh nghiệp (Multi-tenant)' : 'Multi-Tenant Enterprise Architecture'}
+                  {language === 'vi' ? 'Kiến trúc Đa Doanh nghiệp' : 'Multi-Tenant Enterprise Architecture'}
                 </h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
                   {language === 'vi'
@@ -379,7 +379,7 @@ export default function Login() {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  {language === 'vi' ? 'Mã Doanh Nghiệp (Company Code)' : 'Enterprise Company Code'} <span className="text-rose-400">*</span>
+                  {language === 'vi' ? 'Mã Doanh Nghiệp' : 'Enterprise Company Code'} <span className="text-rose-400">*</span>
                 </label>
                 {matchedTenant && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
@@ -405,7 +405,7 @@ export default function Login() {
             {/* Ô 2: Tên đăng nhập */}
             <div>
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                {language === 'vi' ? 'Tài khoản (Username)' : 'Username / Email'} <span className="text-rose-400">*</span>
+                {language === 'vi' ? 'Tài khoản' : 'Username / Email'} <span className="text-rose-400">*</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
@@ -426,7 +426,7 @@ export default function Login() {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  {language === 'vi' ? 'Mật khẩu (Password)' : 'Password'} <span className="text-rose-400">*</span>
+                  {language === 'vi' ? 'Mật khẩu' : 'Password'} <span className="text-rose-400">*</span>
                 </label>
               </div>
               <div className="relative">
@@ -478,7 +478,7 @@ export default function Login() {
             <div className="flex items-center justify-between mb-3">
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                {language === 'vi' ? 'Chọn nhanh tài khoản Demo (1-Click):' : 'Quick Demo Accounts (1-Click):'}
+                {language === 'vi' ? 'Chọn nhanh tài khoản Demo:' : 'Quick Demo Accounts:'}
               </p>
               <span className="text-[10px] text-slate-500 font-mono">Pass: 123456</span>
             </div>

@@ -151,7 +151,7 @@ export default function Overview() {
           </div>
           <h2 className="text-2xl font-black text-slate-800 mb-2.5">{t('common.warning')}</h2>
           <p className="text-slate-500 mb-6 text-sm leading-relaxed">
-            Trang Tổng quan chỉ chứa dữ liệu vận hành riêng của từng Doanh nghiệp. Vui lòng chuyển sang trang <b>Quản lý Doanh nghiệp (Core Admin)</b> để phân quyền hoặc giám sát toàn hệ thống.
+            Trang Tổng quan chỉ chứa dữ liệu vận hành riêng của từng Doanh nghiệp. Vui lòng chuyển sang trang <b>Quản lý Doanh nghiệp</b> để phân quyền hoặc giám sát toàn hệ thống.
           </p>
         </div>
       </div>
