@@ -17,7 +17,6 @@ import { useLanguage } from '../context/LanguageContext';
 
 export default function ContractManagement() {
   const { t } = useLanguage();
-  void t;
   const navigate = useNavigate();
   const userRole = localStorage.getItem('userRole') || 'TENANT_STAFF';
   const tenantId = localStorage.getItem('tenantId') || 'COMPANY_A';
@@ -65,27 +64,27 @@ export default function ContractManagement() {
     if (contract.status === 'COMPLETED' || contract.recallStatus === 'RECALLED') {
       return {
         status: 'RECALLED',
-        badge: 'Đã thanh lý / Thu hồi',
+        badge: t('contracts.statusRecalled'),
         badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
-        remainingText: 'Hợp đồng đã kết thúc',
+        remainingText: t('contracts.contractEnded'),
       };
     }
 
     if (contract.status === 'RECEIVED' || contract.recallStatus === 'RECEIVED') {
       return {
         status: 'RECEIVED',
-        badge: 'Đã nhận xe / Chờ nghiệm thu',
+        badge: t('contracts.statusReceived'),
         badgeClass: 'bg-sky-50 text-sky-700 border-sky-300 font-bold',
-        remainingText: 'Đang kiểm định hiện trường',
+        remainingText: t('contracts.inspectingField'),
       };
     }
 
     if (contract.status === 'PENDING_RECALL' || contract.recallStatus === 'PENDING_RECALL') {
       return {
         status: 'PENDING_RECALL',
-        badge: 'Đang yêu cầu thu hồi',
+        badge: t('contracts.statusPendingRecall'),
         badgeClass: 'bg-amber-50 text-amber-700 border-amber-300 font-bold',
-        remainingText: 'Chờ tiếp nhận bàn giao xe',
+        remainingText: t('contracts.awaitingHandover'),
       };
     }
 
@@ -93,9 +92,9 @@ export default function ContractManagement() {
     if (!endDateStr) {
       return {
         status: 'ACTIVE',
-        badge: 'Còn hiệu lực',
+        badge: t('contracts.statusActive'),
         badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        remainingText: 'Không giới hạn ngày',
+        remainingText: t('contracts.unlimitedDays'),
       };
     }
 
@@ -118,26 +117,26 @@ export default function ContractManagement() {
     if (diffDays < 0) {
       return {
         status: 'EXPIRED',
-        badge: 'Đã hết hạn',
+        badge: t('contracts.statusExpired'),
         badgeClass: 'bg-rose-50 text-rose-700 border-rose-300 font-extrabold',
-        remainingText: `Quá hạn ${Math.abs(diffDays)} ngày`,
+        remainingText: t('contracts.overdueDays', { days: Math.abs(diffDays) }),
       };
     }
 
     if (diffDays <= 3) {
       return {
         status: 'EXPIRING_SOON',
-        badge: 'Sắp hết hạn',
+        badge: t('contracts.statusExpiringSoon'),
         badgeClass: 'bg-amber-50 text-amber-800 border-amber-300 font-extrabold animate-pulse',
-        remainingText: `Còn ${diffDays} ngày (${Math.max(1, Math.round(diffMs / 3600000))} giờ)`,
+        remainingText: t('contracts.daysRemaining', { days: diffDays }),
       };
     }
 
     return {
       status: 'ACTIVE',
-      badge: 'Còn hiệu lực',
+      badge: t('contracts.statusActive'),
       badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      remainingText: `Còn ${diffDays} ngày`,
+      remainingText: t('contracts.daysRemaining', { days: diffDays }),
     };
   };
 
@@ -146,7 +145,7 @@ export default function ContractManagement() {
     if (!editingPriceContract || !managerNewPrice) return;
     const numPrice = Number(managerNewPrice.replace(/[^0-9]/g, ''));
     if (!numPrice || numPrice <= 0) {
-      alert('Vui lòng nhập đơn giá hợp lệ lớn hơn 0.');
+      alert(t('contracts.alertInvalidPrice'));
       return;
     }
 
@@ -169,7 +168,7 @@ export default function ContractManagement() {
     setManagerNewPrice('');
     loadData();
     window.dispatchEvent(new Event('storage'));
-    alert('Đã cập nhật đơn giá hợp đồng thành công!');
+    alert(t('contracts.alertPriceUpdateSuccess'));
   };
 
   const handleSubmitPriceRequest = (reason: string) => {
@@ -200,12 +199,12 @@ export default function ContractManagement() {
 
     loadData();
     setRequestContractId(null);
-    alert('Đã gửi yêu cầu phê duyệt thành công! Vui lòng chờ Quản lý duyệt.');
+    alert(t('contracts.alertPriceRequestSuccess'));
     window.dispatchEvent(new Event('storage'));
   };
 
   const handleDeleteDraft = (id: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa bản nháp này không?')) {
+    if (window.confirm(t('contracts.confirmDeleteDraft'))) {
       const updated = drafts.filter(d => d.id !== id);
       localStorage.setItem('sys_contract_drafts', JSON.stringify(updated));
       setDrafts(updated);
@@ -475,18 +474,18 @@ export default function ContractManagement() {
       <div className="no-print flex-1 overflow-auto">
         <div className="px-6 pt-5 pb-3">
           <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-            <span>MENU</span>
+            <span>{t('contracts.breadcrumbMenu')}</span>
             <ChevronRight className="w-3 h-3 mx-2" />
-            <span className="text-sky-600">ĐỐI TÁC & HỢP ĐỒNG</span>
+            <span className="text-sky-600">{t('contracts.breadcrumbContracts')}</span>
           </div>
 
           <div className="flex items-end justify-between">
-            <h2 className="text-2xl font-bold text-slate-800 leading-tight">Quản lý Đối tác & Hợp đồng</h2>
+            <h2 className="text-2xl font-bold text-slate-800 leading-tight">{t('contracts.title')}</h2>
             <button
               onClick={() => navigate('/create-contract')}
               className="bg-[#0EA5E9] hover:bg-sky-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
             >
-              <User className="w-4 h-4" /> Thêm hợp đồng mới
+              <User className="w-4 h-4" /> {t('contracts.createContract')}
             </button>
           </div>
         </div>
@@ -494,19 +493,19 @@ export default function ContractManagement() {
         {/* STAT CARDS */}
         <div className="px-6 grid grid-cols-4 gap-4 mb-6">
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tổng hợp đồng / Khách</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t('contracts.kpiTotal')}</p>
             <h3 className="text-3xl font-bold text-sky-600 leading-none">{totalClients}</h3>
           </div>
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Hợp đồng chính thức</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t('contracts.kpiOfficial')}</p>
             <h3 className="text-3xl font-bold text-emerald-600 leading-none">{eContractCount}</h3>
           </div>
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Doanh thu dự kiến</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t('contracts.kpiExpectedRevenue')}</p>
             <h3 className="text-3xl font-bold text-slate-300 leading-none">{isManager ? '---' : '***'}</h3>
           </div>
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Hợp đồng Nháp</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t('contracts.kpiDrafts')}</p>
             <h3 className="text-3xl font-bold text-amber-500 leading-none">{drafts.length}</h3>
           </div>
         </div>
@@ -516,10 +515,10 @@ export default function ContractManagement() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
             <div className="flex border-b border-slate-200">
               <button onClick={() => setActiveTab('OFFICIAL')} className={`px-6 py-4 text-sm font-bold border-b-2 ${activeTab === 'OFFICIAL' ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500'}`}>
-                Hợp đồng Chính thức ({contracts.length})
+                {t('contracts.officialTab')} ({contracts.length})
               </button>
               <button onClick={() => setActiveTab('DRAFT')} className={`px-6 py-4 text-sm font-bold border-b-2 ${activeTab === 'DRAFT' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500'}`}>
-                Quản lý Bản nháp ({drafts.length})
+                {t('contracts.draftTab')} ({drafts.length})
               </button>
             </div>
 
@@ -530,7 +529,7 @@ export default function ContractManagement() {
                   type="text"
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  placeholder="Tìm theo Mã HĐ, Tên..."
+                  placeholder={t('contracts.searchPlaceholder')}
                   className="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-sky-500 w-64 bg-white"
                 />
               </div>
@@ -540,12 +539,12 @@ export default function ContractManagement() {
               <table className="w-full text-left text-sm">
                 <thead className="bg-white text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
                   <tr>
-                    <th className="p-4 pl-6">Mã HĐ & Phương Tiện</th>
-                    <th className="p-4">Khách Hàng (Bên Thuê)</th>
-                    <th className="p-4">Thời hạn & Tình trạng Hạn</th>
-                    <th className="p-4">Đơn giá thuê</th>
-                    <th className="p-4">Tiến độ Thu Hồi</th>
-                    <th className="p-4 text-right pr-6">Thao tác & Phân quyền</th>
+                    <th className="p-4 pl-6">{t('contracts.colCodePlate')}</th>
+                    <th className="p-4">{t('contracts.colCustomerRenter')}</th>
+                    <th className="p-4">{t('contracts.colExpiryStatus')}</th>
+                    <th className="p-4">{t('contracts.colRentalPrice')}</th>
+                    <th className="p-4">{t('contracts.colRecallProgress')}</th>
+                    <th className="p-4 text-right pr-6">{t('contracts.colActionsRole')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 text-xs">
@@ -553,7 +552,7 @@ export default function ContractManagement() {
                     <tr>
                       <td colSpan={6} className="p-12 text-center text-slate-500">
                         <FileText className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                        <p className="font-bold text-slate-600">Chưa có dữ liệu</p>
+                        <p className="font-bold text-slate-600">{t('contracts.noData')}</p>
                       </td>
                     </tr>
                   ) : (
@@ -642,8 +641,7 @@ export default function ContractManagement() {
                                     onClick={() => setViewingContract(item)}
                                     className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded flex items-center gap-1 transition"
                                   >
-                                    <Eye className="w-3.5 h-3.5" /> Xem PDF
-                                  </button>
+                                    <Eye className="w-3.5 h-3.5" />{t('contracts.viewPdf')}</button>
 
                                   {/* Nút Thu hồi xe */}
                                   <button
@@ -651,8 +649,7 @@ export default function ContractManagement() {
                                     className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold rounded flex items-center gap-1 transition"
                                     title="Quy trình thu hồi phương tiện 3 giai đoạn"
                                   >
-                                    <RotateCcw className="w-3.5 h-3.5" /> Thu hồi xe
-                                  </button>
+                                    <RotateCcw className="w-3.5 h-3.5" />{t('contracts.recallBtn')}</button>
 
                                   {isManager ? (
                                     <button
@@ -674,8 +671,7 @@ export default function ContractManagement() {
                                         onClick={() => setRequestContractId(item.id)}
                                         className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 text-xs font-bold rounded flex items-center gap-1 transition"
                                       >
-                                        <Lock className="w-3 h-3" /> Yêu cầu sửa giá
-                                      </button>
+                                        <Lock className="w-3 h-3" />{t('contracts.requestPriceBtn')}</button>
                                     )
                                   )}
                                 </>
@@ -684,8 +680,7 @@ export default function ContractManagement() {
                               {activeTab === 'DRAFT' && (
                                 <>
                                   <button onClick={() => navigate('/create-contract', { state: { draftId: item.id } })} className="px-3 py-1.5 bg-sky-50 text-sky-600 text-xs font-bold rounded flex items-center gap-1 border border-sky-200">
-                                    <Edit3 className="w-3.5 h-3.5" /> Tiếp tục soạn
-                                  </button>
+                                    <Edit3 className="w-3.5 h-3.5" />{t('contracts.continueDraft')}</button>
                                   <button onClick={() => handleDeleteDraft(item.id)} className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded">
                                     <Trash2 className="w-4 h-4" />
                                   </button>
@@ -777,8 +772,7 @@ export default function ContractManagement() {
             </div>
             <div className="flex items-center gap-4">
               <button onClick={() => window.print()} className="px-3 py-1.5 text-white/90 hover:text-white hover:bg-white/10 rounded flex items-center gap-2 text-sm font-bold">
-                <Printer className="w-4 h-4" /> In / Tải PDF
-              </button>
+                <Printer className="w-4 h-4" />{t('contracts.printPdf')}</button>
               <div className="w-px h-6 bg-white/20 mx-2"></div>
               <button onClick={() => setViewingContract(null)} className="px-5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-bold rounded-lg shadow">
                 Đóng

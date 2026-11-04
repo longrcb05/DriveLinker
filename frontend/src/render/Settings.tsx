@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import {
   Key, CheckCircle2, AlertCircle, Eye, EyeOff,
   History, Clock, ShieldAlert,
@@ -59,10 +60,11 @@ const initDemoData = () => {
 };
 
 export default function Settings() {
+  const { t, language } = useLanguage();
   const [userRole] = useState(localStorage.getItem('userRole') || 'TENANT_STAFF');
   const [tenantId] = useState(localStorage.getItem('tenantId') || 'COMPANY_A');
   const currentUserEmail = localStorage.getItem('username') || 'admin@drivelinker.vn';
-  
+
   // KIỂM TRA QUYỀN SYSTEM ADMIN NHẬP VAI
   const isAdminImpersonating = localStorage.getItem('isAdminImpersonating') === 'true';
 
@@ -88,7 +90,7 @@ export default function Settings() {
 
   // --- Trạng thái: Xét duyệt thiết bị (MỚI) ---
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
-  const [approvalNotes, setApprovalNotes] = useState<{[key: string]: string}>({});
+  const [approvalNotes, setApprovalNotes] = useState<{ [key: string]: string }>({});
 
   // --- Trạng thái: Quản lý tài khoản doanh nghiệp ---
   const [accountList, setAccountList] = useState<any[]>([]);
@@ -176,7 +178,7 @@ export default function Settings() {
         action: coreAction,
         details: `${action}: ${target} (tại ${tenantName})`
       };
-      
+
       localStorage.setItem('sys_core_audit_logs', JSON.stringify([newCoreLog, ...coreLogs]));
     }
   };
@@ -186,13 +188,13 @@ export default function Settings() {
     setCodeMessage({ type: '', text: '' });
     const codeRegex = /^[A-Za-z0-9]{6}$/;
 
-    if (!codeRegex.test(newCode)) return setCodeMessage({ type: 'error', text: 'Mã doanh nghiệp phải gồm đúng 6 ký tự chữ và số.' });
-    if (newCode !== confirmCode) return setCodeMessage({ type: 'error', text: 'Mã xác nhận không khớp.' });
-    if (newCode.toUpperCase() === currentCode.toUpperCase()) return setCodeMessage({ type: 'error', text: 'Mã mới phải khác mã hiện tại.' });
+    if (!codeRegex.test(newCode)) return setCodeMessage({ type: 'error', text: t('settings.codeErrorLength') });
+    if (newCode !== confirmCode) return setCodeMessage({ type: 'error', text: t('settings.codeErrorMismatch') });
+    if (newCode.toUpperCase() === currentCode.toUpperCase()) return setCodeMessage({ type: 'error', text: t('settings.codeErrorSame') });
 
     const tenants = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
     if (tenants.some((t: any) => t.code.toUpperCase() === newCode.toUpperCase())) {
-      return setCodeMessage({ type: 'error', text: 'Mã doanh nghiệp này đã được sử dụng.' });
+      return setCodeMessage({ type: 'error', text: t('settings.codeErrorDuplicate') });
     }
 
     const updatedTenants = tenants.map((t: any) => t.id === tenantId ? { ...t, code: newCode.toUpperCase() } : t);
@@ -204,14 +206,14 @@ export default function Settings() {
     setCurrentCode(newCode.toUpperCase());
     setIsEditingCode(false);
     setNewCode(''); setConfirmCode('');
-    setCodeMessage({ type: 'success', text: 'Đổi mã doanh nghiệp thành công. Mã cũ đã vô hiệu hóa.' });
+    setCodeMessage({ type: 'success', text: t('settings.codeSuccess') });
     setTimeout(() => setCodeMessage({ type: '', text: '' }), 5000);
   };
 
   // ================= LOGIC THIẾT BỊ TRUY CẬP =================
   const handleDeviceAction = (id: string, action: 'APPROVED' | 'REJECTED' | 'LOCKED', customNote?: string) => {
     const actionText = action === 'LOCKED' ? 'khóa' : action === 'APPROVED' ? 'mở khóa/duyệt' : 'từ chối';
-    
+
     // Xử lý ghi chú
     const finalNote = customNote !== undefined ? customNote : approvalNotes[id] || '';
 
@@ -219,7 +221,7 @@ export default function Settings() {
       const allDevices = JSON.parse(localStorage.getItem('sys_access_devices') || '[]');
       const updated = allDevices.map((d: any) => d.id === id && d.tenantId === tenantId ? { ...d, status: action, note: finalNote } : d);
       localStorage.setItem('sys_access_devices', JSON.stringify(updated));
-      
+
       let logTarget = `Chuyển thiết bị ID ${id} thành ${action}`;
       if (finalNote) logTarget += ` (Ghi chú: ${finalNote})`;
 
@@ -227,7 +229,7 @@ export default function Settings() {
       loadData();
 
       // Clear note sau khi duyệt xong
-      const newNotes = {...approvalNotes};
+      const newNotes = { ...approvalNotes };
       delete newNotes[id];
       setApprovalNotes(newNotes);
 
@@ -243,12 +245,12 @@ export default function Settings() {
     setAccountFormError('');
 
     if (!accountForm.fullName.trim() || !accountForm.username.trim() || !accountForm.email.trim() || !accountForm.password) {
-      setAccountFormError('Vui lòng điền đầy đủ tất cả các trường.');
+      setAccountFormError(t('settings.formErrorRequired'));
       return;
     }
 
     if (accountForm.password.length < 6) {
-      setAccountFormError('Mật khẩu khởi tạo phải có độ dài tối thiểu 6 ký tự.');
+      setAccountFormError(t('settings.formErrorPasswordLength'));
       return;
     }
 
@@ -321,7 +323,7 @@ export default function Settings() {
 
   // ================= LOGIC DỊCH VỤ LÕI =================
   const handleToggleCoreService = (service: keyof typeof coreServices) => {
-    if (!isAdminImpersonating) return; 
+    if (!isAdminImpersonating) return;
     setCoreServices(prev => ({ ...prev, [service]: !prev[service] }));
   };
 
@@ -332,7 +334,7 @@ export default function Settings() {
       .join(', ');
 
     logActivity('Cấu hình dịch vụ Lõi', `Kích hoạt các module: [${activeModules}]`);
-    alert('Đã cập nhật cấu hình dịch vụ thành công!');
+    alert(t('settings.saveServicesSuccess'));
   };
 
   // Tính toán số lượng thiết bị đang chờ duyệt
@@ -344,8 +346,8 @@ export default function Settings() {
     return (
       <div className="flex-1 bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center">
         <ShieldAlert className="w-16 h-16 mx-auto mb-4 text-slate-300" />
-        <h2 className="text-2xl font-bold text-slate-700">Khu vực Giới hạn</h2>
-        <p className="text-slate-500">Chỉ Quản trị viên doanh nghiệp mới có quyền truy cập trang Cài đặt.</p>
+        <h2 className="text-2xl font-bold text-slate-700">{language === 'vi' ? 'Khu vực Giới hạn' : 'Restricted Area'}</h2>
+        <p className="text-slate-500">{language === 'vi' ? 'Chỉ Quản trị viên doanh nghiệp mới có quyền truy cập trang Cài đặt.' : 'Only enterprise administrators are authorized to access Settings.'}</p>
       </div>
     );
   }
@@ -354,15 +356,15 @@ export default function Settings() {
     <div className="flex-1 overflow-auto bg-[#F8FAFC] p-6 space-y-6 font-sans relative">
 
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-800">Cài đặt Hệ thống</h2>
-        <p className="text-sm text-slate-500 mt-1">Quản lý bảo mật, thiết bị truy cập và cấu hình dịch vụ</p>
+        <h2 className="text-2xl font-bold text-slate-800">{t('settings.title')}</h2>
+        <p className="text-sm text-slate-500 mt-1">{t('settings.subtitle')}</p>
       </div>
 
       {/* ================= 1. MODULE: BẢO MẬT & MÃ ĐĂNG NHẬP ================= */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center gap-3">
           <div className="p-2 bg-rose-50 rounded-lg text-rose-600"><Key className="w-5 h-5" /></div>
-          <div><h3 className="font-bold text-slate-800">Bảo mật & Đăng nhập</h3><p className="text-xs text-slate-500">Quản lý mã định danh doanh nghiệp (Company Login Code)</p></div>
+          <div><h3 className="font-bold text-slate-800">{t('settings.securitySectionTitle')}</h3><p className="text-xs text-slate-500">{t('settings.securitySectionSubtitle')}</p></div>
         </div>
         <div className="p-5">
           {codeMessage.text && (
@@ -373,23 +375,23 @@ export default function Settings() {
           {!isEditingCode ? (
             <div className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-100">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Mã đăng nhập hiện tại</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('settings.currentCodeLabel')}</p>
                 <div className="flex items-center gap-3">
                   <span className="text-2xl font-mono font-bold text-slate-800 tracking-widest">{showCode ? currentCode : '•••' + currentCode.slice(-3)}</span>
                   <button onClick={() => setShowCode(!showCode)} className="text-slate-400 hover:text-sky-600 transition-colors">{showCode ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button>
                 </div>
               </div>
-              <button onClick={() => setIsEditingCode(true)} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors shadow-sm">Đổi mã doanh nghiệp</button>
+              <button onClick={() => setIsEditingCode(true)} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors shadow-sm">{t('settings.changeCodeBtn')}</button>
             </div>
           ) : (
             <div className="bg-slate-50 p-5 rounded-lg border border-slate-200 space-y-4 animate-in fade-in">
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Mã doanh nghiệp mới (6 ký tự)</label><input type="text" maxLength={6} value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase())} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none font-mono uppercase" placeholder="VD: CTYA26" /></div>
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Xác nhận mã mới</label><input type="text" maxLength={6} value={confirmCode} onChange={(e) => setConfirmCode(e.target.value.toUpperCase())} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none font-mono uppercase" placeholder="Nhập lại mã mới" /></div>
+                <div><label className="block text-xs font-bold text-slate-700 mb-1">{t('settings.newCodeLabel')}</label><input type="text" maxLength={6} value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase())} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none font-mono uppercase" placeholder="VD: CTYA26" /></div>
+                <div><label className="block text-xs font-bold text-slate-700 mb-1">{t('settings.confirmCodeLabel')}</label><input type="text" maxLength={6} value={confirmCode} onChange={(e) => setConfirmCode(e.target.value.toUpperCase())} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none font-mono uppercase" placeholder={t('settings.confirmCodePlaceholder')} /></div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button onClick={() => { setIsEditingCode(false); setCodeMessage({ type: '', text: '' }); }} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Hủy bỏ</button>
-                <button onClick={handleSaveCode} className="bg-rose-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-rose-700 flex items-center gap-2"><Key className="w-4 h-4" /> Lưu mã mới</button>
+                <button onClick={() => { setIsEditingCode(false); setCodeMessage({ type: '', text: '' }); }} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">{t('common.cancel')}</button>
+                <button onClick={handleSaveCode} className="bg-rose-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-rose-700 flex items-center gap-2"><Key className="w-4 h-4" /> {t('settings.saveCodeBtn')}</button>
               </div>
             </div>
           )}
@@ -402,9 +404,9 @@ export default function Settings() {
           <div>
             <h3 className={`font-bold flex items-center gap-2 ${isAdminImpersonating ? 'text-rose-400' : 'text-slate-800'}`}>
               {isAdminImpersonating ? <Terminal className="w-5 h-5" /> : <Cpu className="w-5 h-5 text-indigo-500" />}
-              Cấu hình Dịch vụ Hệ thống
+              {t('settings.coreServicesTitle')}
             </h3>
-            <p className={`text-xs mt-1 ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-500'}`}>Quản lý cấp phép tính năng hoạt động cho doanh nghiệp.</p>
+            <p className={`text-xs mt-1 ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-500'}`}>{t('settings.coreServicesSubtitle')}</p>
           </div>
           {!isAdminImpersonating && <div className="p-2 bg-slate-100 rounded-lg"><Lock className="w-4 h-4 text-slate-400" /></div>}
         </div>
@@ -412,16 +414,24 @@ export default function Settings() {
         <div className="p-5 space-y-6">
           {!isAdminImpersonating ? (
             <p className="text-xs text-slate-500 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
-              Khu vực này được quản lý bởi Hệ thống DriveLinker. Quản trị viên doanh nghiệp chỉ có thể <strong>XEM</strong> các tính năng phần cứng/phần mềm đang được cấp phép. Liên hệ với DriveLinker để nâng cấp.
+              {language === 'vi' ? (
+                <>Khu vực này được quản lý bởi Hệ thống DriveLinker. Quản trị viên doanh nghiệp chỉ có thể <strong>XEM</strong> các tính năng phần cứng/phần mềm đang được cấp phép. Liên hệ với DriveLinker để nâng cấp.</>
+              ) : (
+                <>This area is managed by the DriveLinker System. Enterprise administrators can only <strong>VIEW</strong> authorized hardware/software features. Contact DriveLinker for upgrades.</>
+              )}
             </p>
           ) : (
             <p className="text-xs text-rose-300 leading-relaxed bg-rose-500/10 p-3 rounded-lg border border-rose-500/20">
-              Chế độ <strong>Core Admin</strong>. Bạn có quyền cấp phép hoặc vô hiệu hóa các dịch vụ cho doanh nghiệp này.
+              {language === 'vi' ? (
+                <>Chế độ <strong>Core Admin</strong>. Bạn có quyền cấp phép hoặc vô hiệu hóa các dịch vụ cho doanh nghiệp này.</>
+              ) : (
+                <><strong>Core Admin</strong> mode. You are authorized to enable or disable system services for this enterprise.</>
+              )}
             </p>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
+
             {/* Module Định vị */}
             <div className={`p-4 rounded-xl border flex items-center justify-between transition-colors ${isAdminImpersonating ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
               <div className="flex items-center gap-3">
@@ -429,8 +439,8 @@ export default function Settings() {
                   <MapPin className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className={`text-sm font-bold ${isAdminImpersonating ? 'text-slate-200' : 'text-slate-700'}`}>Định vị bản đồ</p>
-                  <p className={`text-[10px] ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-400'}`}>Giám sát hành trình</p>
+                  <p className={`text-sm font-bold ${isAdminImpersonating ? 'text-slate-200' : 'text-slate-700'}`}>{t('settings.coreServicesGps')}</p>
+                  <p className={`text-[10px] ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-400'}`}>{t('settings.coreServicesGpsDesc')}</p>
                 </div>
               </div>
               <button onClick={() => handleToggleCoreService('gpsTracking')} disabled={!isAdminImpersonating} className={`w-11 h-6 rounded-full relative transition-colors shadow-inner ${!isAdminImpersonating ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${coreServices.gpsTracking ? 'bg-sky-500' : (isAdminImpersonating ? 'bg-slate-600' : 'bg-slate-200')}`}>
@@ -445,8 +455,8 @@ export default function Settings() {
                   <Camera className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className={`text-sm font-bold ${isAdminImpersonating ? 'text-slate-200' : 'text-slate-700'}`}>Camera AI (Edge)</p>
-                  <p className={`text-[10px] ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-400'}`}>Nhận diện tài xế</p>
+                  <p className={`text-sm font-bold ${isAdminImpersonating ? 'text-slate-200' : 'text-slate-700'}`}>{t('settings.coreServicesAi')}</p>
+                  <p className={`text-[10px] ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-400'}`}>{t('settings.coreServicesAiDesc')}</p>
                 </div>
               </div>
               <button onClick={() => handleToggleCoreService('aiCamera')} disabled={!isAdminImpersonating} className={`w-11 h-6 rounded-full relative transition-colors shadow-inner ${!isAdminImpersonating ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${coreServices.aiCamera ? 'bg-rose-500' : (isAdminImpersonating ? 'bg-slate-600' : 'bg-slate-200')}`}>
@@ -461,8 +471,8 @@ export default function Settings() {
                   <Bell className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className={`text-sm font-bold ${isAdminImpersonating ? 'text-slate-200' : 'text-slate-700'}`}>Cảnh báo vi phạm</p>
-                  <p className={`text-[10px] ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-400'}`}>Cảnh báo ngủ gật</p>
+                  <p className={`text-sm font-bold ${isAdminImpersonating ? 'text-slate-200' : 'text-slate-700'}`}>{t('settings.coreServicesAlert')}</p>
+                  <p className={`text-[10px] ${isAdminImpersonating ? 'text-slate-400' : 'text-slate-400'}`}>{t('settings.coreServicesAlertDesc')}</p>
                 </div>
               </div>
               <button onClick={() => handleToggleCoreService('speedAlert')} disabled={!isAdminImpersonating} className={`w-11 h-6 rounded-full relative transition-colors shadow-inner ${!isAdminImpersonating ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${coreServices.speedAlert ? 'bg-amber-500' : (isAdminImpersonating ? 'bg-slate-600' : 'bg-slate-200')}`}>
@@ -476,7 +486,7 @@ export default function Settings() {
           {isAdminImpersonating && (
             <div className="flex justify-end pt-2">
               <button onClick={handleSaveCoreServices} className="bg-rose-600 hover:bg-rose-700 text-white px-6 py-2.5 text-sm font-bold rounded-xl transition-colors shadow-lg active:scale-95 flex items-center gap-2">
-                <Save className="w-4 h-4" /> Cập nhật Hệ thống
+                <Save className="w-4 h-4" /> {t('settings.saveServicesBtn')}
               </button>
             </div>
           )}
@@ -487,18 +497,18 @@ export default function Settings() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <div>
-            <h3 className="font-bold text-slate-800 flex items-center gap-2"><Monitor className="w-5 h-5 text-indigo-500" /> Quản lý Thiết bị Truy cập</h3>
-            <p className="text-xs text-slate-500 mt-1">Giám sát PC, Laptop, Mobile đăng nhập vào hệ thống. {deviceAnomaly.length > 0 && <span className="text-rose-500 font-bold ml-2">Phát hiện {deviceAnomaly.length} IP có dấu hiệu dùng chung!</span>}</p>
+            <h3 className="font-bold text-slate-800 flex items-center gap-2"><Monitor className="w-5 h-5 text-indigo-500" /> {t('settings.deviceSectionTitle')}</h3>
+            <p className="text-xs text-slate-500 mt-1">{t('settings.deviceSectionSubtitle')} {deviceAnomaly.length > 0 && <span className="text-rose-500 font-bold ml-2">⚠️ {deviceAnomaly.length} IP</span>}</p>
           </div>
-          
+
           {/* NÚT HIỂN THỊ DANH SÁCH CHỜ DUYỆT */}
           {pendingCount > 0 && (
-            <button 
+            <button
               onClick={() => setIsApprovalModalOpen(true)}
               className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-colors animate-pulse hover:animate-none"
             >
-              <CheckSquare className="w-4 h-4" /> 
-              Duyệt yêu cầu mới ({pendingCount})
+              <CheckSquare className="w-4 h-4" />
+              {t('settings.pendingApprovalBtn')} ({pendingCount})
             </button>
           )}
         </div>
@@ -507,11 +517,11 @@ export default function Settings() {
           <table className="w-full text-left text-sm">
             <thead className="bg-white text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
               <tr>
-                <th className="p-4">Thiết bị</th>
-                <th className="p-4">Địa chỉ IP</th>
-                <th className="p-4">Tài khoản truy cập</th>
-                <th className="p-4 text-center">Trạng thái</th>
-                <th className="p-4 text-right">Thao tác</th>
+                <th className="p-4">{t('settings.colDevice')}</th>
+                <th className="p-4">{t('settings.colIp')}</th>
+                <th className="p-4">{t('settings.colAccount')}</th>
+                <th className="p-4 text-center">{t('settings.colStatus')}</th>
+                <th className="p-4 text-right">{t('settings.colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -524,7 +534,7 @@ export default function Settings() {
                         <div className="p-2 bg-slate-100 rounded-lg">{getDeviceIcon(d.type)}</div>
                         <div>
                           <span className="font-bold text-slate-800">{d.name}</span>
-                          <p className="text-[10px] text-slate-400 font-normal">Truy cập cuối: {d.lastLogin}</p>
+                          <p className="text-[10px] text-slate-400 font-normal">{language === 'vi' ? 'Truy cập cuối:' : 'Last login:'} {d.lastLogin}</p>
                         </div>
                       </div>
                     </td>
@@ -539,20 +549,20 @@ export default function Settings() {
                       <span className={`px-2 py-1 text-[10px] font-bold rounded-full ${d.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
                         d.status === 'PENDING' ? 'bg-amber-100 text-amber-700 animate-pulse' : 'bg-rose-100 text-rose-700'
                         }`}>
-                        {d.status === 'APPROVED' ? 'Đã duyệt' : d.status === 'PENDING' ? 'Chờ duyệt' : 'Đã khóa'}
+                        {d.status === 'APPROVED' ? t('settings.deviceApproved') : d.status === 'PENDING' ? t('settings.devicePending') : t('settings.deviceLocked')}
                       </span>
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex justify-end gap-2 items-center">
                         {d.status === 'PENDING' ? (
-                          <button onClick={() => setIsApprovalModalOpen(true)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white rounded transition-colors text-xs font-bold px-3">Xử lý ngay</button>
+                          <button onClick={() => setIsApprovalModalOpen(true)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white rounded transition-colors text-xs font-bold px-3">{t('settings.processDeviceBtn')}</button>
                         ) : d.status === 'LOCKED' ? (
-                          <button onClick={() => handleDeviceAction(d.id, 'APPROVED')} className="text-xs font-bold text-emerald-500 hover:bg-emerald-50 px-2 py-1 rounded transition-colors">Mở khóa</button>
+                          <button onClick={() => handleDeviceAction(d.id, 'APPROVED')} className="text-xs font-bold text-emerald-500 hover:bg-emerald-50 px-2 py-1 rounded transition-colors">{t('settings.unlockAccount')}</button>
                         ) : (
-                          <button onClick={() => handleDeviceAction(d.id, 'LOCKED')} className="text-xs font-bold text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition-colors">Khóa</button>
+                          <button onClick={() => handleDeviceAction(d.id, 'LOCKED')} className="text-xs font-bold text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition-colors">{t('settings.lockDeviceBtn')}</button>
                         )}
                         <button onClick={() => setSelectedDevice(d)} className="px-3 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 transition-colors text-slate-600 rounded flex items-center gap-1">
-                          <Info className="w-3 h-3" /> Chi tiết
+                          <Info className="w-3 h-3" /> {language === 'vi' ? 'Chi tiết' : 'Details'}
                         </button>
                       </div>
                     </td>
@@ -567,12 +577,12 @@ export default function Settings() {
       {/* ================= 4. MODULE: NHẬT KÝ THAO TÁC ================= */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <div><h3 className="font-bold text-slate-800 flex items-center gap-2"><History className="w-5 h-5 text-indigo-500" /> Lịch sử Thao tác Doanh nghiệp</h3></div>
+          <div><h3 className="font-bold text-slate-800 flex items-center gap-2"><History className="w-5 h-5 text-indigo-500" /> {t('settings.auditSectionTitle')}</h3></div>
         </div>
         <div className="overflow-auto max-h-[300px]">
           <table className="w-full text-left">
             <thead className="bg-white border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0">
-              <tr><th className="p-3 pl-5">Thời gian</th><th className="p-3">Người thực hiện</th><th className="p-3">Thao tác</th><th className="p-3">Đối tượng</th><th className="p-3 text-center">Kết quả</th></tr>
+              <tr><th className="p-3 pl-5">{t('settings.colTimestamp')}</th><th className="p-3">{t('settings.colActor')}</th><th className="p-3">{t('settings.colActionName')}</th><th className="p-3">{language === 'vi' ? 'Đối tượng' : 'Target'}</th><th className="p-3 text-center">{language === 'vi' ? 'Kết quả' : 'Result'}</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-50 text-xs">
               {activityLogs.map((log) => (
@@ -594,10 +604,10 @@ export default function Settings() {
         <div className="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3 bg-slate-50/50">
           <div>
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <Users className="w-5 h-5 text-sky-500" /> Quản lý Tài khoản & Phân quyền Doanh nghiệp
+              <Users className="w-5 h-5 text-sky-500" /> {t('settings.accountSectionTitle')}
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              Danh sách nhân sự thuộc doanh nghiệp. Phân quyền chặt chẽ giữa Quản trị viên (TENANT_ADMIN) và Nhân viên (TENANT_STAFF).
+              {t('settings.accountSectionSubtitle')}
             </p>
           </div>
           <button
@@ -608,7 +618,7 @@ export default function Settings() {
             }}
             className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95"
           >
-            <UserPlus className="w-4 h-4" /> Thêm tài khoản
+            <UserPlus className="w-4 h-4" /> {t('settings.addAccountBtn')}
           </button>
         </div>
 
@@ -616,20 +626,20 @@ export default function Settings() {
           <table className="w-full text-left text-sm">
             <thead className="bg-white text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
               <tr>
-                <th className="p-4">Họ và tên</th>
-                <th className="p-4">Tên đăng nhập</th>
-                <th className="p-4">Email</th>
-                <th className="p-4">Vai trò</th>
-                <th className="p-4">Trạng thái</th>
-                <th className="p-4">Ngày tạo</th>
-                <th className="p-4 text-right">Thao tác</th>
+                <th className="p-4">{t('settings.colFullName')}</th>
+                <th className="p-4">{t('settings.colUsername')}</th>
+                <th className="p-4">{t('settings.colEmail')}</th>
+                <th className="p-4">{t('settings.colRole')}</th>
+                <th className="p-4">{t('settings.colStatus')}</th>
+                <th className="p-4">{t('settings.colCreatedAt')}</th>
+                <th className="p-4 text-right">{t('settings.colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {accountList.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-slate-400 text-sm">
-                    Chưa có tài khoản nào được tạo cho doanh nghiệp này.
+                    {t('settings.noAccountsYet')}
                   </td>
                 </tr>
               ) : (
@@ -641,22 +651,22 @@ export default function Settings() {
                     <td className="p-4">
                       {acc.role === 'TENANT_ADMIN' ? (
                         <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-purple-50 text-purple-700 border border-purple-200">
-                          Quản trị viên (ADMIN)
+                          {t('settings.roleAdmin')}
                         </span>
                       ) : (
                         <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-sky-50 text-sky-700 border border-sky-200">
-                          Nhân viên (STAFF)
+                          {t('settings.roleStaff')}
                         </span>
                       )}
                     </td>
                     <td className="p-4">
                       {acc.status === 'ACTIVE' ? (
                         <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Đang hoạt động
+                          {t('settings.activeStatus')}
                         </span>
                       ) : (
                         <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-rose-50 text-rose-700 border border-rose-200">
-                          Đã khóa
+                          {t('settings.lockedStatus')}
                         </span>
                       )}
                     </td>
@@ -664,13 +674,12 @@ export default function Settings() {
                     <td className="p-4 text-right">
                       <button
                         onClick={() => handleToggleAccountStatus(acc)}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-                          acc.status === 'ACTIVE'
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${acc.status === 'ACTIVE'
                             ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
                             : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200'
-                        }`}
+                          }`}
                       >
-                        {acc.status === 'ACTIVE' ? 'Khóa tài khoản' : 'Mở khóa'}
+                        {acc.status === 'ACTIVE' ? t('settings.lockAccount') : t('settings.unlockAccount')}
                       </button>
                     </td>
                   </tr>
@@ -681,7 +690,7 @@ export default function Settings() {
         </div>
       </div>
 
-{/* ================= MODALS ================= */}
+      {/* ================= MODALS ================= */}
 
       {/* MODAL: XÉT DUYỆT HÀNG LOẠT (TÍNH NĂNG MỚI) */}
       {isApprovalModalOpen && (
@@ -690,9 +699,9 @@ export default function Settings() {
             <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50 shrink-0">
               <div>
                 <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                  <CheckSquare className="w-5 h-5 text-amber-500" /> Xét duyệt Thiết bị truy cập
+                  <CheckSquare className="w-5 h-5 text-amber-500" /> {t('settings.deviceBatchModalTitle')}
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">Danh sách các thiết bị mới đang chờ cấp quyền truy cập vào hệ thống.</p>
+                <p className="text-xs text-slate-500 mt-1">{t('settings.deviceBatchModalSub')}</p>
               </div>
               <button onClick={() => setIsApprovalModalOpen(false)} className="text-slate-400 hover:text-rose-500 transition-colors bg-white p-2 rounded-lg border border-slate-200"><X className="w-5 h-5" /></button>
             </div>
@@ -701,15 +710,15 @@ export default function Settings() {
               {pendingDevices.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                   <CheckCircle2 className="w-16 h-16 text-emerald-100 mb-4" />
-                  <p className="text-lg font-bold text-slate-600">Tuyệt vời!</p>
-                  <p className="text-sm">Không còn yêu cầu truy cập nào đang chờ duyệt.</p>
+                  <p className="text-lg font-bold text-slate-600">{t('settings.deviceEmptyTitle')}</p>
+                  <p className="text-sm">{t('settings.deviceEmptyDesc')}</p>
                 </div>
               ) : (
                 pendingDevices.map(d => (
                   <div key={d.id} className="bg-white border border-amber-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
                     <div className="flex items-start justify-between gap-4">
-                      
+
                       {/* Cột 1: Thông tin */}
                       <div className="flex-1 space-y-3">
                         <div className="flex items-center gap-3">
@@ -720,8 +729,8 @@ export default function Settings() {
                           </div>
                         </div>
                         <div className="flex gap-4 text-sm bg-slate-50 p-3 rounded-lg border border-slate-100">
-                          <div><span className="text-slate-400 text-xs block mb-0.5 uppercase font-bold">Tài khoản</span><span className="font-bold text-sky-600">{d.account}</span></div>
-                          <div><span className="text-slate-400 text-xs block mb-0.5 uppercase font-bold">IP Yêu cầu</span><span className="font-bold font-mono text-slate-700">{d.ip}</span></div>
+                          <div><span className="text-slate-400 text-xs block mb-0.5 uppercase font-bold">{t('settings.colAccount')}</span><span className="font-bold text-sky-600">{d.account}</span></div>
+                          <div><span className="text-slate-400 text-xs block mb-0.5 uppercase font-bold">{t('settings.colIp')}</span><span className="font-bold font-mono text-slate-700">{d.ip}</span></div>
                         </div>
                       </div>
 
@@ -729,17 +738,17 @@ export default function Settings() {
                       <div className="w-64 shrink-0 flex flex-col gap-3">
                         <div className="relative">
                           <ClipboardEdit className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                          <input 
-                            type="text" 
-                            placeholder="Nhập ghi chú duyệt..."
+                          <input
+                            type="text"
+                            placeholder={t('settings.deviceNotePlaceholder')}
                             value={approvalNotes[d.id] || ''}
-                            onChange={(e) => setApprovalNotes({...approvalNotes, [d.id]: e.target.value})}
+                            onChange={(e) => setApprovalNotes({ ...approvalNotes, [d.id]: e.target.value })}
                             className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-amber-400 focus:bg-white transition-colors"
                           />
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => handleDeviceAction(d.id, 'APPROVED')} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1 shadow-sm transition-colors"><Check className="w-4 h-4" /> Duyệt</button>
-                          <button onClick={() => handleDeviceAction(d.id, 'REJECTED')} className="flex-1 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1 transition-colors"><X className="w-4 h-4" /> Từ chối</button>
+                          <button onClick={() => handleDeviceAction(d.id, 'APPROVED')} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1 shadow-sm transition-colors"><Check className="w-4 h-4" /> {t('settings.deviceApproveBtn')}</button>
+                          <button onClick={() => handleDeviceAction(d.id, 'REJECTED')} className="flex-1 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1 transition-colors"><X className="w-4 h-4" /> {t('settings.deviceRejectBtn')}</button>
                         </div>
                       </div>
 
@@ -758,38 +767,38 @@ export default function Settings() {
           <div className="bg-white rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
               <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                {getDeviceIcon(selectedDevice.type)} Thông tin Thiết bị
+                {getDeviceIcon(selectedDevice.type)} {t('settings.deviceDetailTitle')}
               </h2>
               <button onClick={() => setSelectedDevice(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="p-6 space-y-4">
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-2">Định danh phần cứng</p>
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-2">{t('settings.hardwareIdentity')}</p>
                 <p className="font-bold text-slate-800 text-lg">{selectedDevice.name}</p>
                 <p className="text-sm text-slate-600 font-mono mt-1">ID: {selectedDevice.id}</p>
                 {selectedDevice.note && (
                   <p className="mt-3 text-sm text-amber-700 bg-amber-50 p-2 rounded border border-amber-100 flex gap-2">
-                    <ClipboardEdit className="w-4 h-4 shrink-0 mt-0.5" /> Ghi chú: {selectedDevice.note}
+                    <ClipboardEdit className="w-4 h-4 shrink-0 mt-0.5" /> {t('settings.deviceNoteLabel')} {selectedDevice.note}
                   </p>
                 )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Hệ điều hành</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">{t('settings.deviceOs')}</p>
                   <p className="font-bold text-slate-700 text-sm">{selectedDevice.os}</p>
                 </div>
                 <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Trình duyệt / App</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">{t('settings.deviceBrowser')}</p>
                   <p className="font-bold text-slate-700 text-sm">{selectedDevice.browser}</p>
                 </div>
                 <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Địa chỉ IP</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">{t('settings.deviceIp')}</p>
                   <p className="font-bold font-mono text-sky-600 text-sm">{selectedDevice.ip}</p>
                 </div>
                 <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Tài khoản</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">{t('settings.deviceAccount')}</p>
                   <p className="font-bold text-slate-700 text-sm truncate" title={selectedDevice.account}>{selectedDevice.account}</p>
                 </div>
               </div>
@@ -798,18 +807,18 @@ export default function Settings() {
             <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
               {selectedDevice.status === 'PENDING' ? (
                 <>
-                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'APPROVED')} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"><Check className="w-4 h-4" /> Duyệt thiết bị</button>
-                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'REJECTED')} className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"><X className="w-4 h-4" /> Từ chối</button>
+                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'APPROVED')} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"><Check className="w-4 h-4" /> {t('settings.deviceApproveBtn')}</button>
+                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'REJECTED')} className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"><X className="w-4 h-4" /> {t('settings.deviceRejectBtn')}</button>
                 </>
               ) : selectedDevice.status === 'LOCKED' ? (
                 <>
-                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'APPROVED')} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors">Mở khóa truy cập</button>
-                  <button onClick={() => setSelectedDevice(null)} className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-300 transition-colors">Đóng</button>
+                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'APPROVED')} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors">{t('settings.deviceUnlockBtn')}</button>
+                  <button onClick={() => setSelectedDevice(null)} className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-300 transition-colors">{t('settings.deviceCloseBtn')}</button>
                 </>
               ) : (
                 <>
-                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'LOCKED')} className="bg-rose-50 text-rose-600 hover:bg-rose-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors">Khóa truy cập</button>
-                  <button onClick={() => setSelectedDevice(null)} className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-300 transition-colors">Đóng</button>
+                  <button onClick={() => handleDeviceAction(selectedDevice.id, 'LOCKED')} className="bg-rose-50 text-rose-600 hover:bg-rose-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors">{t('settings.deviceLockBtn')}</button>
+                  <button onClick={() => setSelectedDevice(null)} className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-300 transition-colors">{t('common.close')}</button>
                 </>
               )}
             </div>
@@ -823,7 +832,7 @@ export default function Settings() {
           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
               <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-sky-500" /> Thêm tài khoản nhân sự
+                <UserPlus className="w-5 h-5 text-sky-500" /> {t('settings.addAccountModalTitle')}
               </h2>
               <button
                 onClick={() => setIsAddAccountModalOpen(false)}
@@ -843,11 +852,11 @@ export default function Settings() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Họ và tên <span className="text-rose-500">*</span>
+                  {t('settings.formFullNameRequired')} <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="VD: Nguyễn Văn Bình"
+                  placeholder={t('settings.formFullNamePlaceholder')}
                   value={accountForm.fullName}
                   onChange={(e) => setAccountForm({ ...accountForm, fullName: e.target.value })}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-sky-500 focus:bg-white transition-all font-medium"
@@ -857,7 +866,7 @@ export default function Settings() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Tên đăng nhập <span className="text-rose-500">*</span>
+                    {t('settings.formUsernameRequired')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -869,11 +878,11 @@ export default function Settings() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Mật khẩu <span className="text-rose-500">*</span>
+                    {t('settings.formPasswordRequired')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="password"
-                    placeholder="Tối thiểu 6 ký tự"
+                    placeholder={t('settings.formPasswordMin')}
                     value={accountForm.password}
                     onChange={(e) => setAccountForm({ ...accountForm, password: e.target.value })}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-sky-500 focus:bg-white transition-all font-medium"
@@ -883,7 +892,7 @@ export default function Settings() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Email công việc <span className="text-rose-500">*</span>
+                  {t('settings.formEmailRequired')} <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="email"
@@ -896,20 +905,20 @@ export default function Settings() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Vai trò phân quyền
+                  {t('settings.formRoleRequired')}
                 </label>
                 <select
                   value={accountForm.role}
                   onChange={(e) => setAccountForm({ ...accountForm, role: e.target.value })}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-sky-500 focus:bg-white transition-all font-medium"
                 >
-                  <option value="TENANT_STAFF">Nhân viên (TENANT_STAFF - Quản lý xe, xem hợp đồng, tạo yêu cầu)</option>
-                  <option value="TENANT_ADMIN">Quản trị viên (TENANT_ADMIN - Duyệt giá, cấu hình, quản lý nhân sự)</option>
+                  <option value="TENANT_STAFF">{t('settings.roleStaffDesc')}</option>
+                  <option value="TENANT_ADMIN">{t('settings.roleAdminDesc')}</option>
                 </select>
               </div>
 
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px] leading-relaxed">
-                <strong>Lưu ý:</strong> Tài khoản được tạo sẽ lưu vào hệ thống dữ liệu doanh nghiệp và có thể dùng để đăng nhập ngay lập tức.
+                <span>{t('settings.createAccountNotice')}</span>
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
@@ -924,7 +933,7 @@ export default function Settings() {
                   type="submit"
                   className="px-5 py-2 text-sm font-bold text-white bg-sky-500 hover:bg-sky-600 rounded-xl shadow transition-all active:scale-95 flex items-center gap-2"
                 >
-                  <UserPlus className="w-4 h-4" /> Tạo tài khoản
+                  <UserPlus className="w-4 h-4" /> {t('settings.btnCreateAccount')}
                 </button>
               </div>
             </form>
