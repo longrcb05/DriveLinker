@@ -145,7 +145,7 @@ export default function ContractManagement() {
     if (!editingPriceContract || !managerNewPrice) return;
     const numPrice = Number(managerNewPrice.replace(/[^0-9]/g, ''));
     if (!numPrice || numPrice <= 0) {
-      alert('Vui lòng nhập đơn giá hợp lệ lớn hơn 0.');
+      alert(t('contracts.alertInvalidPrice'));
       return;
     }
 
@@ -168,7 +168,7 @@ export default function ContractManagement() {
     setManagerNewPrice('');
     loadData();
     window.dispatchEvent(new Event('storage'));
-    alert('Đã cập nhật đơn giá hợp đồng thành công!');
+    alert(t('contracts.alertPriceUpdateSuccess'));
   };
 
   const handleSubmitPriceRequest = (reason: string) => {
@@ -199,12 +199,12 @@ export default function ContractManagement() {
 
     loadData();
     setRequestContractId(null);
-    alert('Đã gửi yêu cầu phê duyệt thành công! Vui lòng chờ Quản lý duyệt.');
+    alert(t('contracts.alertPriceRequestSuccess'));
     window.dispatchEvent(new Event('storage'));
   };
 
   const handleDeleteDraft = (id: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa bản nháp này không?')) {
+    if (window.confirm(t('contracts.confirmDeleteDraft'))) {
       const updated = drafts.filter(d => d.id !== id);
       localStorage.setItem('sys_contract_drafts', JSON.stringify(updated));
       setDrafts(updated);

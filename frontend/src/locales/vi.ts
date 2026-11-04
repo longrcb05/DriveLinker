@@ -110,7 +110,9 @@ export const vi = {
     "modalNotes": "Ghi chú vận hành:",
     "deleteConfirmTitle": "Xác nhận xóa phương tiện",
     "deleteConfirmMsg": "Bạn có chắc chắn muốn xóa xe khỏi hệ thống? Thao tác này không thể hoàn tác.",
-    "plateLabel": "Biển số:"
+    "plateLabel": "Biển số:",
+    "formModelPlaceholder": "VD: Solati 16 chỗ, Hino 500...",
+    "formPayloadPlaceholder": "VD: Xe Tải 5 Tấn, 16 Chỗ..."
   },
   "contracts": {
     "title": "Quản lý Đối tác & Hợp đồng",
@@ -160,7 +162,17 @@ export const vi = {
     "editPriceDirect": "Sửa giá (Quản lý)",
     "continueDraft": "Tiếp tục soạn",
     "deleteDraft": "Xóa bản nháp",
-    "noData": "Chưa có dữ liệu"
+    "noData": "Chưa có dữ liệu",
+    "requestPriceModalTitle": "Yêu cầu sửa Đơn giá",
+    "requestPriceModalNotice": "Hợp đồng {contractId} đã được xác nhận. Vui lòng trình bày lý do và mức giá mong muốn. Quản lý sẽ xem xét và quyết định đơn giá mới.",
+    "requestPriceModalLabel": "Nội dung đề xuất (Note)",
+    "requestPriceModalPlaceholder": "VD: Đề nghị xem xét điều chỉnh lại đơn giá thuê xe xuống còn 800.000 VNĐ do chi phí vận hành thay đổi...",
+    "requestPriceModalSubmit": "Gửi yêu cầu",
+    "requestPriceModalAlert": "Vui lòng nhập lý do hoặc mức giá mong muốn vào khung ghi chú.",
+    "alertPriceUpdateSuccess": "Đã cập nhật đơn giá hợp đồng thành công!",
+    "alertPriceRequestSuccess": "Đã gửi yêu cầu phê duyệt thành công! Vui lòng chờ Quản lý duyệt.",
+    "confirmDeleteDraft": "Bạn có chắc chắn muốn xóa bản nháp này không?",
+    "alertInvalidPrice": "Vui lòng nhập đơn giá hợp lệ lớn hơn 0."
   },
   "createContract": {
     "title": "Lập Hợp Đồng Cho Thuê Phương Tiện",
@@ -404,7 +416,10 @@ export const vi = {
     "codeSuccess": "Đổi mã doanh nghiệp thành công. Mã cũ đã vô hiệu hóa.",
     "formErrorRequired": "Vui lòng điền đầy đủ tất cả các trường.",
     "formErrorPasswordLength": "Mật khẩu khởi tạo phải có độ dài tối thiểu 6 ký tự.",
-    "saveServicesSuccess": "Đã cập nhật cấu hình dịch vụ thành công!"
+    "saveServicesSuccess": "Đã cập nhật cấu hình dịch vụ thành công!",
+    "securitySectionTitle": "Bảo mật & Đăng nhập",
+    "securitySectionSubtitle": "Quản lý mã định danh doanh nghiệp (Company Login Code)",
+    "currentCodeLabel": "Mã đăng nhập hiện tại"
   },
   "tracking": {
     "title": "Giám sát Hành trình & AI Nhận diện Buồn ngủ",

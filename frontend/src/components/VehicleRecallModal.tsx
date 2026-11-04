@@ -46,7 +46,7 @@ interface VehicleRecallModalProps {
 const RECALL_STORAGE_KEY = 'sys_vehicle_recalls';
 
 export default function VehicleRecallModal({ contract, onClose, onSuccess }: VehicleRecallModalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const tenantId = localStorage.getItem('tenantId') || 'COMPANY_A';
   const currentUser = localStorage.getItem('username') || 'Nhân viên';
 
@@ -238,7 +238,7 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
       console.warn(err);
     }
 
-    alert('Đã hoàn tất quy trình thu hồi phương tiện và quyết toán hợp đồng thành công!');
+    alert(language === 'vi' ? 'Đã hoàn tất quy trình thu hồi phương tiện và quyết toán hợp đồng thành công!' : 'Vehicle recall and contract settlement completed successfully!');
     onSuccess();
     onClose();
   };
@@ -255,7 +255,7 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
             <div>
               <h3 className="font-extrabold text-slate-800 text-base">{t('recall.modalTitle')}</h3>
               <p className="text-xs text-slate-500">
-                Mã HĐ: <strong className="font-mono text-slate-700">{contract.id}</strong> • Xe: <strong className="font-mono text-sky-600">{carPlate}</strong>
+                {language === 'vi' ? 'Mã HĐ:' : 'Contract ID:'} <strong className="font-mono text-slate-700">{contract.id}</strong> • {language === 'vi' ? 'Xe:' : 'Vehicle:'} <strong className="font-mono text-sky-600">{carPlate}</strong>
               </p>
             </div>
           </div>
@@ -271,7 +271,7 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
             className={`flex items-center gap-2 cursor-pointer ${activeStage === 1 ? 'text-sky-600 font-extrabold' : ''}`}
           >
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${activeStage >= 1 ? 'bg-sky-600 text-white' : 'bg-slate-300'}`}>1</span>
-            <span>Yêu cầu thu hồi</span>
+            <span>{t('recall.stage1Title') || (language === 'vi' ? 'Yêu cầu thu hồi' : 'Recall Request')}</span>
           </div>
           <span className="text-slate-300">───</span>
           <div
@@ -279,7 +279,7 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
             className={`flex items-center gap-2 cursor-pointer ${activeStage === 2 ? 'text-sky-600 font-extrabold' : ''} ${!existingRecord ? 'opacity-40 cursor-not-allowed' : ''}`}
           >
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${activeStage >= 2 ? 'bg-sky-600 text-white' : 'bg-slate-300'}`}>2</span>
-            <span>Tiếp nhận hiện trường</span>
+            <span>{t('recall.stage2Title') || (language === 'vi' ? 'Tiếp nhận hiện trường' : 'Field Handover')}</span>
           </div>
           <span className="text-slate-300">───</span>
           <div
@@ -287,7 +287,7 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
             className={`flex items-center gap-2 cursor-pointer ${activeStage === 3 ? 'text-sky-600 font-extrabold' : ''} ${existingRecord?.status !== 'RECEIVED' ? 'opacity-40 cursor-not-allowed' : ''}`}
           >
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${activeStage === 3 ? 'bg-sky-600 text-white' : 'bg-slate-300'}`}>3</span>
-            <span>Nghiệm thu & Hoàn tất</span>
+            <span>{t('recall.stage3Title') || (language === 'vi' ? 'Nghiệm thu & Hoàn tất' : 'Inspection & Settlement')}</span>
           </div>
         </div>
 
@@ -305,11 +305,11 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
             <div className="space-y-4">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-slate-400 block font-bold uppercase text-[10px]">Bên thuê / Khách hàng</span>
+                  <span className="text-slate-400 block font-bold uppercase text-[10px]">{language === 'vi' ? 'Bên thuê / Khách hàng' : 'Renter / Customer'}</span>
                   <span className="font-bold text-slate-800 text-sm">{partnerName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-bold uppercase text-[10px]">Phương tiện gán</span>
+                  <span className="text-slate-400 block font-bold uppercase text-[10px]">{language === 'vi' ? 'Phương tiện gán' : 'Assigned Vehicle'}</span>
                   <span className="font-mono font-bold text-sky-600 text-sm">{carPlate}</span>
                 </div>
               </div>
@@ -373,7 +373,7 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
             <div className="space-y-4">
               <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl text-sky-800 flex items-center gap-2">
                 <FileText className="w-4 h-4 shrink-0 text-sky-600" />
-                <span>Ghi nhận biên bản hiện trường khi phương tiện được bàn giao thực tế về bãi kiểm soát.</span>
+                <span>{language === 'vi' ? 'Ghi nhận biên bản hiện trường khi phương tiện được bàn giao thực tế về bãi kiểm soát.' : 'Record field handover minutes upon actual vehicle return to control yard.'}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -434,7 +434,7 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                 <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
                   <DollarSign className="w-4 h-4 text-emerald-600" />
-                  Quyết toán tài chính & Công nợ
+                  {language === 'vi' ? 'Quyết toán tài chính & Công nợ' : 'Financial Settlement & Balance'}
                 </h4>
 
                 <div className="grid grid-cols-3 gap-3">
@@ -487,10 +487,10 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
           {activeStage === 3 && (
             <div className="space-y-4">
               <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900">
-                <span className="font-bold block mb-1">Phương tiện đã được bàn giao thực tế:</span>
-                <p>Biển số: <strong className="font-mono">{carPlate}</strong> • Số km: <strong>{mileage || 'Đã ghi nhận'}</strong> • Nhiên liệu: <strong>{fuelLevel}</strong></p>
+                <span className="font-bold block mb-1">{language === 'vi' ? 'Phương tiện đã được bàn giao thực tế:' : 'Vehicle handed over in person:'}</span>
+                <p>{language === 'vi' ? 'Biển số:' : 'Plate:'} <strong className="font-mono">{carPlate}</strong> • {language === 'vi' ? 'Số km:' : 'Mileage:'} <strong>{mileage || (language === 'vi' ? 'Đã ghi nhận' : 'Recorded')}</strong> • {language === 'vi' ? 'Nhiên liệu:' : 'Fuel:'} <strong>{fuelLevel}</strong></p>
                 <p className="mt-1">
-                  Trạng thái quyết toán công nợ: {isSettled ? <strong className="text-emerald-700">Đã thanh toán đủ</strong> : <strong className="text-rose-600">Còn công nợ chưa xử lý</strong>}
+                  {language === 'vi' ? 'Trạng thái quyết toán công nợ:' : 'Debt settlement status:'} {isSettled ? <strong className="text-emerald-700">{language === 'vi' ? 'Đã thanh toán đủ' : 'Fully settled'}</strong> : <strong className="text-rose-600">{language === 'vi' ? 'Còn công nợ chưa xử lý' : 'Outstanding balance pending'}</strong>}
                 </p>
               </div>
 

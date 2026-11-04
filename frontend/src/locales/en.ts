@@ -110,7 +110,9 @@ export const en = {
     "modalNotes": "Operational Notes:",
     "deleteConfirmTitle": "Confirm Vehicle Deletion",
     "deleteConfirmMsg": "Are you sure you want to delete this vehicle from the system? This action cannot be undone.",
-    "plateLabel": "Plate No.:"
+    "plateLabel": "Plate No.:",
+    "formModelPlaceholder": "e.g. Solati 16-seater, Hino 500...",
+    "formPayloadPlaceholder": "e.g. 5-Ton Truck, 16-Seater..."
   },
   "contracts": {
     "title": "Partners & Contract Management",
@@ -160,7 +162,17 @@ export const en = {
     "editPriceDirect": "Edit Price (Manager)",
     "continueDraft": "Continue Editing",
     "deleteDraft": "Delete Draft",
-    "noData": "No data available"
+    "noData": "No data available",
+    "requestPriceModalTitle": "Request Rental Rate Adjustment",
+    "requestPriceModalNotice": "Contract {contractId} is confirmed. Please provide the reason and desired rate. The Manager will review and decide the new rate.",
+    "requestPriceModalLabel": "Adjustment Note & Proposal",
+    "requestPriceModalPlaceholder": "e.g. Propose adjusting daily rate due to operating cost changes...",
+    "requestPriceModalSubmit": "Submit Request",
+    "requestPriceModalAlert": "Please provide a reason or proposed price in the note field.",
+    "alertPriceUpdateSuccess": "Contract rental rate updated successfully!",
+    "alertPriceRequestSuccess": "Price adjustment request submitted successfully! Awaiting Manager approval.",
+    "confirmDeleteDraft": "Are you sure you want to delete this draft?",
+    "alertInvalidPrice": "Please enter a valid rental rate greater than 0."
   },
   "createContract": {
     "title": "Create Vehicle Rental Contract",
@@ -404,7 +416,10 @@ export const en = {
     "codeSuccess": "Company code changed successfully. The previous code has been deactivated.",
     "formErrorRequired": "Please complete all required fields.",
     "formErrorPasswordLength": "Initial password must be at least 6 characters long.",
-    "saveServicesSuccess": "Core services configuration updated successfully!"
+    "saveServicesSuccess": "Core services configuration updated successfully!",
+    "securitySectionTitle": "Security & Credentials",
+    "securitySectionSubtitle": "Manage Company Login Code & Tenant Credentials",
+    "currentCodeLabel": "Current Login Code"
   },
   "tracking": {
     "title": "Real-time Telematics & AI Fatigue Detection",
