@@ -3,7 +3,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Truck, User, Lock, Building2, ArrowRight, AlertCircle,
-  Eye, EyeOff, ShieldCheck, Activity, Cpu, Sparkles, CheckCircle2, Loader2, Globe
+  Eye, EyeOff, ShieldCheck, Activity, Cpu, Sparkles, CheckCircle2,
+  Loader2, Globe, Radio, MapPin, Gauge, Zap, ChevronRight,
+  Shield, Wifi, HelpCircle, Check, Copy
 } from 'lucide-react';
 
 // === CƠ SỞ DỮ LIỆU GIẢ LẬP (MOCK DATABASE FRONTEND) ===
@@ -12,7 +14,7 @@ const DEMO_DB = {
     { id: 'COMPANY_A', name: 'Demo CTY A', code: 'CTA2026' },
     { id: 'COMPANY_B', name: 'Demo CTY B', code: 'CTB2026' },
     { id: 'COMPANY_C', name: 'Demo CTY C', code: 'CTC2026' },
-    { id: 'CORE', name: 'Admin chuẩn bị bảo vệ đồ án', code: 'ADMIN' } // Dành cho System Admin
+    { id: 'CORE', name: 'Admin chuẩn bị bảo vệ đồ án', code: 'ADMIN' }
   ],
   users: [
     { username: 'owner.an', password: '123456', access: { 'COMPANY_A': 'TENANT_ADMIN', 'COMPANY_B': 'TENANT_ADMIN' } },
@@ -25,7 +27,8 @@ const DEMO_DB = {
 // ======================================================
 
 export default function Login() {
-  const { language, toggleLanguage, t } = useLanguage();
+  const { language, toggleLanguage } = useLanguage();
+
   // Khởi tạo các trường thông tin rỗng - không điền sẵn dữ liệu
   const [tenantCode, setTenantCode] = useState('');
   const [username, setUsername] = useState('');
@@ -34,6 +37,9 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDemoHints, setShowDemoHints] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -77,6 +83,12 @@ export default function Login() {
   };
   const matchedTenant = getMatchedTenant();
 
+  const handleCopyHint = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 1800);
+  };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -104,7 +116,7 @@ export default function Login() {
         }
       }
       if (!tenant) {
-        setError(language === 'vi' ? 'Mã đăng nhập doanh nghiệp không tồn tại.' : 'Company login code does not exist.');
+        setError(language === 'vi' ? 'Mã đăng nhập doanh nghiệp không tồn tại trên hệ thống.' : 'Enterprise login code does not exist.');
         setIsLoading(false);
         return;
       }
@@ -115,7 +127,7 @@ export default function Login() {
       const customAccount = storedAccounts.find((a: any) => a.username.toLowerCase() === userInput);
 
       if (!demoUser && !customAccount) {
-        setError(language === 'vi' ? 'Tài khoản đăng nhập không tồn tại.' : 'User account does not exist.');
+        setError(language === 'vi' ? 'Tài khoản người dùng không tồn tại.' : 'User account does not exist.');
         setIsLoading(false);
         return;
       }
@@ -126,7 +138,7 @@ export default function Login() {
       if (demoUser) {
         const validPassword = demoUser.password || '123456';
         if (password !== validPassword && password !== '123456') {
-          setError(language === 'vi' ? 'Sai mật khẩu đăng nhập.' : 'Incorrect password.');
+          setError(language === 'vi' ? 'Mật khẩu đăng nhập không chính xác.' : 'Incorrect password.');
           setIsLoading(false);
           return;
         }
@@ -141,7 +153,7 @@ export default function Login() {
           userRoleForTenant = customAccount.role;
         }
         if (!userRoleForTenant) {
-          setError(language === 'vi' ? `Tài khoản "${userInput}" không được phân quyền truy cập vào doanh nghiệp này.` : `Account "${userInput}" is not authorized for this enterprise.`);
+          setError(language === 'vi' ? `Tài khoản "${userInput}" không có quyền truy cập vào doanh nghiệp "${tenant.name}".` : `Account "${userInput}" is not authorized for "${tenant.name}".`);
           setIsLoading(false);
           return;
         }
@@ -149,7 +161,7 @@ export default function Login() {
         // Tài khoản nhân sự do Quản lý tạo mới từ trang Cài đặt (Settings)
         const validPassword = customAccount.password || '123456';
         if (password !== validPassword && password !== '123456') {
-          setError(language === 'vi' ? 'Sai mật khẩu đăng nhập.' : 'Incorrect password.');
+          setError(language === 'vi' ? 'Mật khẩu đăng nhập không chính xác.' : 'Incorrect password.');
           setIsLoading(false);
           return;
         }
@@ -172,7 +184,7 @@ export default function Login() {
         return;
       }
 
-      // 5. Thành công -> Lưu phiên làm việc và Điều hướng
+      // Lưu phiên làm việc và Điều hướng
       localStorage.setItem('tenantId', tenant.id);
       localStorage.setItem('tenantCode', tenant.code);
       localStorage.setItem('tenantName', tenant.name);
@@ -180,214 +192,329 @@ export default function Login() {
       localStorage.setItem('userRole', userRoleForTenant);
 
       navigate('/overview');
-    }, 600); // Giả lập ping mạng 600ms
+    }, 600);
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-slate-950 font-sans selection:bg-sky-500 selection:text-white">
+    <div className="min-h-screen w-full flex bg-[#060B14] text-slate-100 font-sans selection:bg-sky-500 selection:text-white relative overflow-hidden">
+
+      {/* Style phụ trợ cho Animation và Hiệu ứng Neon */}
+      <style>{`
+        @keyframes radarPing {
+          0% { transform: scale(0.9); opacity: 0.9; }
+          50% { transform: scale(1.4); opacity: 0.2; }
+          100% { transform: scale(1.9); opacity: 0; }
+        }
+        @keyframes floatSlow {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-7px); }
+        }
+        @keyframes shimmerSweep {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(220%); }
+        }
+        .animate-radar-ping {
+          animation: radarPing 2.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        .animate-float-slow {
+          animation: floatSlow 5s ease-in-out infinite;
+        }
+        .animate-shimmer-sweep {
+          animation: shimmerSweep 3.2s infinite;
+        }
+      `}</style>
+
+      {/* Cyber Grid Background Matrix & Glow Orbs */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-20"
+        style={{
+          backgroundImage: 'radial-gradient(rgba(14, 165, 233, 0.25) 1px, transparent 1px)',
+          backgroundSize: '28px 28px'
+        }}
+      />
+      <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-sky-500/15 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute top-1/3 left-1/4 w-[450px] h-[450px] bg-indigo-600/10 rounded-full blur-[130px] pointer-events-none" />
+      <div className="absolute -bottom-40 right-10 w-[550px] h-[550px] bg-cyan-500/10 rounded-full blur-[150px] pointer-events-none" />
 
       {/* =========================================================
-          CỘT TRÁI: SHOWCASE GIỚI THIỆU HỆ THỐNG & BRANDING (DESKTOP)
+          CỘT TRÁI: SHOWCASE GIỚI THIỆU HỆ THỐNG & TELEMATICS HUB (DESKTOP)
           ========================================================= */}
-      <div className="hidden lg:flex lg:w-7/12 relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-slate-950 via-[#0A192F] to-[#041E38] border-r border-slate-800/60">
-
-        {/* Ambient Glow & Grid Pattern Background */}
-        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(14,165,233,0.18),rgba(255,255,255,0))] pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        {/* Top: Logo & Platform Identity */}
+      <div className="hidden lg:flex lg:w-7/12 xl:w-3/5 relative flex-col justify-between p-10 xl:p-14 overflow-hidden border-r border-slate-800/80 bg-gradient-to-br from-[#060B14] via-[#091528] to-[#04162B]">
+        
+        {/* Top: Logo & Telemetry Status */}
         <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-tr from-sky-500 to-cyan-400 rounded-2xl flex items-center justify-center shadow-lg shadow-sky-500/30 ring-1 ring-white/20">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 bg-gradient-to-tr from-sky-500 via-cyan-400 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-sky-500/30 ring-1 ring-white/20">
               <Truck className="w-6 h-6 text-white" />
             </div>
             <div>
-              <span className="text-2xl font-black tracking-tight text-white flex items-center gap-1.5">
-                DriveLinker
-                <span className="text-[10px] uppercase font-bold tracking-widest bg-sky-500/20 text-sky-400 border border-sky-500/30 px-2 py-0.5 rounded-full">Pro</span>
-              </span>
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Fleet Intelligence System</p>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-black tracking-tight text-white">DriveLinker</span>
+                <span className="text-[10px] uppercase font-bold tracking-widest bg-gradient-to-r from-sky-500/20 to-cyan-500/20 text-cyan-300 border border-cyan-400/30 px-2 py-0.5 rounded-full shadow-inner">
+                  Pro v2.6
+                </span>
+              </div>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                Fleet Intelligence & Telematics OS
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-700/60 text-xs font-medium text-emerald-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            {language === 'vi' ? 'Hệ thống trực tuyến' : 'System Online'}
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-emerald-500/30 text-xs font-semibold text-emerald-400 shadow-md shadow-emerald-950/40 backdrop-blur-md">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span>{language === 'vi' ? 'Telemetry Engine Online' : 'Telemetry Engine Online'}</span>
           </div>
         </div>
 
-        {/* Middle: Hero Illustration & Core Value Pillars */}
-        <div className="relative z-10 my-auto py-8">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sky-500/10 border border-sky-400/20 text-sky-400 text-xs font-semibold mb-6">
-            <Sparkles className="w-3.5 h-3.5" />
-            {language === 'vi' ? 'Nền tảng Quản lý & Giám sát đội xe Thông minh' : 'Smart Fleet Management & Telematics Platform'}
+        {/* Middle: Hero Title & Interactive Telemetry Simulation Card */}
+        <div className="relative z-10 my-auto py-6">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-sky-500/10 border border-sky-400/30 text-sky-300 text-xs font-medium mb-5 backdrop-blur-md">
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{language === 'vi' ? 'Hệ thống Quản lý Giám sát & An toàn Hành trình' : 'Next-Gen Smart Fleet & Road Safety Telematics'}</span>
           </div>
 
-          <h1 className="text-4xl xl:text-5xl font-extrabold text-white tracking-tight leading-[1.15] mb-4">
+          <h1 className="text-3xl xl:text-5xl font-extrabold text-white tracking-tight leading-[1.2] mb-4">
             {language === 'vi' ? (
               <>
-                Quản lý đội xe thông minh,<br />
+                Điều hành đội xe thông minh,<br />
                 <span className="bg-gradient-to-r from-sky-400 via-cyan-300 to-indigo-300 bg-clip-text text-transparent">
-                  Giám sát an toàn hành trình bằng AI.
+                  Giám sát tài xế & an toàn bằng AI.
                 </span>
               </>
             ) : (
               <>
-                Intelligent Fleet Operations,<br />
+                Intelligent Fleet Control,<br />
                 <span className="bg-gradient-to-r from-sky-400 via-cyan-300 to-indigo-300 bg-clip-text text-transparent">
-                  AI-Powered Road Safety Monitoring.
+                  AI-Powered Driver Safety & Tracking.
                 </span>
               </>
             )}
           </h1>
 
-          <p className="text-slate-300 text-base max-w-xl leading-relaxed mb-8">
+          <p className="text-slate-300 text-sm xl:text-base max-w-xl leading-relaxed mb-7">
             {language === 'vi'
-              ? 'Giải pháp chuyên sâu tích hợp định vị GPS độ trễ thấp, phát hiện tài xế ngủ gật qua thị giác máy tính và tự động hóa hợp đồng cho thuê xe đa doanh nghiệp.'
-              : 'Enterprise-grade platform integrating low-latency GPS tracking, computer vision driver drowsiness detection, and multi-tenant rental contract automation.'}
+              ? 'Giải pháp tích hợp GPS độ trễ siêu thấp, phát hiện ngủ gật & mất tập trung qua thị giác máy tính và cơ chế quản trị đa doanh nghiệp (Multi-tenant) độc lập an toàn.'
+              : 'Unified telematics platform featuring real-time low-latency GPS, computer vision drowsiness detection, and enterprise-grade multi-tenant workspace isolation.'}
           </p>
 
-          {/* 3 Thẻ Feature Card sắc nét */}
-          <div className="grid grid-cols-1 gap-3.5 max-w-xl">
-            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md flex items-start gap-3.5 hover:border-slate-700/80 transition-colors">
-              <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-400 shrink-0">
-                <Activity className="w-5 h-5" />
+          {/* === WIDGET MÔ PHỎNG TELEMATICS COCKPIT SỐNG ĐỘNG === */}
+          <div className="max-w-xl bg-slate-900/80 border border-slate-700/80 rounded-2xl p-5 backdrop-blur-xl shadow-2xl relative overflow-hidden group hover:border-sky-500/40 transition-all duration-300 mb-6">
+            
+            {/* Hiệu ứng quét tia sáng lướt qua */}
+            <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent pointer-events-none animate-shimmer-sweep" />
+
+            {/* Header của Widget */}
+            <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400">
+                    <Radio className="w-4 h-4 animate-pulse" />
+                  </div>
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-slate-900" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-white tracking-wide">XE TẢI HẠNG NẶNG #51H-892.41</span>
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      LIVE
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                    <MapPin className="w-3 h-3 text-cyan-400" />
+                    <span>Cao tốc Long Thành - Dầu Giây (Km 28+400)</span>
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-bold text-white mb-0.5">
-                  {language === 'vi' ? 'Giám sát Tọa độ & Lộ trình GPS Thời gian thực' : 'Real-time GPS Tracking & Fleet Routes'}
-                </h4>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  {language === 'vi'
-                    ? 'Đồng bộ liên tục qua STOMP WebSocket với bản đồ trực quan, tốc độ, trạng thái xe và cảnh báo tức thì.'
-                    : 'Continuous sync via STOMP WebSocket with interactive maps, speed metrics, vehicle health, and instant alerts.'}
-                </p>
+
+              <div className="text-right">
+                <span className="text-lg font-black font-mono text-cyan-300">64 <span className="text-xs font-normal text-slate-400">km/h</span></span>
+                <p className="text-[10px] text-slate-400">Tốc độ hành trình</p>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md flex items-start gap-3.5 hover:border-slate-700/80 transition-colors">
-              <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-400 shrink-0">
-                <Cpu className="w-5 h-5" />
+            {/* 3 Khối chỉ số Telemetry & AI Sensor */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                    <Gauge className="w-3 h-3 text-sky-400" /> GPS Ping
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-400">18ms</span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-emerald-400 h-full rounded-full w-[94%]" />
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-bold text-white mb-0.5">
-                  {language === 'vi' ? 'Edge AI Phát hiện Buồn ngủ & Mất tập trung' : 'Edge AI Drowsiness & Distraction Detection'}
-                </h4>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  {language === 'vi'
-                    ? 'Mô hình AI nhúng đánh giá trạng thái mắt và tư thế đầu, cảnh báo âm thanh và truyền dữ liệu về tổng đài.'
-                    : 'Embedded AI model analyzes driver eyes and head posture, emits audio alarms, and streams incident data.'}
-                </p>
+
+              <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                    <Cpu className="w-3 h-3 text-cyan-400" /> AI Driver Eye
+                  </span>
+                  <span className="text-[10px] font-bold text-cyan-300">EAR 0.32</span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-cyan-400 h-full rounded-full w-[88%]" />
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" /> An toàn
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-400">100%</span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-emerald-400 h-full rounded-full w-full" />
+                </div>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md flex items-start gap-3.5 hover:border-slate-700/80 transition-colors">
-              <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
-                <ShieldCheck className="w-5 h-5" />
+          </div>
+
+          {/* 3 Thẻ Trụ cột Công nghệ */}
+          <div className="grid grid-cols-3 gap-3 max-w-xl">
+            <div className="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-md hover:border-sky-500/40 hover:bg-slate-900/80 transition-all duration-200">
+              <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center mb-2">
+                <Activity className="w-4 h-4" />
               </div>
-              <div>
-                <h4 className="text-sm font-bold text-white mb-0.5">
-                  {language === 'vi' ? 'Kiến trúc Đa Doanh nghiệp' : 'Multi-Tenant Enterprise Architecture'}
-                </h4>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  {language === 'vi'
-                    ? 'Mỗi công ty sở hữu không gian dữ liệu, đội xe, hợp đồng và nhân sự riêng biệt, cách ly an toàn 100%.'
-                    : 'Each company retains an isolated workspace for vehicles, contracts, and staff with enterprise security.'}
-                </p>
+              <h4 className="text-xs font-bold text-white mb-1">
+                {language === 'vi' ? 'GPS Trực Tuyến' : 'Real-time GPS'}
+              </h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                {language === 'vi' ? 'WebSocket STOMP cập nhật dưới 200ms.' : 'Sub-200ms WebSocket updates.'}
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-md hover:border-amber-500/40 hover:bg-slate-900/80 transition-all duration-200">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-2">
+                <Cpu className="w-4 h-4" />
               </div>
+              <h4 className="text-xs font-bold text-white mb-1">
+                {language === 'vi' ? 'Edge AI Camera' : 'Edge AI Camera'}
+              </h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                {language === 'vi' ? 'Phát hiện ngủ gật & cảnh báo âm thanh.' : 'Driver fatigue & audio warning.'}
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-md hover:border-emerald-500/40 hover:bg-slate-900/80 transition-all duration-200">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <h4 className="text-xs font-bold text-white mb-1">
+                {language === 'vi' ? 'Đa Doanh Nghiệp' : 'Multi-Tenant'}
+              </h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                {language === 'vi' ? 'Không gian độc lập, bảo mật tối đa.' : 'Isolated database workspaces.'}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Bottom: Footer info */}
-        <div className="relative z-10 flex items-center justify-between text-xs text-slate-500 pt-6 border-t border-slate-800/60">
-          <p>{language === 'vi' ? '© 2026 DriveLinker. Đồ án Tốt nghiệp Capstone Project.' : '© 2026 DriveLinker. Graduation Capstone Project.'}</p>
-          <div className="flex items-center gap-4">
-            <span>{language === 'vi' ? 'Bảo mật JWT' : 'JWT Security'}</span>
+        {/* Bottom: Footer info & Tech Stack */}
+        <div className="relative z-10 flex items-center justify-between text-xs text-slate-400 pt-5 border-t border-slate-800/70">
+          <p>{language === 'vi' ? '© 2026 DriveLinker Telematics. Đồ án Tốt nghiệp Capstone.' : '© 2026 DriveLinker Telematics. Capstone Project.'}</p>
+          <div className="flex items-center gap-3 font-mono text-[11px] text-slate-400">
+            <span>Spring Boot 3</span>
             <span>•</span>
             <span>PostGIS</span>
             <span>•</span>
-            <span>Spring Boot + React</span>
+            <span>React 19</span>
           </div>
         </div>
+
       </div>
 
       {/* =========================================================
-          CỘT PHẢI: FORM ĐĂNG NHẬP CỔNG DOANH NGHIỆP
+          CỘT PHẢI: FORM ĐĂNG NHẬP CỔNG DOANH NGHIỆP HIỆN ĐẠI
           ========================================================= */}
-      <div className="w-full lg:w-5/12 min-h-screen bg-slate-900 flex flex-col justify-between p-6 sm:p-10 lg:p-12 overflow-y-auto">
+      <div className="w-full lg:w-5/12 xl:w-2/5 min-h-screen flex flex-col justify-between p-6 sm:p-10 lg:p-12 relative z-10 overflow-y-auto bg-slate-950/90 backdrop-blur-3xl">
 
-        {/* Top Header: Brand & Language Switcher (Visible on both Mobile and Desktop) */}
-        <div className="flex items-center justify-between mb-8">
+        {/* Header: Logo Mobile & Language Switcher */}
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 bg-sky-500 rounded-xl flex items-center justify-center text-white shadow-md shadow-sky-500/30">
+            <div className="w-9 h-9 bg-gradient-to-tr from-sky-500 to-cyan-400 rounded-xl flex items-center justify-center text-white shadow-md shadow-sky-500/30">
               <Truck className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-xl font-extrabold text-white">DriveLinker</span>
-              <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 uppercase tracking-wider">
-                Portal
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-lg font-black text-white">DriveLinker</span>
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 uppercase tracking-wider">
+                  Portal
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Button Chuyển đổi ngôn ngữ Anh <-> Việt */}
+          {/* Button Chuyển đổi ngôn ngữ VI / EN */}
           <button
             type="button"
             onClick={toggleLanguage}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-sky-500/50 hover:bg-slate-800 text-slate-200 hover:text-white transition-all shadow-sm text-xs font-semibold cursor-pointer group"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-sky-500/50 hover:bg-slate-850 text-slate-300 hover:text-white transition-all shadow-sm text-xs font-semibold cursor-pointer group"
             title={language === 'vi' ? 'Chuyển sang Tiếng Anh' : 'Switch to Vietnamese'}
           >
-            <Globe className="w-4 h-4 text-sky-400 group-hover:rotate-45 transition-transform duration-300" />
+            <Globe className="w-3.5 h-3.5 text-sky-400 group-hover:rotate-45 transition-transform duration-300" />
             <div className="flex items-center gap-1 font-mono text-xs">
-              <span className={language === 'vi' ? 'text-sky-400 font-bold' : 'text-slate-400 hover:text-slate-200'}>VI</span>
+              <span className={language === 'vi' ? 'text-sky-400 font-bold' : 'text-slate-400'}>VI</span>
               <span className="text-slate-600">/</span>
-              <span className={language === 'en' ? 'text-sky-400 font-bold' : 'text-slate-400 hover:text-slate-200'}>EN</span>
+              <span className={language === 'en' ? 'text-sky-400 font-bold' : 'text-slate-400'}>EN</span>
             </div>
           </button>
         </div>
 
-        {/* Middle: Main Form Card */}
+        {/* Form Container Card với hiệu ứng viền phát sáng */}
         <div className="my-auto max-w-md w-full mx-auto">
 
-          <div className="mb-8">
+          {/* Tia sáng Neon đầu Form */}
+          <div className="w-full h-[2px] bg-gradient-to-r from-transparent via-sky-400/80 to-transparent mb-7 opacity-80" />
+
+          {/* Tiêu đề & Lời chào */}
+          <div className="mb-7">
+            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 rounded-lg mb-2.5">
+              <Shield className="w-3.5 h-3.5" />
+              <span>{language === 'vi' ? 'Cổng Xác Thực Doanh Nghiệp' : 'Enterprise Authentication Portal'}</span>
+            </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-2">
-              {language === 'vi' ? 'Đăng nhập Doanh nghiệp' : 'Enterprise Sign In'}
+              {language === 'vi' ? 'Đăng nhập Hệ thống' : 'Enterprise Sign In'}
             </h2>
-            <p className="text-sm text-slate-400">
+            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
               {language === 'vi'
-                ? 'Vui lòng nhập Mã doanh nghiệp và tài khoản được cấp để truy cập bảng điều khiển.'
-                : 'Please enter your Enterprise Code and assigned credentials to access the dashboard.'}
+                ? 'Nhập Mã doanh nghiệp và tài khoản của bạn để truy cập bảng điều khiển vận hành.'
+                : 'Enter your Enterprise Code and authorized account to access your fleet operations.'}
             </p>
           </div>
 
           {/* Hộp Thông báo lỗi nếu có */}
           {error && (
-            <div className="mb-6 bg-rose-500/10 border border-rose-500/30 text-rose-300 px-4 py-3.5 rounded-xl flex items-start gap-3 text-sm animate-in fade-in slide-in-from-top-2">
-              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            <div className="mb-5 bg-rose-500/10 border border-rose-500/30 text-rose-300 px-4 py-3 rounded-xl flex items-start gap-3 text-xs sm:text-sm animate-in fade-in slide-in-from-top-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
               <p className="font-medium leading-relaxed">{error}</p>
             </div>
           )}
 
-          {/* Form Đăng nhập chính */}
+          {/* Form Đăng nhập chính - 100% không điền sẵn dữ liệu */}
           <form className="space-y-4" onSubmit={handleLogin} autoComplete="off">
 
             {/* Ô 1: Mã doanh nghiệp */}
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
                   {language === 'vi' ? 'Mã Doanh Nghiệp' : 'Enterprise Company Code'} <span className="text-rose-400">*</span>
                 </label>
                 {matchedTenant && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                    <CheckCircle2 className="w-3 h-3" /> {matchedTenant.name}
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/30 animate-in fade-in zoom-in-95 duration-200">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" /> {matchedTenant.name}
                   </span>
                 )}
               </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
-                  <Building2 className="w-5 h-5" />
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 group-focus-within:text-sky-400 transition-colors">
+                  <Building2 className="w-4 h-4" />
                 </div>
                 <input
                   type="text"
@@ -399,19 +526,19 @@ export default function Login() {
                   placeholder={language === 'vi' ? 'Nhập mã doanh nghiệp (VD: CTA2026)...' : 'Enter company code (e.g. CTA2026)...'}
                   autoComplete="off"
                   spellCheck={false}
-                  className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-slate-800 transition-all shadow-inner"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-900/90 border border-slate-700/80 rounded-xl text-white placeholder-slate-400 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-400 focus:bg-slate-900 transition-all shadow-inner"
                 />
               </div>
             </div>
 
-            {/* Ô 2: Tên đăng nhập */}
+            {/* Ô 2: Tên tài khoản */}
             <div>
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                {language === 'vi' ? 'Tài khoản' : 'Username / Email'} <span className="text-rose-400">*</span>
+                {language === 'vi' ? 'Tài khoản Đăng nhập' : 'Username / Email'} <span className="text-rose-400">*</span>
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
-                  <User className="w-5 h-5" />
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 group-focus-within:text-sky-400 transition-colors">
+                  <User className="w-4 h-4" />
                 </div>
                 <input
                   type="text"
@@ -420,24 +547,22 @@ export default function Login() {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder={language === 'vi' ? 'Nhập tên tài khoản hoặc email...' : 'Enter username or email...'}
+                  placeholder={language === 'vi' ? 'Nhập tên tài khoản (VD: owner.an)...' : 'Enter username (e.g. owner.an)...'}
                   autoComplete="off"
                   spellCheck={false}
-                  className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-slate-800 transition-all shadow-inner font-mono"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-900/90 border border-slate-700/80 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-400 focus:bg-slate-900 transition-all shadow-inner font-mono"
                 />
               </div>
             </div>
 
             {/* Ô 3: Mật khẩu */}
             <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  {language === 'vi' ? 'Mật khẩu' : 'Password'} <span className="text-rose-400">*</span>
-                </label>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
-                  <Lock className="w-5 h-5" />
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                {language === 'vi' ? 'Mật khẩu' : 'Password'} <span className="text-rose-400">*</span>
+              </label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 group-focus-within:text-sky-400 transition-colors">
+                  <Lock className="w-4 h-4" />
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -446,52 +571,115 @@ export default function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={language === 'vi' ? 'Nhập mật khẩu...' : 'Enter password...'}
+                  placeholder={language === 'vi' ? 'Nhập mật khẩu truy cập...' : 'Enter password...'}
                   autoComplete="new-password"
-                  className="w-full pl-11 pr-11 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-slate-800 transition-all shadow-inner"
+                  className="w-full pl-10 pr-11 py-3 bg-slate-900/90 border border-slate-700/80 rounded-xl text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-400 focus:bg-slate-900 transition-all shadow-inner"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 hover:text-slate-200 transition-colors"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Nút Submit đăng nhập */}
+            {/* Nút Submit đăng nhập với hiệu ứng tia sáng Shimmer */}
             <div className="pt-2">
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex justify-center items-center gap-2 py-3.5 px-5 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-sky-500/25 transition-all duration-200 active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none cursor-pointer"
+                className="w-full relative overflow-hidden flex justify-center items-center gap-2 py-3.5 px-5 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-sky-500/25 transition-all duration-200 active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none cursor-pointer group"
               >
+                {/* Tia sáng quét ngang khi hover */}
+                <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:translate-x-[250%] transition-transform duration-700" />
+
                 {isLoading ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>{language === 'vi' ? 'Đang xác thực hệ thống...' : 'Authenticating...'}</span>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>{language === 'vi' ? 'Đang xác thực thông tin...' : 'Authenticating...'}</span>
                   </>
                 ) : (
                   <>
-                    <span>{language === 'vi' ? 'Đăng nhập hệ thống' : 'Sign In to Portal'}</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <span>{language === 'vi' ? 'Đăng nhập Doanh nghiệp' : 'Sign In to Portal'}</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
               </button>
             </div>
           </form>
+
+          {/* Gợi ý tài khoản phục vụ đánh giá đồ án (Dạng Collapsible thu gọn - không tự động điền) */}
+          <div className="mt-5 pt-4 border-t border-slate-800/80">
+            <button
+              type="button"
+              onClick={() => setShowDemoHints(!showDemoHints)}
+              className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-sky-300 transition-colors py-1 cursor-pointer"
+            >
+              <span className="flex items-center gap-1.5">
+                <HelpCircle className="w-3.5 h-3.5 text-sky-400" />
+                {language === 'vi' ? 'Thông tin mẫu phục vụ đánh giá đồ án' : 'Demo account hints for Capstone evaluation'}
+              </span>
+              <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${showDemoHints ? 'rotate-90 text-sky-400' : ''}`} />
+            </button>
+
+            {showDemoHints && (
+              <div className="mt-3 p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5 text-xs animate-in fade-in slide-in-from-top-1">
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  {language === 'vi'
+                    ? 'Bạn có thể tự nhập một trong các thông tin mẫu sau (mật khẩu chung: 123456):'
+                    : 'You can manually enter either of the following demo credentials (password: 123456):'}
+                </p>
+
+                <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
+                  <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800/80 flex flex-col justify-between">
+                    <div>
+                      <div className="text-sky-400 font-bold mb-1">Doanh nghiệp A</div>
+                      <div className="text-slate-300">Mã: <span className="text-white font-bold">CTA2026</span></div>
+                      <div className="text-slate-400">User: owner.an</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyHint('CTA2026', 'cta')}
+                      className="mt-2 text-[10px] text-slate-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === 'cta' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedKey === 'cta' ? 'Đã sao chép mã' : 'Sao chép mã'}</span>
+                    </button>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800/80 flex flex-col justify-between">
+                    <div>
+                      <div className="text-indigo-400 font-bold mb-1">Doanh nghiệp B</div>
+                      <div className="text-slate-300">Mã: <span className="text-white font-bold">CTB2026</span></div>
+                      <div className="text-slate-400">User: owner.an</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyHint('CTB2026', 'ctb')}
+                      className="mt-2 text-[10px] text-slate-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === 'ctb' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedKey === 'ctb' ? 'Đã sao chép mã' : 'Sao chép mã'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
 
-        {/* Bottom: Lối vào Core Admin */}
+        {/* Bottom: Lối vào Core System Admin */}
         <div className="pt-6 text-center">
           <Link
             to="/overview/admin/login"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-sky-400 transition-colors py-1 px-3 rounded-lg hover:bg-slate-800/60 border border-transparent hover:border-slate-700/60"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-sky-400 transition-colors py-1.5 px-3 rounded-lg hover:bg-slate-900/80 border border-transparent hover:border-slate-800 group"
           >
             <span>{language === 'vi' ? 'Bạn là Quản trị viên hệ thống?' : 'Are you a System Administrator?'}</span>
-            <span className="text-sky-400 flex items-center gap-0.5">
-              {language === 'vi' ? 'Truy cập vào Admin' : 'Access Admin Portal'} <ArrowRight className="w-3.5 h-3.5" />
+            <span className="text-sky-400 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+              {language === 'vi' ? 'Cổng Super Admin' : 'Super Admin Portal'} <ArrowRight className="w-3.5 h-3.5" />
             </span>
           </Link>
         </div>
