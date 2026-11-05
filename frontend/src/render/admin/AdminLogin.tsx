@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  ShieldAlert, Key, User, AlertCircle, Eye, EyeOff,
-  ArrowRight, Terminal, ArrowLeft, Loader2, Lock, Globe
+  Truck, Key, User, AlertCircle, Eye, EyeOff,
+  ArrowRight, ArrowLeft, Loader2, Lock, Globe
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -95,17 +95,10 @@ export default function AdminLogin() {
           </button>
         </div>
 
-        {/* Header Huy Hiệu Bảo Mật Cấp Cao */}
+        {/* Header Huy Hiệu Quản Trị Hệ Thống */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 shadow-xl shadow-rose-600/30 ring-1 ring-white/20 mb-4 transform hover:scale-105 transition-transform">
-            <ShieldAlert className="w-10 h-10 text-white" />
-          </div>
-
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-bold tracking-wider uppercase bg-rose-500/10 text-rose-400 border border-rose-500/20">
-              <Terminal className="w-3.5 h-3.5" />
-              Root Privilege // Level 1
-            </span>
+            <Truck className="w-10 h-10 text-white" />
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
