@@ -15,7 +15,7 @@ import { vehicleService, type Vehicle, type VehicleStatus } from '../services/ve
 import { useLanguage } from '../context/LanguageContext';
 
 export default function FleetManagement() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const tenantId = localStorage.getItem('tenantId') || 'COMPANY_A';
   const userRole = localStorage.getItem('userRole') || 'TENANT_STAFF';
   const isManager = userRole === 'TENANT_ADMIN' || userRole === 'SYS_ADMIN' || userRole === 'SUPER_ADMIN_VIEW';
@@ -31,6 +31,7 @@ export default function FleetManagement() {
   const [viewingVehicle, setViewingVehicle] = useState<Vehicle | null>(null);
   const [deletingVehicle, setDeletingVehicle] = useState<Vehicle | null>(null);
   const [inspectingVehicle, setInspectingVehicle] = useState<Vehicle | null>(null);
+  const [completingVehicle, setCompletingVehicle] = useState<Vehicle | null>(null);
 
   // Form state for Add / Edit
   const [formData, setFormData] = useState({
@@ -187,6 +188,23 @@ export default function FleetManagement() {
       await loadVehicles();
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  // Xử lý hoàn tất bảo dưỡng xe (từ MAINTENANCE sang AVAILABLE)
+  const handleConfirmCompleteMaintenance = async () => {
+    if (!completingVehicle) return;
+    try {
+      await vehicleService.updateVehicleStatus(
+        tenantId,
+        completingVehicle.id,
+        'AVAILABLE',
+        'Hoàn thành bảo dưỡng - sẵn sàng bàn giao đón khách'
+      );
+      setCompletingVehicle(null);
+      await loadVehicles();
+    } catch (err: any) {
+      alert(err.message || 'Lỗi khi cập nhật trạng thái.');
     }
   };
 
@@ -462,7 +480,20 @@ export default function FleetManagement() {
 
                     {/* Cột 3: Trạng thái */}
                     <td className="p-4">
-                      {renderStatusBadge(v.status)}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {renderStatusBadge(v.status)}
+                        {v.status === 'MAINTENANCE' && (
+                          <button
+                            type="button"
+                            onClick={() => setCompletingVehicle(v)}
+                            title={t('fleet.completeMaintenanceBtn')}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer shadow-xs active:scale-95"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{t('fleet.completeMaintenanceBtn')}</span>
+                          </button>
+                        )}
+                      </div>
                       {v.status === 'PENDING_INSPECTION' && isManager && (
                         <button
                           onClick={() => setInspectingVehicle(v)}
@@ -784,6 +815,54 @@ export default function FleetManagement() {
         </div>
       )}
 
+      {/* ================= MODAL: HOÀN TẤT BẢO DƯỠNG ================= */}
+      {completingVehicle && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md p-6 sm:p-8 text-center animate-in zoom-in-95">
+            {/* Icon Checkmark tròn xanh trong khung bo góc mint */}
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-100/80 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500" strokeWidth={2.3} />
+            </div>
+
+            {/* Tiêu đề */}
+            <h3 className="font-extrabold text-slate-900 text-xl mb-3 tracking-tight">
+              {t('fleet.completeMaintenanceModalTitle')}
+            </h3>
+
+            {/* Nội dung thông báo */}
+            <p className="text-sm text-slate-600 leading-relaxed mb-8 max-w-[320px] mx-auto">
+              {language === 'vi' ? (
+                <>
+                  Xác nhận phương tiện <strong className="text-slate-900 font-bold font-mono">{completingVehicle.plate}</strong> đã hoàn thành bảo dưỡng và sẵn sàng bàn giao đón khách?
+                </>
+              ) : (
+                <>
+                  Confirm that vehicle <strong className="text-slate-900 font-bold font-mono">{completingVehicle.plate}</strong> has completed maintenance and is ready for dispatch?
+                </>
+              )}
+            </p>
+
+            {/* 2 Nút thao tác: Hủy bỏ & Xác nhận */}
+            <div className="grid grid-cols-2 gap-3.5">
+              <button
+                type="button"
+                onClick={() => setCompletingVehicle(null)}
+                className="py-3 px-5 text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl transition cursor-pointer shadow-xs active:scale-95"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCompleteMaintenance}
+                className="py-3 px-5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-2xl shadow-md shadow-emerald-600/25 transition cursor-pointer active:scale-95"
+              >
+                {t('common.confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL: CHI TIẾT PHƯƠNG TIỆN ================= */}
       {viewingVehicle && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -803,7 +882,23 @@ export default function FleetManagement() {
                   <span className="font-mono text-base font-extrabold text-slate-800">{viewingVehicle.plate}</span>
                   <p className="text-slate-500 mt-0.5">{viewingVehicle.brand} {viewingVehicle.model} ({viewingVehicle.year})</p>
                 </div>
-                {renderStatusBadge(viewingVehicle.status)}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {renderStatusBadge(viewingVehicle.status)}
+                  {viewingVehicle.status === 'MAINTENANCE' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = viewingVehicle;
+                        setViewingVehicle(null);
+                        setCompletingVehicle(target);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer shadow-xs active:scale-95"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{t('fleet.completeMaintenanceBtn')}</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
