@@ -11,7 +11,7 @@ import {
   ChevronRight, Truck, AlertTriangle,
   MapPin, CheckCircle2, RefreshCw,
   Clock, Wallet, TrendingUp, ShieldAlert, BellRing, Wrench, X, Search, Lock,
-  ArrowUpRight, Navigation, Radio
+  ArrowUpRight, Navigation, Radio, Calendar
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -422,93 +422,144 @@ export default function Overview() {
             </div>
           </div>
 
-          {/* Module Phân quyền: Hiệu suất Doanh thu (Gọn gàng & Khoa học) */}
+          {/* Module Phân quyền: Hiệu suất Doanh thu (Thiết kế Tinh tế & Cao cấp) */}
           <div className="flex-[1] bg-white rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between overflow-hidden">
             {/* Header Doanh Thu */}
-            <div className="p-3 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between shrink-0">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-emerald-500" /> {t('overview.revPerformance')}
-              </h3>
+            <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 via-white to-slate-50/50 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500/15 to-teal-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20 shadow-2xs">
+                  <Wallet className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    {t('overview.revPerformance')}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    {language === 'vi' ? 'Chỉ số tài chính đội xe' : 'Fleet Financial Metrics'}
+                  </p>
+                </div>
+              </div>
               {!isManager ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200/80 px-2.5 py-1 rounded-lg">
                   <Lock className="w-3 h-3" /> {t('overview.restricted')}
                 </span>
               ) : (
-                <span className="text-[10px] font-bold text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded font-mono">
-                  {language === 'vi' ? 'Tháng 11/2026' : 'Nov 2026'}
-                </span>
+                <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-100/90 border border-slate-200/70 px-2.5 py-1 rounded-lg shadow-2xs">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{language === 'vi' ? 'Tháng 11/2026' : 'Nov 2026'}</span>
+                </div>
               )}
             </div>
 
-            {/* Nội dung Doanh thu gọn gàng */}
-            <div className="p-4 flex-1 flex flex-col justify-between">
-              {/* Doanh thu tổng & Tăng trưởng */}
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                  {t('overview.revTotalEstimated')}
-                </span>
+            {/* Nội dung Doanh thu đẹp mắt, cân xứng & hiện đại */}
+            <div className="p-5 flex-1 flex flex-col justify-between space-y-3.5">
+              {/* Khối 1: Doanh thu tổng & Tăng trưởng */}
+              <div className="bg-gradient-to-br from-slate-50/80 via-white to-slate-50/40 rounded-xl p-3.5 border border-slate-100 shadow-2xs">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    {t('overview.revTotalEstimated')}
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {language === 'vi' ? 'Chỉ tiêu: 150 Tr' : 'Target: 150M'}
+                  </span>
+                </div>
                 <div className="flex items-baseline justify-between gap-2">
-                  <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-mono">
-                    {isManager ? (isLoading ? '...' : revenueData.amount) : '***'}
-                    <span className="text-sm font-bold text-slate-400 ml-1 font-sans">{t('overview.revMillion')}</span>
-                  </h3>
+                  <div className="flex items-baseline">
+                    <h3 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight font-sans">
+                      {isManager ? (isLoading ? '...' : revenueData.amount) : '***'}
+                    </h3>
+                    <span className="text-sm font-bold text-slate-400 ml-1.5">{t('overview.revMillion')}</span>
+                  </div>
                   {isManager && (
-                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                      revenueData.growth?.includes('Tăng') ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/60' : 'bg-rose-50 text-rose-600 border border-rose-200/60'
-                    }`}>
-                      <TrendingUp className="w-3 h-3" />
-                      {revenueData.growthPercent || revenueData.growth}
-                    </span>
+                    <div className="flex flex-col items-end">
+                      <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full shadow-2xs ${
+                        revenueData.growth?.includes('Tăng')
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200/80'
+                      }`}>
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                        {revenueData.growthPercent || revenueData.growth}
+                      </span>
+                      <span className="text-[9px] text-slate-400 mt-0.5 font-medium">
+                        {language === 'vi' ? 'so với kỳ trước' : 'vs last period'}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Chi tiết nguồn thu 2 cột gọn gàng */}
-              <div className="grid grid-cols-2 gap-2 my-2">
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                  <span className="text-[10px] text-slate-400 block mb-0.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-                    {language === 'vi' ? 'Thuê xe HĐ' : 'Contract'}
-                  </span>
-                  <span className="font-bold font-mono text-slate-800 text-xs">
+              {/* Khối 2: 2 Thẻ chi tiết nguồn thu với Gradient, Dot phát sáng và Mini Progress Bar */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-xl bg-gradient-to-br from-sky-50/70 via-white to-sky-50/20 border border-sky-100/90 hover:border-sky-200 transition-all shadow-2xs group">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-sky-500 shadow-xs shadow-sky-500/50" />
+                      {language === 'vi' ? 'Thuê xe HĐ' : 'Contract'}
+                    </span>
+                    <span className="text-[10px] font-bold text-sky-700 bg-sky-100/80 px-1.5 py-0.5 rounded-md font-mono">
+                      75%
+                    </span>
+                  </div>
+                  <div className="text-base font-black text-slate-900 tracking-tight font-sans">
                     {isManager ? (revenueData.rentalRevenue || '96.4 Tr') : '***'}
-                  </span>
+                  </div>
+                  <div className="w-full bg-sky-100/70 h-1.5 rounded-full overflow-hidden mt-2">
+                    <div className="bg-sky-500 h-full rounded-full transition-all duration-700" style={{ width: '75%' }} />
+                  </div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                  <span className="text-[10px] text-slate-400 block mb-0.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    {language === 'vi' ? 'Dịch vụ phụ' : 'Services'}
-                  </span>
-                  <span className="font-bold font-mono text-slate-800 text-xs">
+                <div className="p-3.5 rounded-xl bg-gradient-to-br from-emerald-50/70 via-white to-emerald-50/20 border border-emerald-100/90 hover:border-emerald-200 transition-all shadow-2xs group">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/50" />
+                      {language === 'vi' ? 'Dịch vụ phụ' : 'Services'}
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-md font-mono">
+                      25%
+                    </span>
+                  </div>
+                  <div className="text-base font-black text-slate-900 tracking-tight font-sans">
                     {isManager ? (revenueData.serviceRevenue || '32.1 Tr') : '***'}
-                  </span>
+                  </div>
+                  <div className="w-full bg-emerald-100/70 h-1.5 rounded-full overflow-hidden mt-2">
+                    <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: '25%' }} />
+                  </div>
                 </div>
               </div>
 
-              {/* 2 Thanh chỉ số vận hành thanh mảnh */}
-              <div className="space-y-2.5 pt-2 border-t border-slate-100">
+              {/* Khối 3: 2 Thanh chỉ số vận hành với nhãn giá trị Badge rõ ràng */}
+              <div className="space-y-3 pt-3.5 border-t border-slate-100">
                 <div>
-                  <div className="flex justify-between text-[11px] font-bold mb-1">
-                    <span className="text-slate-500">{t('overview.revUtilization')}</span>
-                    <span className="text-sky-600 font-mono text-xs">{isManager ? revenueData.utilization : '***'}</span>
+                  <div className="flex justify-between items-center text-xs mb-1.5">
+                    <span className="font-semibold text-slate-600 flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-sky-500" />
+                      {t('overview.revUtilization')}
+                    </span>
+                    <span className="font-bold text-sky-700 bg-sky-50 border border-sky-200/70 px-2 py-0.5 rounded-md font-mono text-[11px] shadow-2xs">
+                      {isManager ? revenueData.utilization : '***'}
+                    </span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden p-0.5 border border-slate-200/40">
                     <div
-                      className="bg-sky-500 h-1.5 rounded-full transition-all duration-1000"
+                      className="bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 h-full rounded-full transition-all duration-1000 shadow-xs"
                       style={{ width: isLoading ? '0%' : (isManager ? revenueData.utilization : '0%') }}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-[11px] font-bold mb-1">
-                    <span className="text-slate-500">{t('overview.revCollection')}</span>
-                    <span className="text-emerald-600 font-mono text-xs">{isManager ? revenueData.collection : '***'}</span>
+                  <div className="flex justify-between items-center text-xs mb-1.5">
+                    <span className="font-semibold text-slate-600 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                      {t('overview.revCollection')}
+                    </span>
+                    <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-md font-mono text-[11px] shadow-2xs">
+                      {isManager ? revenueData.collection : '***'}
+                    </span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden p-0.5 border border-slate-200/40">
                     <div
-                      className="bg-emerald-500 h-1.5 rounded-full transition-all duration-1000"
+                      className="bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-600 h-full rounded-full transition-all duration-1000 shadow-xs"
                       style={{ width: isLoading ? '0%' : (isManager ? revenueData.collection : '0%') }}
                     />
                   </div>
@@ -516,8 +567,11 @@ export default function Overview() {
               </div>
 
               {!isManager && (
-                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/60 text-center mt-2">
-                  <p className="text-[10px] text-slate-500 font-medium">{t('overview.revLocked')}</p>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60 text-center">
+                  <p className="text-xs text-slate-500 font-medium flex items-center justify-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    {t('overview.revLocked')}
+                  </p>
                 </div>
               )}
             </div>
@@ -525,7 +579,7 @@ export default function Overview() {
         </div>
       </div>
 
-      {/* ================= KHU VỰC CHI TIẾT (RIGHT DRAWER) ================= */}
+{/* ================= KHU VỰC CHI TIẾT (RIGHT DRAWER) ================= */}
       {activePanel && (
         <div className="w-[420px] bg-white border-l border-slate-200 shadow-2xl flex flex-col z-40 animate-in slide-in-from-right duration-300">
 
