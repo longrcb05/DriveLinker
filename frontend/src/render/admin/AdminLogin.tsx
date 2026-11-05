@@ -191,7 +191,7 @@ export default function AdminLogin() {
               ) : (
                 <>
                   <Lock className="w-4 h-4" />
-                  <span>{language === 'vi' ? 'Xác thực & Mở quyền Root' : 'Authenticate & Open Root'}</span>
+                  <span>{language === 'vi' ? 'Xác thực' : 'Authenticate & Open Root'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

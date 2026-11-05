@@ -2,33 +2,49 @@
  * @file Overview.tsx
  * @description Trang Tổng quan hệ thống.
  * Cung cấp cái nhìn toàn cảnh về đội xe thông qua các thẻ thống kê KPI.
- * Áp dụng cơ chế tương tác trực tiếp (Interactive Panel): Khi click vào thẻ,
- * hệ thống mở Khung chi tiết (Right Drawer) để hiển thị danh sách phương tiện hoặc
- * cảnh báo AI mà không cần chuyển hướng sang trang khác.
+ * Tích hợp bản đồ Google Maps thời gian thực và phân tích chi tiết hiệu suất doanh thu.
  */
 
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
-import { vehicleService } from '../services/vehicleService';
 import {
   ChevronRight, Truck, AlertTriangle,
   MapPin, CheckCircle2, RefreshCw,
   Clock, Wallet, TrendingUp, ShieldAlert, BellRing, Wrench, X, Search, Lock,
-  ArrowUpRight, Sparkles, Navigation, Radio
+  ArrowUpRight, Navigation, Radio, Layers
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
-// Sửa lỗi mất icon mặc định của thư viện Leaflet trong môi trường React
-const defaultIcon = new L.Icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
+// Tạo biểu tượng xe Google Maps phong cách Telematics chuyên nghiệp
+const createVehicleIcon = (status: string, plate: string) => {
+  const isRenting = status === 'RENTING' || status === 'RENTED';
+  const color = isRenting ? '#10B981' : '#0EA5E9';
+  const shadow = isRenting ? 'rgba(16, 185, 129, 0.45)' : 'rgba(14, 165, 233, 0.45)';
+  return L.divIcon({
+    className: 'custom-vehicle-marker',
+    html: `
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+        <div style="background: white; border: 1.5px solid ${color}; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; font-family: monospace; color: #0f172a; box-shadow: 0 2px 4px rgba(0,0,0,0.18); white-space: nowrap; margin-bottom: 2px;">
+          ${plate}
+        </div>
+        <div style="width: 28px; height: 28px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 8px ${shadow}; border: 2px solid white;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>
+            <path d="M15 18H9"/>
+            <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/>
+            <circle cx="17" cy="18" r="2"/>
+            <circle cx="7" cy="18" r="2"/>
+          </svg>
+        </div>
+        <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid ${color}; margin-top: -1px;"></div>
+      </div>
+    `,
+    iconSize: [40, 52],
+    iconAnchor: [20, 52],
+    popupAnchor: [0, -48]
+  });
+};
 
 /**
  * Component tự động cập nhật tâm bản đồ.
@@ -41,11 +57,24 @@ function MapUpdater({ center }: { center: [number, number] }) {
   return null;
 }
 
-// === BỘ DỮ LIỆU DEMO ĐA DOANH NGHIỆP ===
+// === BỘ DỮ LIỆU DEMO ĐA DOANH NGHIỆP CHI TIẾT ===
 const MOCK_DATA_BY_TENANT: Record<string, any> = {
   'COMPANY_A': {
     center: [16.047079, 108.206230], // Đà Nẵng
-    revenue: { amount: '128.5', growth: 'Tăng 12%', utilization: '66%', collection: '85%' },
+    revenue: {
+      amount: '128.5',
+      rawFormatted: '128.500.000 ₫',
+      growth: 'Tăng 12%',
+      growthPercent: '+12.4%',
+      target: '150.0',
+      targetPercent: '85.7%',
+      rentalRevenue: '96.4 Tr',
+      serviceRevenue: '32.1 Tr',
+      activeContracts: 3,
+      avgPerVehicle: '42.8 Tr',
+      utilization: '66%',
+      collection: '85%'
+    },
     vehicles: [
       { id: '29C-123.45', lat: 16.047079, lng: 108.206230, status: 'RENTING', type: 'Xe Tải 5T', driver: 'Nguyễn Văn A', speed: '65 km/h' },
       { id: '51D-987.65', lat: 16.055000, lng: 108.215000, status: 'AVAILABLE', type: 'Xe Tải 8T', driver: 'Chưa xếp tài', speed: '0 km/h' },
@@ -59,7 +88,20 @@ const MOCK_DATA_BY_TENANT: Record<string, any> = {
   },
   'COMPANY_B': {
     center: [10.762622, 106.660172], // TP. Hồ Chí Minh
-    revenue: { amount: '450.2', growth: 'Tăng 25%', utilization: '85%', collection: '92%' },
+    revenue: {
+      amount: '450.2',
+      rawFormatted: '450.200.000 ₫',
+      growth: 'Tăng 25%',
+      growthPercent: '+25.0%',
+      target: '500.0',
+      targetPercent: '90.0%',
+      rentalRevenue: '360.0 Tr',
+      serviceRevenue: '90.2 Tr',
+      activeContracts: 6,
+      avgPerVehicle: '45.0 Tr',
+      utilization: '85%',
+      collection: '92%'
+    },
     vehicles: [
       { id: '51F-888.11', lat: 10.762622, lng: 106.660172, status: 'RENTING', type: 'Xe Tải 15T', driver: 'Phạm Văn D', speed: '50 km/h' },
       { id: '51G-999.22', lat: 10.775000, lng: 106.700000, status: 'AVAILABLE', type: 'Xe Khách', driver: 'Hoàng Thị E', speed: '0 km/h' },
@@ -70,7 +112,20 @@ const MOCK_DATA_BY_TENANT: Record<string, any> = {
   },
   'COMPANY_C': {
     center: [21.028511, 105.804817], // Hà Nội
-    revenue: { amount: '15.8', growth: 'Giảm 2%', utilization: '60%', collection: '98%' },
+    revenue: {
+      amount: '15.8',
+      rawFormatted: '15.800.000 ₫',
+      growth: 'Giảm 2%',
+      growthPercent: '-2.1%',
+      target: '20.0',
+      targetPercent: '79.0%',
+      rentalRevenue: '12.6 Tr',
+      serviceRevenue: '3.2 Tr',
+      activeContracts: 1,
+      avgPerVehicle: '15.8 Tr',
+      utilization: '60%',
+      collection: '98%'
+    },
     vehicles: [
       { id: '29A-111.11', lat: 21.028511, lng: 105.804817, status: 'RENTING', type: 'Xe Bán Tải', driver: 'Vũ Thị H', speed: '35 km/h' }
     ],
@@ -81,7 +136,7 @@ const MOCK_DATA_BY_TENANT: Record<string, any> = {
 const DEFAULT_DATA = MOCK_DATA_BY_TENANT['COMPANY_A'];
 
 export default function Overview() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [userRole] = useState(localStorage.getItem('userRole') || 'TENANT_STAFF');
   const [tenantId] = useState(localStorage.getItem('tenantId') || 'COMPANY_A');
 
@@ -93,9 +148,10 @@ export default function Overview() {
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_DATA.center);
+  const [mapType, setMapType] = useState<'m' | 'y'>('m'); // 'm': Roadmap (Đường phố), 'y': Satellite/Hybrid (Vệ tinh)
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
-  const [revenueData, setRevenueData] = useState({ amount: '0', growth: '', utilization: '0%', collection: '0%' });
+  const [revenueData, setRevenueData] = useState<any>(DEFAULT_DATA.revenue);
 
   const kpiStats = {
     totalVehicles: vehicles.length,
@@ -160,6 +216,14 @@ export default function Overview() {
 
   return (
     <div className="flex-1 flex overflow-hidden bg-[#F8FAFC]">
+      {/* CSS làm sạch viền trắng mặc định của Leaflet divIcon */}
+      <style>{`
+        .custom-vehicle-marker {
+          background: transparent !important;
+          border: none !important;
+        }
+      `}</style>
+
       {/* ================= KHU VỰC CHÍNH ================= */}
       <div className="flex-1 overflow-auto p-6 space-y-6 relative">
 
@@ -169,18 +233,13 @@ export default function Overview() {
             <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
               <span className="hover:text-slate-800 cursor-pointer transition-colors">{t('overview.breadcrumbHome')}</span>
               <ChevronRight className="w-3.5 h-3.5 mx-1.5 text-slate-400" />
-              <span className="text-sky-600 font-extrabold flex items-center gap-1"><Sparkles className="w-3 h-3" /> {t('overview.breadcrumbOverview')}</span>
+              <span className="text-sky-600 font-extrabold">{t('overview.breadcrumbOverview')}</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">{t('overview.title')}</h2>
             <p className="text-xs text-slate-500 mt-1">{t('overview.subtitle')}</p>
           </div>
 
           <div className="flex items-center gap-2.5">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200/60 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{t('overview.wsConnected')}</span>
-            </div>
-
             <button
               onClick={fetchDashboardData}
               disabled={isLoading}
@@ -264,43 +323,86 @@ export default function Overview() {
           </div>
         </div>
 
-        {/* HÀNG 2: BẢN ĐỒ LIVE TRACKING & {t('overview.revPerformance')} */}
-        <div className="flex flex-col lg:flex-row gap-6 h-[480px]">
+        {/* HÀNG 2: BẢN ĐỒ GOOGLE MAPS LIVE TRACKING & HIỆU SUẤT DOANH THU CHI TIẾT */}
+        <div className="flex flex-col lg:flex-row gap-6 min-h-[510px]">
 
-          {/* Bản đồ Live Tracking */}
+          {/* Bản đồ Live Tracking Tích Hợp Google Maps API */}
           <div className="flex-[2] bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col relative z-0 group">
+            
             {/* Header Overlay Trên Bản Đồ */}
             <div className="p-3.5 bg-white/95 backdrop-blur-md border-b border-slate-100 flex justify-between items-center absolute top-0 left-0 right-0 z-[400] shadow-sm">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <div className="p-1.5 bg-sky-50 text-sky-600 rounded-lg">
                   <MapPin className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">{t('overview.mapTitle')}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">{t('overview.mapTitle')}</h3>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200/80 font-mono flex items-center gap-1">
+                      Google Maps
+                    </span>
+                  </div>
                   <p className="text-[10px] text-slate-500">{t('overview.mapSubtitle')}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 text-xs font-medium">
-                <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> {t('overview.mapRenting')} ({kpiStats.renting})
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
-                  <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> {t('overview.mapAvailable')} ({kpiStats.available})
-                </span>
+              <div className="flex items-center gap-3">
+                {/* Bộ chuyển chế độ Bản đồ Google Maps */}
+                <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setMapType('m')}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                      mapType === 'm'
+                        ? 'bg-white text-sky-600 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {language === 'vi' ? 'Bản đồ' : 'Roadmap'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMapType('y')}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                      mapType === 'y'
+                        ? 'bg-white text-sky-600 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {language === 'vi' ? 'Vệ tinh' : 'Satellite'}
+                  </button>
+                </div>
+
+                <div className="hidden sm:flex items-center gap-3 text-xs font-medium pl-2 border-l border-slate-200">
+                  <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> {t('overview.mapRenting')} ({kpiStats.renting})
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
+                    <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> {t('overview.mapAvailable')} ({kpiStats.available})
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Khung Leaflet */}
+            {/* Khung Leaflet sử dụng Google Maps Tile API */}
             <div className="flex-1 w-full h-full mt-14">
               {!isLoading && (
                 <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
                   <MapUpdater center={mapCenter} />
-                  <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <TileLayer
+                    attribution='&copy; <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">Google Maps</a>'
+                    url={`https://{s}.google.com/vt/lyrs=${mapType}&x={x}&y={y}&z={z}`}
+                    subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+                    maxZoom={20}
+                  />
                   {vehicles.filter(v => v.status !== 'MAINTENANCE').map((vehicle, index) => (
-                    <Marker key={index} position={[vehicle.lat, vehicle.lng]} icon={defaultIcon}>
+                    <Marker
+                      key={index}
+                      position={[vehicle.lat, vehicle.lng]}
+                      icon={createVehicleIcon(vehicle.status, vehicle.id)}
+                    >
                       <Popup>
-                        <div className="font-sans p-1 min-w-[160px]">
+                        <div className="font-sans p-1 min-w-[170px]">
                           <div className="flex items-center justify-between border-b pb-1.5 mb-1.5">
                             <span className="font-black text-slate-900 text-sm font-mono">{vehicle.id}</span>
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${vehicle.status === 'RENTING' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>
@@ -319,9 +421,9 @@ export default function Overview() {
             </div>
           </div>
 
-          {/* Module Phân quyền: Hiệu suất Kinh doanh */}
+          {/* Module Phân quyền: Hiệu suất Doanh thu Chi Tiết */}
           <div className="flex-[1] bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col overflow-hidden relative">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
+            <div className="p-3.5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
                 <Wallet className="w-4 h-4 text-emerald-500" /> {t('overview.revPerformance')}
               </h3>
@@ -330,51 +432,119 @@ export default function Overview() {
                   <Lock className="w-3 h-3" /> {t('overview.restricted')}
                 </span>
               ) : (
-                <span className="text-[10px] font-bold text-slate-400 font-mono">{t('overview.revCurrentMonth')}</span>
+                <span className="text-[10px] font-bold text-slate-500 bg-slate-200/60 px-2 py-0.5 rounded font-mono">
+                  {language === 'vi' ? 'Tháng 11/2026' : 'November 2026'}
+                </span>
               )}
             </div>
 
-            <div className="p-6 flex-1 flex flex-col justify-between">
-              <div className="text-center py-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+            <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
+              {/* Phần 1: Tổng doanh thu & Tăng trưởng */}
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                   {t('overview.revTotalEstimated')}
                 </span>
-                <h3 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
-                  {isManager ? (isLoading ? '...' : revenueData.amount) : '***'}
-                  <span className="text-lg font-bold text-slate-400 ml-1.5">{t('overview.revMillion')}</span>
-                </h3>
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight font-mono">
+                    {isManager ? (isLoading ? '...' : revenueData.amount) : '***'}
+                    <span className="text-base font-bold text-slate-400 ml-1 font-sans">{t('overview.revMillion')}</span>
+                  </h3>
+                  {isManager && (
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                      revenueData.growth?.includes('Tăng') ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/60' : 'bg-rose-50 text-rose-600 border border-rose-200/60'
+                    }`}>
+                      <TrendingUp className="w-3 h-3" />
+                      {revenueData.growthPercent || revenueData.growth}
+                    </span>
+                  )}
+                </div>
 
-                <span className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full mt-3 ${
-                  revenueData.growth.includes('Tăng') ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/60' : 'bg-rose-50 text-rose-600 border border-rose-200/60'
-                }`}>
-                  <TrendingUp className="w-3 h-3" />
-                  {isManager ? revenueData.growth : '***'} {t('overview.vsPrevious')}
-                </span>
+                {/* Thanh tiến độ mục tiêu tháng */}
+                {isManager && (
+                  <div className="mt-2.5">
+                    <div className="flex justify-between text-[11px] text-slate-500 mb-1">
+                      <span>{language === 'vi' ? 'Mục tiêu tháng: ' : 'Target: '}<strong>{revenueData.target || '150.0'} Tr</strong></span>
+                      <span className="font-bold text-slate-700">{revenueData.targetPercent || '85.7%'}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-emerald-500 h-1.5 rounded-full transition-all duration-1000"
+                        style={{ width: isLoading ? '0%' : (revenueData.targetPercent || '85.7%') }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Progress Bar Tỷ Lệ */}
-              <div className="space-y-4 pt-4 border-t border-slate-100">
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <span className="text-slate-600">{t('overview.revUtilization')}</span>
-                    <span className="text-sky-600 font-mono">{isManager ? revenueData.utilization : '***'}</span>
+              {/* Phần 2: Bảng chi tiết cơ cấu doanh thu */}
+              <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                  {language === 'vi' ? 'Cơ cấu & Nguồn doanh thu' : 'Revenue Breakdown'}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-xs">
+                    <span className="text-[10px] text-slate-400 block mb-0.5 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-sky-500 inline-block" />
+                      {language === 'vi' ? 'Thuê xe theo HĐ' : 'Contract Rental'}
+                    </span>
+                    <span className="font-bold font-mono text-slate-800 text-xs">
+                      {isManager ? (revenueData.rentalRevenue || '96.4 Tr') : '***'}
+                    </span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+
+                  <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-xs">
+                    <span className="text-[10px] text-slate-400 block mb-0.5 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 inline-block" />
+                      {language === 'vi' ? 'Phí DV & Quá giờ' : 'Service & Extra'}
+                    </span>
+                    <span className="font-bold font-mono text-slate-800 text-xs">
+                      {isManager ? (revenueData.serviceRevenue || '32.1 Tr') : '***'}
+                    </span>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-xs">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">
+                      {language === 'vi' ? 'HĐ đang tính phí' : 'Active Contracts'}
+                    </span>
+                    <span className="font-bold text-slate-800 text-xs">
+                      {isManager ? `${revenueData.activeContracts || 3} ${language === 'vi' ? 'Hợp đồng' : 'Contracts'}` : '***'}
+                    </span>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-xs">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">
+                      {language === 'vi' ? 'Bình quân / xe' : 'Avg / Vehicle'}
+                    </span>
+                    <span className="font-bold font-mono text-slate-800 text-xs">
+                      {isManager ? (revenueData.avgPerVehicle || '42.8 Tr') : '***'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Phần 3: Progress Bar KPI Ratios */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div>
+                  <div className="flex justify-between text-xs font-bold mb-1">
+                    <span className="text-slate-600 text-[11px]">{t('overview.revUtilization')}</span>
+                    <span className="text-sky-600 font-mono text-xs">{isManager ? revenueData.utilization : '***'}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                     <div
-                      className="bg-gradient-to-r from-sky-400 to-sky-600 h-2.5 rounded-full transition-all duration-1000 shadow-sm"
+                      className="bg-gradient-to-r from-sky-400 to-sky-600 h-2 rounded-full transition-all duration-1000 shadow-xs"
                       style={{ width: isLoading ? '0%' : (isManager ? revenueData.utilization : '0%') }}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <span className="text-slate-600">{t('overview.revCollection')}</span>
-                    <span className="text-emerald-600 font-mono">{isManager ? revenueData.collection : '***'}</span>
+                  <div className="flex justify-between text-xs font-bold mb-1">
+                    <span className="text-slate-600 text-[11px]">{t('overview.revCollection')}</span>
+                    <span className="text-emerald-600 font-mono text-xs">{isManager ? revenueData.collection : '***'}</span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                     <div
-                      className="bg-gradient-to-r from-emerald-400 to-emerald-600 h-2.5 rounded-full transition-all duration-1000 shadow-sm"
+                      className="bg-gradient-to-r from-emerald-400 to-emerald-600 h-2 rounded-full transition-all duration-1000 shadow-xs"
                       style={{ width: isLoading ? '0%' : (isManager ? revenueData.collection : '0%') }}
                     />
                   </div>
@@ -382,7 +552,7 @@ export default function Overview() {
               </div>
 
               {!isManager && (
-                <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200/60 text-center">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60 text-center">
                   <p className="text-[11px] text-slate-500 font-medium">{t('overview.revLocked')}</p>
                 </div>
               )}
