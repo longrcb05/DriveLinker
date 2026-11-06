@@ -13,8 +13,8 @@ import {
   ChevronRight, RefreshCw, Activity, Search, Filter, Camera,
   AlertTriangle, CheckCircle2, Clock, ShieldAlert, Sparkles, X,
   ZoomIn, Download, Play, Radio, Volume2, Truck, User, ArrowUpRight,
-  Maximize2, History, MapPin, Eye, Phone, BellRing, Navigation,
-  Calendar, Layers, ShieldCheck, Flame, ExternalLink
+  Maximize2, History, MapPin, Eye, Phone, BellRing,
+  Calendar, Layers, Flame, ExternalLink
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -516,10 +516,10 @@ export default function LiveTracking() {
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 font-sans">
 
       {/* =========================================================================
-          1. HEADER TỔNG & THANH KPI THỐNG KÊ
+          1. HEADER TỔNG (GỌN GÀNG, TINH TẾ)
           ========================================================================= */}
-      <div className="px-6 pt-5 pb-3 shrink-0 bg-white border-b border-slate-200/80">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+      <div className="px-6 py-4 shrink-0 bg-white border-b border-slate-200/80 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
               <span className="hover:text-slate-800 cursor-pointer">{t('overview.breadcrumbHome')}</span>
@@ -531,48 +531,6 @@ export default function LiveTracking() {
               {t('tracking.title')}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">{t('tracking.subtitle')}</p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>GPS - Camera trực tuyến (Live 18ms)</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 4 Thẻ KPI tóm tắt */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('tracking.kpiTotal')}</span>
-              <h4 className="text-xl font-black text-slate-800">{stats.total}</h4>
-            </div>
-            <Truck className="w-5 h-5 text-slate-400" />
-          </div>
-
-          <div className="bg-sky-50/70 p-3 rounded-xl border border-sky-100 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600">{t('tracking.kpiRolling')}</span>
-              <h4 className="text-xl font-black text-sky-700">{stats.rolling}</h4>
-            </div>
-            <Navigation className="w-5 h-5 text-sky-500" />
-          </div>
-
-          <div className="bg-rose-50 p-3 rounded-xl border border-rose-200/80 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">{t('tracking.kpiDrowsyAlert')}</span>
-              <h4 className="text-xl font-black text-rose-700">{stats.drowsyAlerts}</h4>
-            </div>
-            <Flame className="w-5 h-5 text-rose-500 animate-pulse" />
-          </div>
-
-          <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-100 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Lái xe an toàn</span>
-              <h4 className="text-xl font-black text-emerald-700">{stats.normal}</h4>
-            </div>
-            <ShieldCheck className="w-5 h-5 text-emerald-500" />
           </div>
         </div>
       </div>
@@ -794,19 +752,27 @@ export default function LiveTracking() {
                     }}
                   >
                     <Popup>
-                      <div className="font-sans p-1 min-w-[190px]">
-                        <div className="flex items-center justify-between border-b pb-1.5 mb-1.5">
-                          <span className="font-black text-slate-900 text-sm font-mono">{v.plate}</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">
+                      <div className="font-sans pt-1 min-w-[210px]">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 mb-2 pr-4">
+                          <span className="font-black text-slate-900 text-sm font-mono tracking-tight">{v.plate}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 font-mono">
                             {v.speed} km/h
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600">👤 Tài xế: <strong>{v.driver}</strong></p>
-                        <p className="text-xs text-slate-600">🚨 Trạng thái: <strong className={v.status === 'ALERT_DROWSY' ? 'text-rose-600' : 'text-emerald-600'}>{v.statusLabel}</strong></p>
-                        <p className="text-xs text-slate-500 mt-1">📍 Tọa độ: {v.lat.toFixed(4)}, {v.lng.toFixed(4)}</p>
+                        <div className="space-y-1 text-xs text-slate-600">
+                          <p>👤 Tài xế: <strong className="text-slate-800">{v.driver}</strong></p>
+                          <p>
+                            🚨 Trạng thái:{' '}
+                            <strong className={v.status === 'ALERT_DROWSY' ? 'text-rose-600' : 'text-emerald-600'}>
+                              {v.statusLabel}
+                            </strong>
+                          </p>
+                          <p className="text-[11px] text-slate-500 font-mono">📍 Tọa độ: {v.lat.toFixed(4)}, {v.lng.toFixed(4)}</p>
+                        </div>
                         <button
+                          type="button"
                           onClick={() => setSelectedEvidenceVehicle(v)}
-                          className="mt-2.5 w-full py-1 text-center bg-sky-600 hover:bg-sky-700 text-white rounded text-xs font-bold cursor-pointer"
+                          className="mt-2.5 w-full py-1.5 text-center bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold cursor-pointer transition shadow-xs"
                         >
                           Xem bằng chứng AI
                         </button>
