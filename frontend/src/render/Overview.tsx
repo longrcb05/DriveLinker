@@ -6,22 +6,26 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import {
   ChevronRight, Truck, AlertTriangle,
   MapPin, CheckCircle2, RefreshCw,
   Clock, Wallet, TrendingUp, ShieldAlert, BellRing, Wrench, X, Search, Lock,
-  ArrowUpRight, Navigation, Radio, Calendar
+  ArrowUpRight, Navigation, Eye, Radio, Calendar
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Tạo biểu tượng xe Google Maps phong cách Telematics chuyên nghiệp
-const createVehicleIcon = (status: string, plate: string) => {
-  const isRenting = status === 'RENTING' || status === 'RENTED';
-  const color = isRenting ? '#10B981' : '#0EA5E9';
-  const shadow = isRenting ? 'rgba(16, 185, 129, 0.45)' : 'rgba(14, 165, 233, 0.45)';
+// Tạo biểu tượng xe Google Maps phong cách Telematics chuyên nghiệp với 3 trạng thái Đỏ - Vàng - Xanh
+const createVehicleIcon = (safetyStatus: string, plate: string) => {
+  const isAlert = safetyStatus === 'RED' || safetyStatus === 'ALERT';
+  const isWarning = safetyStatus === 'YELLOW' || safetyStatus === 'WARNING';
+  const color = isAlert ? '#EF4444' : isWarning ? '#F59E0B' : '#10B981';
+  const shadow = isAlert ? 'rgba(239, 68, 68, 0.55)' : isWarning ? 'rgba(245, 158, 11, 0.5)' : 'rgba(16, 185, 129, 0.45)';
+  const pulse = isAlert ? 'animate-pulse' : '';
+
   return L.divIcon({
     className: 'custom-vehicle-marker',
     html: `
@@ -29,7 +33,7 @@ const createVehicleIcon = (status: string, plate: string) => {
         <div style="background: white; border: 1.5px solid ${color}; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; font-family: monospace; color: #0f172a; box-shadow: 0 2px 4px rgba(0,0,0,0.18); white-space: nowrap; margin-bottom: 2px;">
           ${plate}
         </div>
-        <div style="width: 28px; height: 28px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 8px ${shadow}; border: 2px solid white;">
+        <div style="width: 30px; height: 30px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 10px ${shadow}; border: 2.5px solid white;" class="${pulse}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>
             <path d="M15 18H9"/>
@@ -41,9 +45,9 @@ const createVehicleIcon = (status: string, plate: string) => {
         <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid ${color}; margin-top: -1px;"></div>
       </div>
     `,
-    iconSize: [40, 52],
-    iconAnchor: [20, 52],
-    popupAnchor: [0, -48]
+    iconSize: [44, 54],
+    iconAnchor: [22, 54],
+    popupAnchor: [0, -50]
   });
 };
 
@@ -65,7 +69,7 @@ function MapUpdater({ center }: { center: [number, number] }) {
 // === BỘ DỮ LIỆU DEMO ĐA DOANH NGHIỆP CHI TIẾT ===
 const MOCK_DATA_BY_TENANT: Record<string, any> = {
   'COMPANY_A': {
-    center: [16.047079, 108.206230], // Đà Nẵng
+    center: [16.054407, 108.202167], // Đà Nẵng
     revenue: {
       amount: '128.5',
       growth: 'Tăng 12%',
@@ -76,14 +80,16 @@ const MOCK_DATA_BY_TENANT: Record<string, any> = {
       collection: '85%'
     },
     vehicles: [
-      { id: '29C-123.45', lat: 16.047079, lng: 108.206230, status: 'RENTING', type: 'Xe Tải 5T', driver: 'Nguyễn Văn A', speed: '65 km/h' },
-      { id: '51D-987.65', lat: 16.055000, lng: 108.215000, status: 'AVAILABLE', type: 'Xe Tải 8T', driver: 'Chưa xếp tài', speed: '0 km/h' },
-      { id: '15C-456.78', lat: 16.035000, lng: 108.225000, status: 'MAINTENANCE', type: 'Xe Tải 2T', driver: 'Đang sửa chữa', speed: '0 km/h' },
+      { id: '43A-112.22', lat: 16.054407, lng: 108.202167, status: 'RENTING', safetyStatus: 'RED', safetyLabel: 'Ngủ gật nguy hiểm (1.5s)', type: 'Hyundai Solati 16 Chỗ', driver: 'Trần Văn Bình', speed: '68 km/h' },
+      { id: '29C-123.45', lat: 16.047079, lng: 108.206230, status: 'RENTING', safetyStatus: 'YELLOW', safetyLabel: 'Ngáp sâu liên tục (3.0s)', type: 'Isuzu Forward 5T', driver: 'Nguyễn Văn A', speed: '52 km/h' },
+      { id: '51D-987.65', lat: 16.038000, lng: 108.212000, status: 'RENTING', safetyStatus: 'YELLOW', safetyLabel: 'Cúi đầu / Mất tập trung', type: 'Hino 500 Series FL 8T', driver: 'Trần Thị B', speed: '40 km/h' },
+      { id: '15C-456.78', lat: 16.035000, lng: 108.225000, status: 'RENTING', safetyStatus: 'GREEN', safetyLabel: 'Lái xe bình thường / Tập trung', type: 'Hyundai Mighty EX8', driver: 'Lê Văn C', speed: '58 km/h' },
+      { id: '29A-111.11', lat: 16.062000, lng: 108.218000, status: 'AVAILABLE', safetyStatus: 'GREEN', safetyLabel: 'An toàn / Tỉnh táo', type: 'Ford Transit Limousine', driver: 'Hoàng Văn D', speed: '60 km/h' },
     ],
     alerts: [
-      { id: 1, time: '10:30', vehicle: '29C-123.45', type: 'Ngủ gật', message: 'Mắt nhắm > 3s. Đã hú còi cabin.', severity: 'high' },
-      { id: 2, time: '09:15', vehicle: '43A-112.22', type: 'Quá tốc độ', message: 'Vượt tốc độ 85/60 km/h tại QL1A.', severity: 'medium' },
-      { id: 3, time: '08:00', vehicle: '92C-555.33', type: 'Lệch làn', message: 'Lệch làn đường liên tục.', severity: 'low' },
+      { id: 1, time: '10:30', vehicle: '43A-112.22', type: 'Ngủ gật nguy hiểm', message: 'Mắt nhắm > 1.5s (EAR: 0.14). Đã hú còi cabin.', severity: 'high' },
+      { id: 2, time: '09:15', vehicle: '29C-123.45', type: 'Ngáp sâu liên tục', message: 'Ngáp sâu > 3.0s (MAR: 0.74). Nhắc nhở tài xế.', severity: 'medium' },
+      { id: 3, time: '08:00', vehicle: '51D-987.65', type: 'Mất tập trung', message: 'Cúi đầu xem điện thoại khi đang lái xe.', severity: 'medium' },
     ]
   },
   'COMPANY_B': {
@@ -98,11 +104,11 @@ const MOCK_DATA_BY_TENANT: Record<string, any> = {
       collection: '92%'
     },
     vehicles: [
-      { id: '51F-888.11', lat: 10.762622, lng: 106.660172, status: 'RENTING', type: 'Xe Tải 15T', driver: 'Phạm Văn D', speed: '50 km/h' },
-      { id: '51G-999.22', lat: 10.775000, lng: 106.700000, status: 'AVAILABLE', type: 'Xe Khách', driver: 'Hoàng Thị E', speed: '0 km/h' },
+      { id: '51F-888.11', lat: 10.762622, lng: 106.660172, status: 'RENTING', safetyStatus: 'RED', safetyLabel: 'Ngủ gật nguy hiểm', type: 'Xe Tải 15T', driver: 'Phạm Văn D', speed: '50 km/h' },
+      { id: '51G-999.22', lat: 10.775000, lng: 106.700000, status: 'AVAILABLE', safetyStatus: 'GREEN', safetyLabel: 'Lái xe an toàn', type: 'Xe Khách', driver: 'Hoàng Thị E', speed: '0 km/h' },
     ],
     alerts: [
-      { id: 4, time: '14:20', vehicle: '51G-999.22', type: 'Vượt đèn đỏ', message: 'Vượt đèn đỏ tại ngã tư.', severity: 'high' },
+      { id: 4, time: '14:20', vehicle: '51F-888.11', type: 'Ngủ gật nguy hiểm', message: 'Mắt nhắm liên tục trên cao tốc.', severity: 'high' },
     ]
   },
   'COMPANY_C': {
@@ -117,7 +123,7 @@ const MOCK_DATA_BY_TENANT: Record<string, any> = {
       collection: '98%'
     },
     vehicles: [
-      { id: '29A-111.11', lat: 21.028511, lng: 105.804817, status: 'RENTING', type: 'Xe Bán Tải', driver: 'Vũ Thị H', speed: '35 km/h' }
+      { id: '29A-111.11', lat: 21.028511, lng: 105.804817, status: 'RENTING', safetyStatus: 'GREEN', safetyLabel: 'Lái xe an toàn', type: 'Xe Bán Tải', driver: 'Vũ Thị H', speed: '35 km/h' }
     ],
     alerts: []
   }
@@ -126,6 +132,7 @@ const MOCK_DATA_BY_TENANT: Record<string, any> = {
 const DEFAULT_DATA = MOCK_DATA_BY_TENANT['COMPANY_A'];
 
 export default function Overview() {
+  const navigate = useNavigate();
   const { language, t } = useLanguage();
   const [userRole] = useState(localStorage.getItem('userRole') || 'TENANT_STAFF');
   const [tenantId] = useState(localStorage.getItem('tenantId') || 'COMPANY_A');
@@ -370,10 +377,16 @@ export default function Overview() {
 
                 <div className="hidden sm:flex items-center gap-3 text-xs font-medium pl-2 border-l border-slate-200">
                   <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> {t('overview.mapRenting')} ({kpiStats.renting})
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block animate-pulse" />
+                    Cảnh báo đỏ ({vehicles.filter(v => v.safetyStatus === 'RED').length})
                   </span>
                   <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
-                    <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> {t('overview.mapAvailable')} ({kpiStats.available})
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
+                    Cảnh báo vàng ({vehicles.filter(v => v.safetyStatus === 'YELLOW').length})
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                    An toàn ({vehicles.filter(v => v.safetyStatus === 'GREEN').length})
                   </span>
                 </div>
               </div>
@@ -400,19 +413,47 @@ export default function Overview() {
                     <Marker
                       key={index}
                       position={[vehicle.lat, vehicle.lng]}
-                      icon={createVehicleIcon(vehicle.status, vehicle.id)}
+                      icon={createVehicleIcon(vehicle.safetyStatus || 'GREEN', vehicle.id)}
                     >
                       <Popup>
-                        <div className="font-sans p-1 min-w-[170px]">
-                          <div className="flex items-center justify-between border-b pb-1.5 mb-1.5">
-                            <span className="font-black text-slate-900 text-sm font-mono">{vehicle.id}</span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${vehicle.status === 'RENTING' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>
-                              {vehicle.status === 'RENTING' ? t('overview.mapRenting') : t('overview.mapAvailable')}
+                        <div className="font-sans pt-1 min-w-[210px]">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 mb-2 pr-4">
+                            <span className="font-black text-slate-900 text-sm font-mono tracking-tight">{vehicle.id}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono ${
+                              vehicle.safetyStatus === 'RED'
+                                ? 'bg-rose-100 text-rose-700 animate-pulse'
+                                : vehicle.safetyStatus === 'YELLOW'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {vehicle.speed}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-600">👤 {t('overview.driverLabel')} <strong>{vehicle.driver}</strong></p>
-                          <p className="text-xs text-slate-600">⚡ {t('overview.speedLabel')} <strong>{vehicle.speed}</strong></p>
-                          <p className="text-xs text-slate-500 mt-1">{t('overview.typeLabel')} {vehicle.type}</p>
+                          <div className="space-y-1 text-xs text-slate-600">
+                            <p>👤 {t('overview.driverLabel')}: <strong className="text-slate-800">{vehicle.driver}</strong></p>
+                            <p>
+                              🚨 Tình trạng:{' '}
+                              <strong className={
+                                vehicle.safetyStatus === 'RED'
+                                  ? 'text-rose-600'
+                                  : vehicle.safetyStatus === 'YELLOW'
+                                  ? 'text-amber-600'
+                                  : 'text-emerald-600'
+                              }>
+                                {vehicle.safetyLabel || (vehicle.safetyStatus === 'RED' ? 'Ngủ gật nguy hiểm' : vehicle.safetyStatus === 'YELLOW' ? 'Cảnh báo mất tập trung' : 'Lái xe an toàn')}
+                              </strong>
+                            </p>
+                            <p className="text-[11px] text-slate-500 font-mono">🚗 {t('overview.typeLabel')}: {vehicle.type}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/tracking?plate=${encodeURIComponent(vehicle.id)}`)}
+                            className="mt-2.5 w-full py-1.5 px-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition shadow-xs active:scale-95"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Xem chi tiết & Camera AI</span>
+                            <ArrowUpRight className="w-3 h-3" />
+                          </button>
                         </div>
                       </Popup>
                     </Marker>
@@ -643,7 +684,7 @@ export default function Overview() {
                   </div>
                   <p className="text-xs text-slate-800 mb-1">{t('overview.vehicleLabel')} <span className="font-bold font-mono">{a.vehicle}</span></p>
                   <p className="text-xs text-slate-500 mb-3 bg-slate-50 p-2 rounded border border-slate-100">{a.message}</p>
-                  <button className="text-xs font-bold bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white border border-rose-200 py-1.5 rounded-lg transition-colors w-full cursor-pointer flex items-center justify-center gap-1">
+                  <button onClick={() => navigate(`/tracking?plate=${encodeURIComponent(a.vehicle)}`)} className="text-xs font-bold bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white border border-rose-200 py-1.5 rounded-lg transition-colors w-full cursor-pointer flex items-center justify-center gap-1">
                     <span>{t('overview.verifyNowBtn')}</span>
                     <ArrowUpRight className="w-3.5 h-3.5" />
                   </button>

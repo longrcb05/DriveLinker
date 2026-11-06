@@ -1,24 +1,23 @@
 /**
  * @file LiveTracking.tsx
- * @description Phân hệ Giám sát Hành trình & Trí tuệ Nhân tạo AI DMS (Driver Monitoring System).
- * - Cột trái: Danh sách đội xe trực quan kèm bộ lọc và nút "Chi tiết" xem bằng chứng buồn ngủ.
- * - Khu vực trung tâm: Bản đồ Google Maps vệ tinh/đường phố theo dõi vị trí xe thời gian thực.
- * - Khu vực phải: Luồng giả lập Camera AI DMS với phân tích khuôn mặt, điểm EAR, MAR và cảnh báo cabin.
- * - Modal Bằng chứng: Xem ảnh chụp thời gian gần hành vi buồn ngủ và xem lại các ảnh vi phạm trong quá khứ.
+ * @description Phân hệ Giám sát Trí tuệ Nhân tạo AI DMS (Driver Monitoring System).
+ * - Cột trái: Danh sách đội xe trực quan kèm bộ lọc và nút "Chi tiết".
+ * - Ô trung tâm (Full ô): Khung hiển thị luồng ảnh/camera AI Cabin trực tiếp độ nét cao,
+ *   kèm thông số kỹ thuật (EAR, MAR, vận tốc, hành vi vi phạm, còi cabin) và
+ *   thư viện lịch sử các hình ảnh chụp sự cố các lần trước đó (History Evidence Gallery).
+ * - Tự động nhận diện biển số xe truyền từ URL param (?plate=...) khi chuyển từ trang Tổng quan.
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import {
-  ChevronRight, RefreshCw, Activity, Search, Filter, Camera,
-  AlertTriangle, CheckCircle2, Clock, ShieldAlert, Sparkles, X,
-  ZoomIn, Download, Play, Radio, Volume2, Truck, User, ArrowUpRight,
-  Maximize2, History, MapPin, Eye, Phone, BellRing,
-  Calendar, Layers, Flame, ExternalLink
+  ChevronRight, Activity, Search, Camera,
+  AlertTriangle, CheckCircle2, Clock, X,
+  ZoomIn, Download, Truck, User,
+  History, MapPin, Eye, Phone, BellRing,
+  Flame, ShieldCheck, Sparkles, ExternalLink
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 
 // === KIỂU DỮ LIỆU BẰNG CHỨNG AI DMS ===
 export interface AiEvidenceItem {
@@ -55,53 +54,6 @@ export interface LiveVehicle {
   lastSeen: string;
   recentEvidence: AiEvidenceItem;
   historyEvidences: AiEvidenceItem[];
-}
-
-// === TẠO BIỂU TƯỢNG MARKER XE TRÊN GOOGLE MAPS ===
-const createLiveVehicleIcon = (status: LiveVehicle['status'], plate: string, isSelected: boolean) => {
-  const isAlert = status === 'ALERT_DROWSY';
-  const isWarning = status === 'WARNING_YAWN' || status === 'ALERT_DISTRACTED';
-  const color = isAlert ? '#EF4444' : isWarning ? '#F59E0B' : '#10B981';
-  const shadow = isAlert ? 'rgba(239, 68, 68, 0.55)' : isWarning ? 'rgba(245, 158, 11, 0.5)' : 'rgba(16, 185, 129, 0.45)';
-  const pulse = isAlert ? 'animate-pulse' : '';
-  const scale = isSelected ? 'scale-110' : '';
-
-  return L.divIcon({
-    className: 'custom-live-vehicle-marker',
-    html: `
-      <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer;" class="${scale}">
-        <div style="background: white; border: 1.5px solid ${color}; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; font-family: monospace; color: #0f172a; box-shadow: 0 2px 5px rgba(0,0,0,0.22); white-space: nowrap; margin-bottom: 2px;">
-          ${plate}
-        </div>
-        <div style="width: 32px; height: 32px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 10px ${shadow}; border: 2.5px solid white;" class="${pulse}">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>
-            <path d="M15 18H9"/>
-            <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/>
-            <circle cx="17" cy="18" r="2"/>
-            <circle cx="7" cy="18" r="2"/>
-          </svg>
-        </div>
-        <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid ${color}; margin-top: -1px;"></div>
-      </div>
-    `,
-    iconSize: [44, 56],
-    iconAnchor: [22, 56],
-    popupAnchor: [0, -50]
-  });
-};
-
-// === COMPONENT ĐIỀU HƯỚNG TÂM BẢN ĐỒ ===
-function MapController({ center }: { center: [number, number] }) {
-  const map = useMap();
-  useEffect(() => {
-    map.flyTo(center, 14, { duration: 1.0 });
-    const timer = setTimeout(() => {
-      map.invalidateSize();
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [center, map]);
-  return null;
 }
 
 // === BỘ DỮ LIỆU ĐỘI XE & BẰNG CHỨNG ẢNH AI CHỤP THẬT (TỪ /bang_chung) ===
@@ -249,50 +201,50 @@ const MOCK_LIVE_FLEET: LiveVehicle[] = [
       speed: '52 km/h',
       location: 'QL1A Hòa Phước, Đà Nẵng',
       duration: '3.0s',
-      actionTaken: 'Phát âm thanh giọng nói: "Tài xế vui lòng giữ tỉnh táo!"'
+      actionTaken: 'Cảnh báo âm thanh giọng nói nhắc nhở lái xe tập trung'
     },
     historyEvidences: [
       {
         id: 'EV-02-H1',
-        image: '/bang_chung/NGAP_SAU_20261022_210955.jpg',
+        image: '/bang_chung/NGAP_SAU_3.0s_20261029_100645.jpg',
         time: '08:50:12',
         date: 'Hôm nay',
         type: 'YAWN',
-        typeName: 'Ngáp sâu',
+        typeName: 'Ngáp sâu phát hiện lần 2',
         severity: 'MEDIUM',
         mar: 0.70,
         speed: '50 km/h',
-        location: 'Đường 2/9, Đà Nẵng',
-        duration: '2.8s',
-        actionTaken: 'Âm thanh cảnh báo nhẹ'
+        location: 'Trạm thu phí Hòa Phước',
+        duration: '3.0s',
+        actionTaken: 'Nhắc nhở qua loa cabin'
       },
       {
         id: 'EV-02-H2',
-        image: '/bang_chung/NGAP_LIEN_TUC_20261022_220310.jpg',
-        time: '09:10:00',
-        date: '29/10/2026',
-        type: 'YAWN',
-        typeName: 'Ngáp liên tục',
-        severity: 'MEDIUM',
-        mar: 0.68,
-        speed: '54 km/h',
-        location: 'Quận Cẩm Lệ, Đà Nẵng',
-        duration: '2.0s',
-        actionTaken: 'Nhắc nhở qua loa'
+        image: '/bang_chung/CHOP_MAT_CHAM_(0.60s)_20261024_201530.jpg',
+        time: '11:05:40',
+        date: '28/10/2026',
+        type: 'SLOW_BLINK',
+        typeName: 'Chớp mắt chậm liên hồi',
+        severity: 'LOW',
+        ear: 0.17,
+        speed: '48 km/h',
+        location: 'Đường CMT8, Đà Nẵng',
+        duration: '0.6s',
+        actionTaken: 'Ghi nhật ký hệ thống'
       },
       {
         id: 'EV-02-H3',
-        image: '/bang_chung/NGU_GAT_(1.5s)_20261022_220927.jpg',
-        time: '10:15:00',
-        date: '28/10/2026',
+        image: '/bang_chung/NGU_GAT_1.5s_20261101_133333.jpg',
+        time: '16:40:22',
+        date: '26/10/2026',
         type: 'DROWSY',
-        typeName: 'Ngủ gật 1.5s',
+        typeName: 'Mắt nhắm 1.5s khi dừng đèn đỏ',
         severity: 'HIGH',
-        ear: 0.16,
-        speed: '48 km/h',
-        location: 'Khu công nghiệp Hòa Khánh',
+        ear: 0.14,
+        speed: '0 km/h',
+        location: 'Ngã tư cầu Tuyên Sơn',
         duration: '1.5s',
-        actionTaken: 'Hú còi cabin khẩn cấp'
+        actionTaken: 'Báo động cabin'
       }
     ]
   },
@@ -301,182 +253,188 @@ const MOCK_LIVE_FLEET: LiveVehicle[] = [
     plate: '51D-987.65',
     model: 'Hino 500 Series FL 8T',
     driver: 'Trần Thị B',
-    driverPhone: '0938.777.666',
-    speed: 60,
+    driverPhone: '0988.777.666',
+    speed: 40,
     status: 'ALERT_DISTRACTED',
     statusLabel: 'Cúi đầu / Mất tập trung',
-    lat: 16.055000,
-    lng: 108.215000,
+    lat: 16.038000,
+    lng: 108.212000,
     currentEar: 0.20,
-    currentMar: 0.15,
+    currentMar: 0.25,
     lastSeen: 'Vừa xong',
     recentEvidence: {
       id: 'EV-03',
-      image: '/bang_chung/CANH_BAO_DO_5_LAN_VANG_10P_-_CUI_DAU_-_MAT_MO_0.0s_20261029_100645.jpg',
-      time: '08:40:10',
+      image: '/bang_chung/GUC_DAU_(NHAM_MAT)_(3.2s)_20261022_220943.jpg',
+      time: '09:05:00',
       date: 'Hôm nay',
       type: 'HEAD_DROP',
-      typeName: 'Cúi đầu / Mắt lơ đễnh nhìn điện thoại',
+      typeName: 'Cúi đầu xem điện thoại',
       severity: 'MEDIUM',
-      pitch: -22,
-      ear: 0.20,
-      speed: '60 km/h',
-      location: 'Cầu Trần Thị Lý, Đà Nẵng',
-      duration: '2.0s',
-      actionTaken: 'Phát chuông thông báo cabin nhắc ngẩng đầu'
+      pitch: -32,
+      speed: '40 km/h',
+      location: 'Đường 2/9, Hải Châu, Đà Nẵng',
+      duration: '3.2s',
+      actionTaken: 'Cảnh báo âm thanh: Hãy chú ý quan sát đường phía trước'
     },
     historyEvidences: [
       {
         id: 'EV-03-H1',
-        image: '/bang_chung/GUC_DAU_20261022_211028.jpg',
-        time: '07:20:00',
+        image: '/bang_chung/GUC_DAU_(NHAM_MAT)_(3.2s)_20261022_220953.jpg',
+        time: '08:30:10',
         date: 'Hôm nay',
         type: 'HEAD_DROP',
-        typeName: 'Gục đầu',
-        severity: 'MEDIUM',
-        pitch: -20,
-        speed: '58 km/h',
+        typeName: 'Gục đầu trong cabin',
+        severity: 'HIGH',
+        pitch: -35,
+        speed: '38 km/h',
         location: 'Đường Duy Tân',
-        duration: '1.8s',
-        actionTaken: 'Chuông nhắc nhở'
+        duration: '3.2s',
+        actionTaken: 'Hú còi cabin cấp 2'
       },
       {
         id: 'EV-03-H2',
-        image: '/bang_chung/NGAP_(1.5s)_20261024_201502.jpg',
-        time: '11:20:00',
-        date: '30/10/2026',
+        image: '/bang_chung/NGAP_SAU_3.0s_20261029_100655.jpg',
+        time: '15:20:00',
+        date: '28/10/2026',
         type: 'YAWN',
-        typeName: 'Ngáp 1.5s',
-        severity: 'LOW',
-        mar: 0.66,
-        speed: '62 km/h',
-        location: 'Ngã ba Huế',
-        duration: '1.5s',
-        actionTaken: 'Ghi nhận hệ thống'
+        typeName: 'Ngáp mệt mỏi ca chiều',
+        severity: 'MEDIUM',
+        mar: 0.71,
+        speed: '42 km/h',
+        location: 'Cầu Trần Thị Lý',
+        duration: '3.0s',
+        actionTaken: 'Gợi ý đổi tài xế'
       }
     ]
   },
   {
     id: 'V04',
     plate: '15C-456.78',
-    model: 'Isuzu QKR 2T',
+    model: 'Hyundai Mighty EX8 GTL 7T',
     driver: 'Lê Văn C',
-    driverPhone: '0988.555.444',
-    speed: 45,
+    driverPhone: '0935.456.789',
+    speed: 58,
     status: 'NORMAL',
-    statusLabel: 'Lái xe bình thường / Tập trung',
+    statusLabel: 'Lái xe an toàn / Tập trung',
     lat: 16.035000,
     lng: 108.225000,
     currentEar: 0.29,
     currentMar: 0.18,
-    lastSeen: '12 giây trước',
+    lastSeen: '15 giây trước',
     recentEvidence: {
       id: 'EV-04',
-      image: '/bang_chung/BUON_NGU_20261024_094018.jpg',
-      time: '16:45:00',
-      date: '30/10/2026',
-      type: 'DROWSY',
-      typeName: 'Ngủ gật / Mắt lờ đờ',
+      image: '/bang_chung/CANH_BAO_VANG_3_LAN_CAM_10P_-_NGAP_LIEN_TUC_20261029_100705.jpg',
+      time: '07:45:00',
+      date: 'Hôm nay',
+      type: 'YAWN',
+      typeName: 'Kiểm tra DMS an toàn ban đầu',
       severity: 'LOW',
-      ear: 0.19,
-      speed: '45 km/h',
-      location: 'Đường Ngũ Hành Sơn, Đà Nẵng',
-      duration: '1.2s',
-      actionTaken: 'Đã nhắc nhở kết thúc ca lái'
+      ear: 0.29,
+      mar: 0.18,
+      speed: '58 km/h',
+      location: 'Đường Võ Nguyên Giáp, Đà Nẵng',
+      duration: '0s',
+      actionTaken: 'Chỉ số bình thường, hệ thống duy trì giám sát định kỳ'
     },
     historyEvidences: [
       {
         id: 'EV-04-H1',
-        image: '/bang_chung/NGAP_SAU_20261015_173356.jpg',
-        time: '08:00:00',
-        date: '25/10/2026',
-        type: 'YAWN',
-        typeName: 'Ngáp sâu',
+        image: '/bang_chung/CHOP_MAT_CHAM_(0.60s)_20261024_201535.jpg',
+        time: '14:10:00',
+        date: '27/10/2026',
+        type: 'SLOW_BLINK',
+        typeName: 'Chớp mắt nhẹ',
         severity: 'LOW',
-        mar: 0.69,
-        speed: '42 km/h',
-        location: 'Quận Hải Châu',
-        duration: '2.0s',
-        actionTaken: 'Đã xử lý'
+        ear: 0.21,
+        speed: '55 km/h',
+        location: 'Bán đảo Sơn Trà',
+        duration: '0.6s',
+        actionTaken: 'Ghi nhận an toàn'
       }
     ]
   },
   {
     id: 'V05',
     plate: '29A-111.11',
-    model: 'Ford Ranger Raptor',
-    driver: 'Vũ Thị H',
-    driverPhone: '0911.333.444',
-    speed: 35,
+    model: 'Ford Transit Limousine 10 Chỗ',
+    driver: 'Hoàng Văn D',
+    driverPhone: '0977.111.222',
+    speed: 60,
     status: 'NORMAL',
-    statusLabel: 'Lái xe bình thường / Ổn định',
-    lat: 16.060000,
-    lng: 108.200000,
-    currentEar: 0.31,
-    currentMar: 0.12,
+    statusLabel: 'An toàn / Tỉnh táo hoàn toàn',
+    lat: 16.062000,
+    lng: 108.218000,
+    currentEar: 0.32,
+    currentMar: 0.15,
     lastSeen: '2 giây trước',
     recentEvidence: {
       id: 'EV-05',
-      image: '/bang_chung/NGU_GAT_1.5s_20261029_100605.jpg',
-      time: '10:06:05',
-      date: '29/10/2026',
-      type: 'DROWSY',
-      typeName: 'Ngủ gật 1.5s',
-      severity: 'HIGH',
-      ear: 0.14,
-      speed: '35 km/h',
-      location: 'Sân bay Quốc tế Đà Nẵng',
-      duration: '1.5s',
-      actionTaken: 'Còi cabin cấp độ 2'
+      image: '/bang_chung/CHOP_MAT_CHAM_(0.60s)_20261024_201540.jpg',
+      time: '08:00:15',
+      date: 'Hôm nay',
+      type: 'SLOW_BLINK',
+      typeName: 'Trạng thái lái xe tỉnh táo',
+      severity: 'LOW',
+      ear: 0.32,
+      mar: 0.15,
+      speed: '60 km/h',
+      location: 'Cảng Tiên Sa, Đà Nẵng',
+      duration: '0s',
+      actionTaken: 'Lái xe an toàn tiêu chuẩn'
     },
     historyEvidences: [
       {
         id: 'EV-05-H1',
-        image: '/bang_chung/NGAP_SAU_20261022_212533.jpg',
-        time: '21:25:33',
-        date: '22/10/2026',
+        image: '/bang_chung/NGAP_LIEN_TUC_20261022_214436.jpg',
+        time: '16:00:00',
+        date: '25/10/2026',
         type: 'YAWN',
-        typeName: 'Ngáp sâu ca tối',
-        severity: 'LOW',
-        mar: 0.67,
-        speed: '38 km/h',
-        location: 'Đường Điện Biên Phủ',
-        duration: '2.1s',
-        actionTaken: 'Đã hoàn tất'
+        typeName: 'Ngáp nhẹ trước giờ giao ca',
+        severity: 'MEDIUM',
+        mar: 0.65,
+        speed: '45 km/h',
+        location: 'Đường Bạch Đằng',
+        duration: '2.0s',
+        actionTaken: 'Nhắc nhở nghỉ ngơi'
       }
     ]
   }
 ];
 
 export default function LiveTracking() {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
+  const [searchParams] = useSearchParams();
+  const plateParam = searchParams.get('plate');
 
-  // Danh sách xe và xe đang chọn để hiển thị trên bản đồ/camera
   const [vehicles] = useState<LiveVehicle[]>(MOCK_LIVE_FLEET);
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(MOCK_LIVE_FLEET[0].id);
-
-  // Bộ lọc tìm kiếm và trạng thái ở cột trái
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('V01');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'ALERT' | 'NORMAL'>('ALL');
 
-  // Chế độ bản đồ Google Maps: 'm' (Đường phố) hoặc 'y' (Vệ tinh)
-  const [mapType, setMapType] = useState<'m' | 'y'>('m');
-
-  // Modal Chi tiết bằng chứng buồn ngủ & lịch sử hình ảnh
-  const [selectedEvidenceVehicle, setSelectedEvidenceVehicle] = useState<LiveVehicle | null>(null);
-
-  // Tab lọc trong Modal: 'ALL' | 'DROWSY' | 'YAWN' | 'HEAD_DROP'
+  // Lọc lịch sử ảnh theo loại vi phạm
   const [evidenceFilter, setEvidenceFilter] = useState<'ALL' | 'DROWSY' | 'YAWN' | 'HEAD_DROP'>('ALL');
 
-  // Modal phóng to ảnh (Lightbox)
+  // Xem ảnh phóng to Lightbox
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
-  // Xe đang được chọn
+  // Khi có query param plate từ trang Tổng quan, tự động chọn xe đó
+  useEffect(() => {
+    if (plateParam) {
+      const found = vehicles.find(
+        v => v.plate.toLowerCase() === plateParam.toLowerCase() || v.id.toLowerCase() === plateParam.toLowerCase()
+      );
+      if (found) {
+        setSelectedVehicleId(found.id);
+      }
+    }
+  }, [plateParam, vehicles]);
+
+  // Xe đang được chọn để theo dõi
   const activeVehicle = useMemo(() => {
     return vehicles.find(v => v.id === selectedVehicleId) || vehicles[0];
   }, [vehicles, selectedVehicleId]);
 
-  // Danh sách xe lọc theo từ khóa & tab
+  // Lọc danh sách xe theo từ khóa và trạng thái
   const filteredVehicles = useMemo(() => {
     return vehicles.filter(v => {
       const matchSearch =
@@ -494,26 +452,24 @@ export default function LiveTracking() {
     });
   }, [vehicles, searchTerm, filterStatus]);
 
-  // Thống kê KPI
+  // Thống kê đếm trạng thái
   const stats = useMemo(() => {
     return {
       total: vehicles.length,
-      rolling: vehicles.filter(v => v.speed > 0).length,
       drowsyAlerts: vehicles.filter(v => v.status === 'ALERT_DROWSY').length,
       warnings: vehicles.filter(v => v.status === 'WARNING_YAWN' || v.status === 'ALERT_DISTRACTED').length,
       normal: vehicles.filter(v => v.status === 'NORMAL').length
     };
   }, [vehicles]);
 
-  // Danh sách ảnh bằng chứng lịch sử lọc theo tab trong Modal
-  const modalFilteredHistory = useMemo(() => {
-    if (!selectedEvidenceVehicle) return [];
-    if (evidenceFilter === 'ALL') return selectedEvidenceVehicle.historyEvidences;
-    return selectedEvidenceVehicle.historyEvidences.filter(e => e.type === evidenceFilter);
-  }, [selectedEvidenceVehicle, evidenceFilter]);
+  // Danh sách ảnh bằng chứng lịch sử lọc theo tab
+  const filteredHistory = useMemo(() => {
+    if (evidenceFilter === 'ALL') return activeVehicle.historyEvidences;
+    return activeVehicle.historyEvidences.filter(e => e.type === evidenceFilter);
+  }, [activeVehicle, evidenceFilter]);
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 font-sans">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#F8FAFC] font-sans">
 
       {/* =========================================================================
           1. HEADER TỔNG (GỌN GÀNG, TINH TẾ)
@@ -536,14 +492,14 @@ export default function LiveTracking() {
       </div>
 
       {/* =========================================================================
-          2. KHÔNG GIAN LÀM VIỆC CHÍNH: CỘT TRÁI (LIST XE) + CỘT PHẢI (MAP & CAMERA)
+          2. KHÔNG GIAN LÀM VIỆC CHÍNH: CỘT TRÁI (LIST XE) + CỘT PHẢI (FULL Ô AI DMS & BẰNG CHỨNG)
           ========================================================================= */}
       <div className="flex-1 flex gap-4 p-5 overflow-hidden min-h-0">
 
         {/* -------------------------------------------------------------
-            CỘT BÊN TRÁI: DANH SÁCH XE & NÚT CHI TIẾT XEM BẰNG CHỨNG AI
+            CỘT BÊN TRÁI: DANH SÁCH XE & NÚT CHI TIẾT
             ------------------------------------------------------------- */}
-        <div className="w-80 lg:w-[380px] bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col shrink-0 overflow-hidden">
+        <div className="w-80 lg:w-[350px] bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col shrink-0 overflow-hidden">
           {/* Header Danh sách xe */}
           <div className="p-4 border-b border-slate-100 bg-slate-50/70 shrink-0">
             <div className="flex justify-between items-center mb-3">
@@ -604,8 +560,8 @@ export default function LiveTracking() {
             </div>
           </div>
 
-          {/* Danh sách thẻ phương tiện cuộn mượt */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-slate-50/40 divide-y divide-slate-100/80">
+          {/* Danh sách thẻ phương tiện */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-slate-50/40">
             {filteredVehicles.map(v => {
               const isSelected = v.id === selectedVehicleId;
               const isAlert = v.status === 'ALERT_DROWSY';
@@ -615,7 +571,7 @@ export default function LiveTracking() {
                 <div
                   key={v.id}
                   onClick={() => setSelectedVehicleId(v.id)}
-                  className={`pt-2.5 p-3 rounded-xl border transition-all cursor-pointer relative select-none ${
+                  className={`p-3 rounded-xl border transition-all cursor-pointer relative select-none ${
                     isSelected
                       ? 'bg-white border-sky-500 shadow-md ring-2 ring-sky-200 scale-[1.01]'
                       : 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-xs'
@@ -654,7 +610,7 @@ export default function LiveTracking() {
                     </div>
                   </div>
 
-                  {/* Hàng 3: Nút Xem Chi Tiết Bằng Chứng AI (YÊU CẦU CỐT LÕI CỦA NGƯỜI DÙNG) */}
+                  {/* Hàng 3: Nút Xem Chi Tiết */}
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                     <span className="text-[10px] text-slate-400 flex items-center gap-1">
                       <Camera className="w-3 h-3 text-slate-400" />
@@ -665,7 +621,7 @@ export default function LiveTracking() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedEvidenceVehicle(v);
+                        setSelectedVehicleId(v.id);
                       }}
                       className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold text-white bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 rounded-lg shadow-xs shadow-sky-500/30 transition-all cursor-pointer active:scale-95"
                     >
@@ -680,504 +636,366 @@ export default function LiveTracking() {
         </div>
 
         {/* -------------------------------------------------------------
-            CỘT BÊN PHẢI: BẢN ĐỒ GOOGLE MAPS & WEBCAM AI DMS CABIN
+            CỘT BÊN PHẢI: KHUNG CHỨA ẢNH & THÔNG TIN AI DMS (FULL 1 Ô THAY THẾ BẢN ĐỒ)
             ------------------------------------------------------------- */}
-        <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-0">
+        <div className="flex-1 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col overflow-hidden min-h-0">
 
-          {/* KHỐI 1: BẢN ĐỒ GOOGLE MAPS TÍCH HỢP */}
-          <div className="flex-[3] bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col relative">
-            {/* Header Bản đồ & Nút chuyển Roadmap / Satellite */}
-            <div className="p-3 bg-white border-b border-slate-100 flex justify-between items-center shrink-0 z-10">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-sky-50 text-sky-600 rounded-lg">
-                  <MapPin className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    {t('overview.mapTitle')}
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200/80 font-mono">
-                      Google Maps
-                    </span>
-                  </h3>
-                </div>
+          {/* 1. Header Khối Chi Tiết Xe */}
+          <div className="px-6 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 via-white to-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="font-mono font-black text-base bg-slate-900 text-white px-3 py-1 rounded-xl shadow-xs">
+                {activeVehicle.plate}
               </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setMapType('m')}
-                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
-                      mapType === 'm' ? 'bg-white text-sky-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Bản đồ
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMapType('y')}
-                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
-                      mapType === 'y' ? 'bg-white text-sky-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Vệ tinh
-                  </button>
-                </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                  <span>{activeVehicle.driver}</span>
+                  <span className="text-xs font-normal text-slate-500">({activeVehicle.model})</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                  <span>📞 {activeVehicle.driverPhone}</span>
+                  <span>•</span>
+                  <span>⚡ {activeVehicle.speed} km/h</span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-sky-500" />
+                    {activeVehicle.recentEvidence.location}
+                  </span>
+                </p>
               </div>
             </div>
 
-            {/* Container React-Leaflet */}
-            <div className="flex-1 w-full h-full relative z-0">
-              <MapContainer
-                center={[activeVehicle.lat, activeVehicle.lng]}
-                zoom={14}
-                scrollWheelZoom={true}
-                className="w-full h-full z-0"
-                style={{ height: '100%', width: '100%' }}
+            <div className="flex items-center gap-2.5">
+              {/* Badge Trạng thái Lớn */}
+              <span
+                className={`inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-xl shadow-2xs ${
+                  activeVehicle.status === 'ALERT_DROWSY'
+                    ? 'bg-rose-100 text-rose-700 border border-rose-300 animate-pulse'
+                    : activeVehicle.status === 'WARNING_YAWN' || activeVehicle.status === 'ALERT_DISTRACTED'
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                    : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                }`}
               >
-                <MapController center={[activeVehicle.lat, activeVehicle.lng]} />
-                <TileLayer
-                  attribution='&copy; <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">Google Maps</a>'
-                  url={`https://{s}.google.com/vt/lyrs=${mapType}&x={x}&y={y}&z={z}`}
-                  subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-                  maxZoom={20}
-                />
-                {vehicles.map(v => (
-                  <Marker
-                    key={v.id}
-                    position={[v.lat, v.lng]}
-                    icon={createLiveVehicleIcon(v.status, v.plate, v.id === selectedVehicleId)}
-                    eventHandlers={{
-                      click: () => setSelectedVehicleId(v.id)
-                    }}
-                  >
-                    <Popup>
-                      <div className="font-sans pt-1 min-w-[210px]">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 mb-2 pr-4">
-                          <span className="font-black text-slate-900 text-sm font-mono tracking-tight">{v.plate}</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 font-mono">
-                            {v.speed} km/h
-                          </span>
-                        </div>
-                        <div className="space-y-1 text-xs text-slate-600">
-                          <p>👤 Tài xế: <strong className="text-slate-800">{v.driver}</strong></p>
-                          <p>
-                            🚨 Trạng thái:{' '}
-                            <strong className={v.status === 'ALERT_DROWSY' ? 'text-rose-600' : 'text-emerald-600'}>
-                              {v.statusLabel}
-                            </strong>
-                          </p>
-                          <p className="text-[11px] text-slate-500 font-mono">📍 Tọa độ: {v.lat.toFixed(4)}, {v.lng.toFixed(4)}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedEvidenceVehicle(v)}
-                          className="mt-2.5 w-full py-1.5 text-center bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold cursor-pointer transition shadow-xs"
-                        >
-                          Xem bằng chứng AI
-                        </button>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
-              </MapContainer>
+                {activeVehicle.status === 'ALERT_DROWSY' ? (
+                  <Flame className="w-3.5 h-3.5 text-rose-600" />
+                ) : activeVehicle.status === 'WARNING_YAWN' || activeVehicle.status === 'ALERT_DISTRACTED' ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                ) : (
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                )}
+                <span>{activeVehicle.statusLabel}</span>
+              </span>
+
+              {/* Phím tắt thao tác nhanh */}
+              <a
+                href={`tel:${activeVehicle.driverPhone}`}
+                className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer active:scale-95"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Gọi tài xế</span>
+              </a>
+
+              <a
+                href={activeVehicle.recentEvidence.image}
+                download={`Evidence_${activeVehicle.plate}.jpg`}
+                className="py-1.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer active:scale-95"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <span className="hidden md:inline">Tải ảnh</span>
+              </a>
             </div>
           </div>
 
-          {/* KHỐI 2: CAMERA AI CABIN MONITORING & THAO TÁC CẢNH BÁO */}
-          <div className="flex-[2] bg-slate-950 rounded-2xl border border-slate-800 shadow-lg overflow-hidden flex flex-col relative text-white">
-            {/* Header Camera */}
-            <div className="px-4 py-2 bg-slate-900/90 border-b border-slate-800 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
-                <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                  <Camera className="w-3.5 h-3.5 text-rose-500" />
-                  Luồng Camera AI Cabin • {activeVehicle.plate} ({activeVehicle.driver})
+          {/* 2. Thân Khung Cuộn (Nội dung phân tích & thư viện ảnh) */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-6 bg-[#F8FAFC]">
+
+            {/* -------------------------------------------------------------
+                PHẦN 1: ẢNH CHỤP GẦN ĐÂY / LUỒNG CAMERA AI CABIN & THÔNG SỐ KỸ THUẬT
+                ------------------------------------------------------------- */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5">
+              <div className="flex items-center justify-between mb-4 pb-2.5 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-sky-600" />
+                    Hình ảnh & Dấu hiệu phát hiện thời gian thực (AI DMS)
+                  </h4>
+                </div>
+                <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-lg">
+                  Thời gian: {activeVehicle.recentEvidence.time} ({activeVehicle.recentEvidence.date})
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
-                <span className="px-2 py-0.5 bg-slate-800 rounded border border-slate-700">1080P • 30FPS</span>
-                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded border border-emerald-500/30">AI DMS ONLINE</span>
-              </div>
-            </div>
 
-            {/* Khung mô phỏng góc nhìn Camera AI Cabin của xe đang chọn */}
-            <div className="flex-1 relative flex items-center justify-center overflow-hidden bg-slate-900">
-              {/* Hình ảnh camera cabin chụp thực tế từ thư mục bằng chứng */}
-              <img
-                src={activeVehicle.recentEvidence.image}
-                alt="Camera AI Cabin"
-                className="w-full h-full object-cover opacity-85 filter contrast-110"
-              />
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Khung Ảnh Lớn kèm Lớp Phủ HUD Mô Phỏng AI YOLOv8 + MediaPipe */}
+                <div className="lg:col-span-7 relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-md group">
+                  <img
+                    src={activeVehicle.recentEvidence.image}
+                    alt="Camera AI Cabin"
+                    className="w-full h-80 object-cover object-center group-hover:scale-102 transition-transform duration-500 cursor-pointer"
+                    onClick={() => setLightboxImage(activeVehicle.recentEvidence.image)}
+                  />
 
-              {/* Lưới tọa độ HUD Face Mesh Bounding Box mô phỏng AI */}
-              <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between">
-                <div className="flex justify-between items-start text-[11px] font-mono bg-slate-950/70 backdrop-blur-xs p-2 rounded-lg border border-slate-700/60 max-w-xs">
-                  <div>
-                    <p className="text-slate-400">MODEL: <span className="text-sky-400 font-bold">YOLOv8 + MediaPipe</span></p>
-                    <p className="text-slate-400">TỈ LỆ MỞ MẮT (EAR): <span className={`font-bold ${activeVehicle.currentEar < 0.20 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`}>{activeVehicle.currentEar} (Ngưỡng: &lt; 0.20)</span></p>
-                    <p className="text-slate-400">ĐỘ MỞ MIỆNG (MAR): <span className="text-amber-400 font-bold">{activeVehicle.currentMar}</span></p>
+                  {/* Lớp phủ HUD AI Top */}
+                  <div className="absolute top-3 left-3 bg-slate-950/85 backdrop-blur-xs text-white text-[11px] font-mono px-2.5 py-1 rounded-md border border-slate-700/80 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>MODEL: <strong className="text-sky-400">YOLOv8 + MediaPipe</strong></span>
+                    <span>•</span>
+                    <span className="text-emerald-400">1080P 30FPS</span>
                   </div>
+
+                  {/* Bounding Box Nhận Diện Khuôn Mặt AI */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-56 border-2 border-dashed border-rose-500/90 rounded-2xl flex flex-col justify-between p-2 pointer-events-none shadow-2xl shadow-rose-500/30">
+                    <span className="text-[10px] font-mono font-bold bg-rose-600 text-white px-2 py-0.5 rounded self-start">
+                      {activeVehicle.status === 'ALERT_DROWSY' ? '🚨 DROWSINESS DETECTED' : 'FACE DETECTED'}
+                    </span>
+                    <div className="flex justify-between text-[10px] font-mono text-rose-300 bg-slate-950/85 px-1.5 py-0.5 rounded">
+                      <span>EAR: {activeVehicle.currentEar}</span>
+                      <span>CONF: 99.4%</span>
+                    </div>
+                  </div>
+
+                  {/* Lớp phủ HUD Bottom với các chỉ số Telematics */}
+                  <div className="absolute bottom-3 left-3 right-3 bg-slate-950/85 backdrop-blur-xs text-white p-2.5 rounded-xl border border-slate-700/80 text-xs font-mono flex justify-between items-center">
+                    <span>EAR: <strong className={activeVehicle.currentEar < 0.20 ? 'text-rose-400' : 'text-emerald-400'}>{activeVehicle.currentEar}</strong></span>
+                    <span>MAR: <strong className="text-amber-400">{activeVehicle.currentMar}</strong></span>
+                    <span>VẬN TỐC: <strong className="text-sky-400">{activeVehicle.speed} km/h</strong></span>
+                    <span>THỜI LƯỢNG: <strong className="text-amber-400">{activeVehicle.recentEvidence.duration || '1.5s'}</strong></span>
+                  </div>
+
+                  {/* Nút phóng to Lightbox */}
+                  <button
+                    onClick={() => setLightboxImage(activeVehicle.recentEvidence.image)}
+                    className="absolute top-3 right-3 p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-xl opacity-0 group-hover:opacity-100 transition cursor-pointer shadow"
+                    title="Phóng to ảnh"
+                  >
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
                 </div>
 
-                {/* Bounding box nhận diện khuôn mặt */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-56 border-2 border-dashed border-rose-500/90 rounded-2xl flex flex-col justify-between p-2 shadow-2xl shadow-rose-500/30">
-                  <span className="text-[10px] font-mono font-bold bg-rose-600 text-white px-1.5 py-0.5 rounded self-start">
-                    {activeVehicle.status === 'ALERT_DROWSY' ? '🚨 DROWSINESS DETECTED' : 'FACE DETECTED'}
-                  </span>
-                  <div className="flex justify-between text-[10px] font-mono text-rose-300 bg-slate-950/80 px-1 rounded">
-                    <span>EAR: {activeVehicle.currentEar}</span>
-                    <span>CONF: 99.4%</span>
-                  </div>
-                </div>
+                {/* Bảng Thông số & Hành động Can thiệp */}
+                <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
+                  <div className="space-y-3 text-xs">
+                    {/* Thẻ Hành vi vi phạm */}
+                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        Hành vi phát hiện bởi Edge AI
+                      </span>
+                      <p className="font-extrabold text-slate-900 text-sm">
+                        {activeVehicle.recentEvidence.typeName}
+                      </p>
+                      <p className="text-slate-500 text-[11px] mt-1 leading-relaxed">
+                        Mô hình quét 468 điểm mốc khuôn mặt, phát hiện mắt tài xế khép dưới ngưỡng an toàn liên tục trong {activeVehicle.recentEvidence.duration} khi xe đang di chuyển.
+                      </p>
+                    </div>
 
-                {/* Thanh trạng thái dưới cùng của Camera */}
-                <div className="flex justify-between items-center text-xs bg-slate-950/80 backdrop-blur-xs px-3 py-1.5 rounded-lg border border-slate-700/60">
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400">Trạng thái:</span>
-                    <strong className={activeVehicle.status === 'ALERT_DROWSY' ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
-                      {activeVehicle.statusLabel}
-                    </strong>
+                    {/* Lưới 2 chỉ số sinh trắc học */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="p-3 bg-rose-50/80 border border-rose-200 rounded-xl">
+                        <span className="text-[10px] font-bold text-rose-600 block uppercase">Chỉ số mở mắt (EAR)</span>
+                        <span className="text-xl font-black text-rose-700 font-mono mt-0.5 block">
+                          {activeVehicle.recentEvidence.ear ?? activeVehicle.currentEar}
+                        </span>
+                        <span className="text-[10px] text-rose-400 block mt-0.5">Mức nguy hiểm: &lt; 0.20</span>
+                      </div>
+
+                      <div className="p-3 bg-sky-50/80 border border-sky-200 rounded-xl">
+                        <span className="text-[10px] font-bold text-sky-600 block uppercase">Vận tốc tức thời</span>
+                        <span className="text-xl font-black text-sky-800 font-mono mt-0.5 block">
+                          {activeVehicle.speed} km/h
+                        </span>
+                        <span className="text-[10px] text-sky-400 block mt-0.5">Tốc độ hành trình</span>
+                      </div>
+                    </div>
+
+                    {/* Thẻ Hành động can thiệp tự động */}
+                    <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl text-amber-900">
+                      <span className="text-[10px] font-bold uppercase tracking-wider block mb-1 text-amber-700 flex items-center gap-1.5">
+                        <BellRing className="w-3.5 h-3.5" />
+                        Hành động can thiệp tự động đã kích hoạt
+                      </span>
+                      <p className="font-medium text-[11px] leading-relaxed">
+                        {activeVehicle.recentEvidence.actionTaken}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setSelectedEvidenceVehicle(activeVehicle)}
-                      className="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold rounded-md flex items-center gap-1 cursor-pointer transition shadow"
+
+                  {/* Nút hành động */}
+                  <div className="flex gap-2 pt-1">
+                    <a
+                      href={activeVehicle.recentEvidence.image}
+                      download={`BangChung_${activeVehicle.plate}_${activeVehicle.recentEvidence.time}.jpg`}
+                      className="flex-1 py-2 px-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
                     >
-                      <History className="w-3 h-3" />
-                      Xem lịch sử ảnh chụp ({activeVehicle.historyEvidences.length + 1})
-                    </button>
+                      <Download className="w-3.5 h-3.5 text-slate-500" />
+                      Tải ảnh bằng chứng này
+                    </a>
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* -------------------------------------------------------------
+                PHẦN 2: THƯ VIỆN LỊCH SỬ CÁC HÌNH ẢNH TRONG THỜI GIAN TRƯỚC (HISTORY GALLERY)
+                ------------------------------------------------------------- */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                    <History className="w-4 h-4 text-sky-600" />
+                    Lịch sử ảnh chụp sự cố các lần trước đó
+                    <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                      {filteredHistory.length} hình ảnh
+                    </span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Xem lại toàn bộ kho ảnh Camera AI chụp tự động khi phát hiện tài xế có dấu hiệu mệt mỏi trong các khung giờ trước
+                  </p>
+                </div>
+
+                {/* Bộ lọc loại sự cố lịch sử */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                  <button
+                    onClick={() => setEvidenceFilter('ALL')}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer ${
+                      evidenceFilter === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Tất cả
+                  </button>
+                  <button
+                    onClick={() => setEvidenceFilter('DROWSY')}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer ${
+                      evidenceFilter === 'DROWSY' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Ngủ gật
+                  </button>
+                  <button
+                    onClick={() => setEvidenceFilter('YAWN')}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer ${
+                      evidenceFilter === 'YAWN' ? 'bg-white text-amber-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Ngáp sâu
+                  </button>
+                  <button
+                    onClick={() => setEvidenceFilter('HEAD_DROP')}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer ${
+                      evidenceFilter === 'HEAD_DROP' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Gục đầu
+                  </button>
+                </div>
+              </div>
+
+              {/* Lưới các ảnh chụp trước đó */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {filteredHistory.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => setLightboxImage(item.image)}
+                    className="bg-slate-50 rounded-xl border border-slate-200/90 overflow-hidden shadow-2xs hover:shadow-md hover:border-sky-300 transition-all cursor-pointer group flex flex-col justify-between"
+                  >
+                    <div className="relative h-44 bg-slate-900 overflow-hidden">
+                      <img
+                        src={item.image}
+                        alt={item.typeName}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-80" />
+
+                      {/* Tag nhãn loại vi phạm */}
+                      <div className="absolute top-2 left-2">
+                        <span
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shadow ${
+                            item.severity === 'HIGH'
+                              ? 'bg-rose-600 text-white'
+                              : item.severity === 'MEDIUM'
+                              ? 'bg-amber-500 text-white'
+                              : 'bg-sky-600 text-white'
+                          }`}
+                        >
+                          {item.typeName}
+                        </span>
+                      </div>
+
+                      <div className="absolute top-2 right-2 p-1.5 bg-slate-900/80 rounded-lg text-white opacity-0 group-hover:opacity-100 transition">
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </div>
+
+                      <div className="absolute bottom-2 left-2 right-2 text-white text-[11px] font-mono flex justify-between items-center">
+                        <span>🕒 {item.time} ({item.date})</span>
+                        <span>⚡ {item.speed}</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 text-xs flex flex-col justify-between flex-1">
+                      <div>
+                        <p className="font-bold text-slate-800 text-[11px] mb-1 line-clamp-1">
+                          {item.typeName} ({item.duration || '2.0s'})
+                        </p>
+                        <p className="text-[10px] text-slate-500 line-clamp-1">
+                          📍 {item.location}
+                        </p>
+                      </div>
+                      <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex justify-between items-center text-[10px] text-slate-400">
+                        <span className="truncate max-w-[200px]">{item.actionTaken}</span>
+                        <span className="text-sky-600 font-bold group-hover:underline flex items-center gap-0.5">
+                          Xem <ExternalLink className="w-2.5 h-2.5" />
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
+
       </div>
 
       {/* =========================================================================
-          3. MODAL: CHI TIẾT BẰNG CHỨNG BUỒN NGỦ & XEM LẠI CÁC ẢNH TRƯỚC ĐÓ
-          (ĐÁP ỨNG CHÍNH XÁC YÊU CẦU CỦA USER: XEM ẢNH GẦN ĐÂY & XEM LẠI ẢNH TRƯỚC ĐÓ)
+          3. LIGHTBOX: XEM TOÀN MÀN HÌNH KHI BẤM VÀO BẤT KỲ ẢNH NÀO
           ========================================================================= */}
-      {selectedEvidenceVehicle && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 border border-slate-200">
-
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-600 text-white flex items-center justify-center shadow-md shadow-rose-500/25">
-                  <Camera className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                    Hồ sơ Bằng chứng AI DMS • {selectedEvidenceVehicle.plate}
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                      {selectedEvidenceVehicle.statusLabel}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Tài xế: <strong>{selectedEvidenceVehicle.driver}</strong> ({selectedEvidenceVehicle.driverPhone}) • Phương tiện: {selectedEvidenceVehicle.model}
-                  </p>
-                </div>
-              </div>
-
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-700 flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-3 bg-slate-950/80 border-b border-slate-800 flex justify-between items-center text-white">
+              <span className="text-xs font-mono font-bold flex items-center gap-2">
+                <Camera className="w-4 h-4 text-sky-400" />
+                Ảnh chụp bằng chứng gốc độ nét cao • {activeVehicle.plate}
+              </span>
               <div className="flex items-center gap-2">
+                <a
+                  href={lightboxImage}
+                  download="BangChung_ChiTiet.jpg"
+                  className="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Tải ảnh
+                </a>
                 <button
-                  onClick={() => setSelectedEvidenceVehicle(null)}
-                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                  onClick={() => setLightboxImage(null)}
+                  className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
-
-            {/* Modal Body: Cuộn nội dung */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#F8FAFC]">
-
-              {/* -------------------------------------------------------------
-                  PHẦN 1: ẢNH CHỤP THỜI GIAN GẦN NHẤT KHI CÓ DẤU HIỆU BUỒN NGỦ
-                  ------------------------------------------------------------- */}
-              <div className="bg-white rounded-2xl border border-rose-200/90 shadow-sm p-5 overflow-hidden">
-                <div className="flex items-center justify-between mb-3 border-b border-rose-100 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
-                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                      <Flame className="w-4 h-4 text-rose-500" />
-                      Ảnh chụp sự cố buồn ngủ gần nhất (Thời gian thực)
-                    </h4>
-                  </div>
-                  <span className="text-xs font-mono font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-lg">
-                    Thời gian chụp: {selectedEvidenceVehicle.recentEvidence.time} ({selectedEvidenceVehicle.recentEvidence.date})
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                  {/* Khung ảnh chụp lớn sắc nét */}
-                  <div className="lg:col-span-7 relative rounded-xl overflow-hidden bg-slate-900 border border-slate-200 shadow-xs group">
-                    <img
-                      src={selectedEvidenceVehicle.recentEvidence.image}
-                      alt="Ảnh chụp buồn ngủ gần nhất"
-                      className="w-full h-72 object-cover object-center group-hover:scale-105 transition-transform duration-500 cursor-pointer"
-                      onClick={() => setLightboxImage(selectedEvidenceVehicle.recentEvidence.image)}
-                    />
-
-                    {/* HUD Watermark trên ảnh */}
-                    <div className="absolute top-3 left-3 bg-rose-600 text-white font-mono text-xs font-bold px-2.5 py-1 rounded-md shadow flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      <span>{selectedEvidenceVehicle.recentEvidence.typeName}</span>
-                    </div>
-
-                    <div className="absolute bottom-3 left-3 right-3 bg-slate-950/85 backdrop-blur-xs text-white p-2.5 rounded-lg border border-slate-700/80 text-xs font-mono flex justify-between items-center">
-                      <span>EAR: <strong className="text-rose-400">{selectedEvidenceVehicle.recentEvidence.ear}</strong></span>
-                      <span>VẬN TỐC: <strong className="text-sky-400">{selectedEvidenceVehicle.recentEvidence.speed}</strong></span>
-                      <span>THỜI LƯỢNG: <strong className="text-amber-400">{selectedEvidenceVehicle.recentEvidence.duration}</strong></span>
-                    </div>
-
-                    {/* Nút phóng to ảnh */}
-                    <button
-                      onClick={() => setLightboxImage(selectedEvidenceVehicle.recentEvidence.image)}
-                      className="absolute top-3 right-3 p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-lg opacity-0 group-hover:opacity-100 transition cursor-pointer"
-                      title="Phóng to ảnh"
-                    >
-                      <ZoomIn className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Thông số kỹ thuật & biên bản cảnh báo AI */}
-                  <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
-                    <div className="space-y-2.5 text-xs">
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                          Hành vi phát hiện bởi Edge AI
-                        </span>
-                        <p className="font-extrabold text-slate-900 text-sm">
-                          {selectedEvidenceVehicle.recentEvidence.typeName}
-                        </p>
-                        <p className="text-slate-500 text-[11px] mt-1">
-                          Hệ thống MediaPipe + YOLOv8 quét 468 điểm mốc khuôn mặt, phát hiện mắt tài xế khép dưới ngưỡng an toàn liên tục trong {selectedEvidenceVehicle.recentEvidence.duration}.
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="p-2.5 bg-rose-50 border border-rose-100 rounded-xl">
-                          <span className="text-[10px] font-bold text-rose-500 block uppercase">Chỉ số EAR</span>
-                          <span className="text-lg font-black text-rose-700 font-mono">
-                            {selectedEvidenceVehicle.recentEvidence.ear}
-                          </span>
-                          <span className="text-[10px] text-rose-400 block mt-0.5">Mức nguy hiểm &lt; 0.20</span>
-                        </div>
-
-                        <div className="p-2.5 bg-sky-50 border border-sky-100 rounded-xl">
-                          <span className="text-[10px] font-bold text-sky-600 block uppercase">Vận tốc di chuyển</span>
-                          <span className="text-lg font-black text-sky-800 font-mono">
-                            {selectedEvidenceVehicle.recentEvidence.speed}
-                          </span>
-                          <span className="text-[10px] text-sky-400 block mt-0.5">Tốc độ cao nguy cơ lật</span>
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-amber-900">
-                        <span className="text-[10px] font-bold uppercase tracking-wider block mb-0.5 text-amber-700">
-                          Hành động can thiệp tự động
-                        </span>
-                        <p className="font-medium text-[11px]">
-                          {selectedEvidenceVehicle.recentEvidence.actionTaken}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 pt-2">
-                      <a
-                        href={selectedEvidenceVehicle.recentEvidence.image}
-                        download={`BangChung_${selectedEvidenceVehicle.plate}_${selectedEvidenceVehicle.recentEvidence.time}.jpg`}
-                        className="flex-1 py-2 px-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 transition cursor-pointer"
-                      >
-                        <Download className="w-3.5 h-3.5 text-slate-500" />
-                        Tải ảnh bằng chứng
-                      </a>
-                      <a
-                        href={`tel:${selectedEvidenceVehicle.driverPhone}`}
-                        className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                      >
-                        <Phone className="w-3.5 h-3.5" />
-                        Gọi ngay
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* -------------------------------------------------------------
-                  PHẦN 2: XEM LẠI CÁC HÌNH ẢNH TRONG THỜI GIAN TRƯỚC (HISTORY GALLERY)
-                  ------------------------------------------------------------- */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
-                      <History className="w-4 h-4 text-sky-600" />
-                      Lịch sử ảnh chụp sự cố các lần trước đó
-                      <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                        {modalFilteredHistory.length} hình ảnh
-                      </span>
-                    </h4>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Xem lại kho dữ liệu ảnh AI đã chụp tự động khi phát hiện tài xế có dấu hiệu mệt mỏi trong các khung giờ trước
-                    </p>
-                  </div>
-
-                  {/* Bộ lọc loại sự cố lịch sử */}
-                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
-                    <button
-                      onClick={() => setEvidenceFilter('ALL')}
-                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer ${
-                        evidenceFilter === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                      }`}
-                    >
-                      Tất cả
-                    </button>
-                    <button
-                      onClick={() => setEvidenceFilter('DROWSY')}
-                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer ${
-                        evidenceFilter === 'DROWSY' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                      }`}
-                    >
-                      Ngủ gật
-                    </button>
-                    <button
-                      onClick={() => setEvidenceFilter('YAWN')}
-                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer ${
-                        evidenceFilter === 'YAWN' ? 'bg-white text-amber-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                      }`}
-                    >
-                      Ngáp sâu
-                    </button>
-                    <button
-                      onClick={() => setEvidenceFilter('HEAD_DROP')}
-                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer ${
-                        evidenceFilter === 'HEAD_DROP' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                      }`}
-                    >
-                      Gục đầu
-                    </button>
-                  </div>
-                </div>
-
-                {/* Grid các ảnh chụp trước đó */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {modalFilteredHistory.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => setLightboxImage(item.image)}
-                      className="bg-slate-50 rounded-xl border border-slate-200/90 overflow-hidden shadow-2xs hover:shadow-md hover:border-sky-300 transition-all cursor-pointer group flex flex-col justify-between"
-                    >
-                      <div className="relative h-40 bg-slate-900 overflow-hidden">
-                        <img
-                          src={item.image}
-                          alt={item.typeName}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-80" />
-
-                        {/* Tag nhãn thời gian & loại vi phạm */}
-                        <div className="absolute top-2 left-2">
-                          <span
-                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shadow ${
-                              item.severity === 'HIGH'
-                                ? 'bg-rose-600 text-white'
-                                : item.severity === 'MEDIUM'
-                                ? 'bg-amber-500 text-white'
-                                : 'bg-sky-600 text-white'
-                            }`}
-                          >
-                            {item.typeName}
-                          </span>
-                        </div>
-
-                        <div className="absolute top-2 right-2 p-1.5 bg-slate-900/80 rounded-lg text-white opacity-0 group-hover:opacity-100 transition">
-                          <ZoomIn className="w-3.5 h-3.5" />
-                        </div>
-
-                        <div className="absolute bottom-2 left-2 right-2 text-white text-[11px] font-mono flex justify-between items-center">
-                          <span>🕒 {item.time} ({item.date})</span>
-                          <span>⚡ {item.speed}</span>
-                        </div>
-                      </div>
-
-                      <div className="p-3 text-xs flex flex-col justify-between flex-1">
-                        <div>
-                          <p className="font-bold text-slate-800 text-[11px] mb-1 line-clamp-1">
-                            {item.typeName} ({item.duration || '2.0s'})
-                          </p>
-                          <p className="text-[10px] text-slate-500 line-clamp-1">
-                            📍 {item.location}
-                          </p>
-                        </div>
-                        <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex justify-between items-center text-[10px] text-slate-400">
-                          <span>{item.actionTaken}</span>
-                          <span className="text-sky-600 font-bold hover:underline">Xem ảnh &gt;</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {modalFilteredHistory.length === 0 && (
-                  <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                    <Camera className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs font-semibold text-slate-500">Không có hình ảnh vi phạm nào trong bộ lọc này.</p>
-                  </div>
-                )}
-              </div>
-
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
-              <span className="text-xs text-slate-500">
-                Hệ thống lưu trữ ảnh chứng cứ tự động tại Edge Box AI trên xe và đồng bộ đám mây DriveLinker.
-              </span>
-              <button
-                type="button"
-                onClick={() => setSelectedEvidenceVehicle(null)}
-                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer"
-              >
-                Đóng hồ sơ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          4. LIGHTBOX: PHÓNG TO ẢNH CHỤP BẰNG CHỨNG FULL HD
-          ========================================================================= */}
-      {lightboxImage && (
-        <div
-          onClick={() => setLightboxImage(null)}
-          className="fixed inset-0 bg-black/90 backdrop-blur-md z-[60] flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in"
-        >
-          <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center" onClick={e => e.stopPropagation()}>
-            <img
-              src={lightboxImage}
-              alt="Ảnh phóng to"
-              className="max-w-full max-h-[82vh] object-contain rounded-2xl border border-slate-800 shadow-2xl"
-            />
-            <div className="mt-4 flex items-center gap-3">
-              <a
-                href={lightboxImage}
-                download="BangChung_LiveDMS_Full.jpg"
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow transition cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                Tải ảnh gốc về máy
-              </a>
-              <button
-                onClick={() => setLightboxImage(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
-              >
-                Đóng phóng to
-              </button>
+            <div className="flex-1 overflow-hidden flex items-center justify-center p-2 bg-slate-950">
+              <img
+                src={lightboxImage}
+                alt="Bằng chứng toàn màn hình"
+                className="max-w-full max-h-[80vh] object-contain rounded-lg"
+              />
             </div>
           </div>
         </div>
