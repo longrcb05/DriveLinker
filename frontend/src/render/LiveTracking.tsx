@@ -485,33 +485,46 @@ export default function LiveTracking() {
         <div className="flex-1 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col overflow-hidden min-h-0">
 
           {/* 1. Thanh Tiêu Đề Xe (Header Thông Tin) */}
-          <div className="px-6 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 via-white to-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="font-mono font-black text-base bg-slate-900 text-white px-3 py-1 rounded-xl shadow-xs">
+          <div className="px-6 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 via-white to-slate-50/60 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-3.5 min-w-0">
+              {/* Biển số xe */}
+              <div className="font-mono font-black text-sm sm:text-base bg-slate-900 text-white px-3.5 py-1.5 rounded-xl shadow-xs whitespace-nowrap shrink-0 tracking-wider">
                 {activeVehicle.plate}
               </div>
-              <div>
-                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                  <span>{activeVehicle.driver}</span>
-                  <span className="text-xs font-normal text-slate-500">({activeVehicle.model})</span>
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
-                  <span>📞 {activeVehicle.driverPhone}</span>
-                  <span>•</span>
-                  <span>⚡ {activeVehicle.speed} km/h</span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-sky-500" />
-                    {activeVehicle.recentEvidence.location}
+
+              {/* Thông tin tài xế & xe */}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-extrabold text-slate-900 truncate">
+                    {activeVehicle.driver}
+                  </h3>
+                  <span className="text-xs text-slate-500 font-medium truncate">
+                    ({activeVehicle.model})
                   </span>
-                </p>
+                </div>
+
+                <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                  <span className="inline-flex items-center gap-1 font-mono text-slate-600 whitespace-nowrap">
+                    📞 {activeVehicle.driverPhone}
+                  </span>
+                  <span className="text-slate-300">•</span>
+                  <span className="inline-flex items-center gap-1 font-mono text-slate-600 whitespace-nowrap">
+                    ⚡ {activeVehicle.speed} km/h
+                  </span>
+                  <span className="text-slate-300">•</span>
+                  <span className="inline-flex items-center gap-1 text-slate-600 whitespace-nowrap">
+                    <MapPin className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                    <span>{activeVehicle.recentEvidence.location}</span>
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Các nút hành động bên phải */}
+            <div className="flex items-center gap-2.5 shrink-0">
               {/* Badge Trạng thái hiện tại của xe */}
               <span
-                className={`inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-xl shadow-2xs ${
+                className={`inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-2xs whitespace-nowrap shrink-0 ${
                   activeVehicle.status === 'ALERT_DROWSY'
                     ? 'bg-rose-100 text-rose-700 border border-rose-300 animate-pulse'
                     : activeVehicle.status === 'WARNING_YAWN' || activeVehicle.status === 'ALERT_DISTRACTED'
@@ -520,31 +533,22 @@ export default function LiveTracking() {
                 }`}
               >
                 {activeVehicle.status === 'ALERT_DROWSY' ? (
-                  <Flame className="w-3.5 h-3.5 text-rose-600" />
+                  <Flame className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                 ) : activeVehicle.status === 'WARNING_YAWN' || activeVehicle.status === 'ALERT_DISTRACTED' ? (
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                 ) : (
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 )}
                 <span>{activeVehicle.statusLabel}</span>
               </span>
 
-              {/* Phím tắt thao tác nhanh */}
+              {/* Phím tắt Gọi tài xế */}
               <a
                 href={`tel:${activeVehicle.driverPhone}`}
-                className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer active:scale-95"
+                className="py-1.5 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
               >
-                <Phone className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">Gọi tài xế</span>
-              </a>
-
-              <a
-                href={currentEvidence.image}
-                download={`Evidence_${activeVehicle.plate}_${currentEvidence.time}.jpg`}
-                className="py-1.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer active:scale-95"
-              >
-                <Download className="w-3.5 h-3.5 text-slate-500" />
-                <span className="hidden md:inline">Tải ảnh</span>
+                <Phone className="w-3.5 h-3.5 shrink-0" />
+                <span>Gọi tài xế</span>
               </a>
             </div>
           </div>
