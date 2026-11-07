@@ -17,8 +17,16 @@ export class RentalContractService {
     request: RentalContractRequest,
     staffId: number
   ): Promise<RentalContractResponse> {
-    const startDate = request.startTime ? new Date(request.startTime) : new Date();
-    const endDate = request.endTime ? new Date(request.endTime) : new Date(Date.now() + 86400000 * 3);
+    const startDate = new Date(request.startTime);
+    const endDate = new Date(request.endTime);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      throw new Error('Định dạng thời gian không hợp lệ.');
+    }
+
+    if (startDate >= endDate) {
+      throw new Error('Thời gian bắt đầu phải trước thời gian kết thúc.');
+    }
 
     const staff = await prisma.user.findUnique({
       where: { id: staffId },
@@ -28,54 +36,44 @@ export class RentalContractService {
       throw new Error('Không tìm thấy thông tin nhân viên lập hợp đồng.');
     }
 
-    let customer = request.customerId
-      ? await prisma.customer.findUnique({ where: { id: request.customerId } })
-      : null;
-
-    if (!customer && ((request as any).customerPhone || (request as any).renterPhone || (request as any).phone)) {
-      const phone = String((request as any).customerPhone || (request as any).renterPhone || (request as any).phone);
-      customer = await prisma.customer.findFirst({ where: { phone, organizationId: staff.organizationId } });
-      if (!customer) {
-        try {
-          customer = await prisma.customer.create({
-            data: {
-              fullName: (request as any).customerName || (request as any).renterName || (request as any).partnerName || 'Khách thuê xe',
-              phone,
-              idCardNumber: (request as any).idCardNumber || (request as any).cccdNumber || `CCCD-${Date.now().toString().slice(-8)}`,
-              drivingLicense: (request as any).drivingLicense || (request as any).licenseNumber || 'B2-ONLINE',
-              address: (request as any).address || (request as any).renterAddress || 'Đà Nẵng',
-              organizationId: staff.organizationId,
-            },
-          });
-        } catch {
-          customer = await prisma.customer.findFirst({ where: { organizationId: staff.organizationId } });
-        }
-      }
-    }
-
+    const customer = await prisma.customer.findUnique({
+      where: { id: request.customerId },
+      include: { organization: true },
+    });
     if (!customer) {
-      customer = await prisma.customer.findFirst({ where: { organizationId: staff.organizationId } });
-    }
-    if (!customer) {
-      throw new Error('Không tìm thấy thông tin khách hàng để tạo hợp đồng.');
+      throw new Error('Không tìm thấy khách hàng.');
     }
 
-    let vehicle = request.vehicleId
-      ? await prisma.vehicle.findUnique({ where: { id: request.vehicleId } })
-      : null;
-
-    if (!vehicle && ((request as any).carPlate || (request as any).vehiclePlate || (request as any).plate)) {
-      const plate = String((request as any).carPlate || (request as any).vehiclePlate || (request as any).plate);
-      vehicle = await prisma.vehicle.findFirst({ where: { licensePlate: plate, organizationId: staff.organizationId } });
-    }
-
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { id: request.vehicleId },
+      include: { organization: true },
+    });
     if (!vehicle) {
-      vehicle = (await prisma.vehicle.findFirst({ where: { organizationId: staff.organizationId, status: 'AVAILABLE' } })) ||
-                (await prisma.vehicle.findFirst({ where: { organizationId: staff.organizationId } }));
+      throw new Error('Không tìm thấy phương tiện.');
     }
 
-    if (!vehicle) {
-      throw new Error('Không tìm thấy phương tiện để lập hợp đồng.');
+    // Kiểm tra cô lập dữ liệu (Multi-tenant Data Isolation)
+    if (customer.organizationId !== staff.organizationId) {
+      throw new Error('Khách hàng không thuộc quyền quản lý của doanh nghiệp bạn.');
+    }
+
+    if (vehicle.organizationId !== staff.organizationId) {
+      throw new Error('Phương tiện không thuộc quyền quản lý của doanh nghiệp bạn.');
+    }
+
+    if (vehicle.status !== 'AVAILABLE') {
+      throw new Error('Phương tiện không sẵn sàng cho thuê.');
+    }
+
+    const activeContracts = await prisma.rentalContract.findMany({
+      where: {
+        vehicleId: vehicle.id,
+        status: ContractStatus.ACTIVE,
+      },
+    });
+
+    if (activeContracts.length > 0) {
+      throw new Error('Phương tiện này đang có hợp đồng ACTIVE (Đang được thuê).');
     }
 
     const savedContract = await prisma.rentalContract.create({
@@ -86,9 +84,9 @@ export class RentalContractService {
         organizationId: staff.organizationId,
         startTime: startDate,
         endTime: endDate,
-        status: ContractStatus.ACTIVE,
-        price: request.price ? Number(request.price) : 1000000,
-        depositAmount: request.depositAmount ? Number(request.depositAmount) : 0,
+        status: ContractStatus.DRAFT,
+        price: request.price ?? 0,
+        depositAmount: request.depositAmount ?? 0,
         notes: request.notes || null,
       },
       include: {
@@ -96,12 +94,6 @@ export class RentalContractService {
         vehicle: true,
         createdByStaff: true,
       },
-    });
-
-    // Cập nhật trạng thái xe sang RENTED
-    await prisma.vehicle.update({
-      where: { id: vehicle.id },
-      data: { status: 'RENTED' },
     });
 
     return new RentalContractResponse(savedContract);
@@ -281,129 +273,6 @@ export class RentalContractService {
         },
       });
     });
-  }
-
-  /**
-   * BE-3 (Giai đoạn 1 & 2): Khởi tạo yêu cầu thu hồi xe hoặc cập nhật biên bản tiếp nhận
-   */
-  public static async recallVehicle(contractId: number, data: any): Promise<any> {
-    let contract = await prisma.rentalContract.findUnique({
-      where: { id: contractId },
-      include: { vehicle: true },
-    });
-
-    if (!contract && contractId > 2000000) {
-      contract = await prisma.rentalContract.findUnique({
-        where: { id: contractId % 1000 },
-        include: { vehicle: true },
-      });
-    }
-
-    if (!contract && data?.plateNumber) {
-      const veh = await prisma.vehicle.findFirst({
-        where: { licensePlate: data.plateNumber },
-        include: { rentalContracts: { where: { status: 'ACTIVE' }, take: 1, include: { vehicle: true } } },
-      });
-      if (veh?.rentalContracts[0]) {
-        contract = veh.rentalContracts[0] as any;
-      }
-    }
-
-    const newStatus = data.status || 'PENDING_RECALL';
-
-    if (contract) {
-      const notes = data.reason
-        ? `${contract.notes || ''} [Yêu cầu thu hồi: ${data.reason}]`.trim()
-        : contract.notes;
-
-      await prisma.rentalContract.update({
-        where: { id: contract.id },
-        data: { notes },
-      });
-
-      if (contract.vehicle) {
-        await prisma.vehicle.update({
-          where: { id: contract.vehicle.id },
-          data: { status: 'PENDING_INSPECTION' },
-        });
-      }
-    } else if (data?.plateNumber) {
-      // Cập nhật trạng thái xe trực tiếp nếu hợp đồng được tạo ở client
-      await prisma.vehicle.updateMany({
-        where: { licensePlate: data.plateNumber },
-        data: { status: 'PENDING_INSPECTION' },
-      });
-    }
-
-    return {
-      contractId: contract?.id || contractId,
-      status: newStatus,
-      recallData: data,
-    };
-  }
-
-  /**
-   * BE-3 (Giai đoạn 3): Nghiệm thu quyết toán tài chính & kết thúc thu hồi xe
-   */
-  public static async settleRecall(contractId: number, data: any): Promise<any> {
-    let contract = await prisma.rentalContract.findUnique({
-      where: { id: contractId },
-      include: { vehicle: true },
-    });
-
-    if (!contract && contractId > 2000000) {
-      contract = await prisma.rentalContract.findUnique({
-        where: { id: contractId % 1000 },
-        include: { vehicle: true },
-      });
-    }
-
-    if (!contract && data?.plateNumber) {
-      const veh = await prisma.vehicle.findFirst({
-        where: { licensePlate: data.plateNumber },
-        include: { rentalContracts: { where: { status: 'ACTIVE' }, take: 1, include: { vehicle: true } } },
-      });
-      if (veh?.rentalContracts[0]) {
-        contract = veh.rentalContracts[0] as any;
-      }
-    }
-
-    const now = new Date();
-    const inspectionResult = data.inspectionResult || 'PASS';
-    const targetVehicleStatus = inspectionResult === 'PASS' ? 'AVAILABLE' : 'MAINTENANCE';
-
-    if (contract) {
-      await prisma.$transaction(async (tx) => {
-        await tx.rentalContract.update({
-          where: { id: contract.id },
-          data: {
-            status: ContractStatus.COMPLETED,
-            actualReturnTime: now,
-            notes: `${contract.notes || ''} [Quyết toán ODO: ${data.mileage || 'N/A'}, Xăng: ${data.fuelLevel || 'N/A'}, Phạt: ${data.damageFee || 0}đ, Hoàn cọc: ${data.depositRefund || 0}đ]`.trim(),
-          },
-        });
-
-        if (contract.vehicle) {
-          await tx.vehicle.update({
-            where: { id: contract.vehicle.id },
-            data: { status: targetVehicleStatus },
-          });
-        }
-      });
-    } else if (data?.plateNumber) {
-      // Cập nhật trạng thái xe theo kết quả kiểm định
-      await prisma.vehicle.updateMany({
-        where: { licensePlate: data.plateNumber },
-        data: { status: targetVehicleStatus },
-      });
-    }
-
-    return {
-      contractId: contract?.id || contractId,
-      status: 'COMPLETED',
-      vehicleStatus: targetVehicleStatus,
-      settlement: data,
-    };
   }
 }
 

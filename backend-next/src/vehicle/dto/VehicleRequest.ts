@@ -7,5 +7,5 @@ export interface VehicleRequest {
   vehicleType: string;
   brand: string;
   model: string;
-  status?: string;
 }
+

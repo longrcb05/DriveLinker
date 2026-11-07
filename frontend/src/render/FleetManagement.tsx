@@ -1,4 +1,3 @@
-import { dlDialog } from '../context/DialogContext';
 /**
  * @file FleetManagement.tsx
  * @description Trang Quản lý & Theo dõi Đội xe (Fleet Tracking) hoàn chỉnh.
@@ -16,7 +15,7 @@ import { vehicleService, type Vehicle, type VehicleStatus } from '../services/ve
 import { useLanguage } from '../context/LanguageContext';
 
 export default function FleetManagement() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const tenantId = localStorage.getItem('tenantId') || 'COMPANY_A';
   const userRole = localStorage.getItem('userRole') || 'TENANT_STAFF';
   const isManager = userRole === 'TENANT_ADMIN' || userRole === 'SYS_ADMIN' || userRole === 'SUPER_ADMIN_VIEW';
@@ -32,6 +31,7 @@ export default function FleetManagement() {
   const [viewingVehicle, setViewingVehicle] = useState<Vehicle | null>(null);
   const [deletingVehicle, setDeletingVehicle] = useState<Vehicle | null>(null);
   const [inspectingVehicle, setInspectingVehicle] = useState<Vehicle | null>(null);
+  const [completingVehicle, setCompletingVehicle] = useState<Vehicle | null>(null);
 
   // Form state for Add / Edit
   const [formData, setFormData] = useState({
@@ -46,30 +46,6 @@ export default function FleetManagement() {
     notes: '',
   });
   const [formError, setFormError] = useState<string>('');
-
-  // State thông tin hợp đồng tạm / đặt trước xe
-  const [reservationForm, setReservationForm] = useState({
-    customerName: '',
-    phone: '',
-    idCard: '',
-    startDate: '',
-    endDate: '',
-    deposit: 5000000,
-    notes: '',
-  });
-
-  // Xử lý xác nhận đã bảo trì xong
-  const handleCompleteMaintenance = async (v: Vehicle) => {
-    const ok = await dlDialog.confirm(`Xác nhận phương tiện ${v.plate} đã hoàn thành bảo dưỡng và sẵn sàng bàn giao đón khách?`, { title: 'Hoàn tất bảo dưỡng', type: 'success' });
-    if (!ok) return;
-    try {
-      await vehicleService.completeMaintenance(tenantId, v.id);
-      await loadVehicles();
-      dlDialog.alert(`Phương tiện ${v.plate} đã hoàn tất bảo trì và chuyển sang trạng thái SẴN SÀNG CHO THUÊ!`, { title: 'Nghiệm thu thành công', type: 'success' });
-    } catch (err: any) {
-      dlDialog.alert(err.message || 'Lỗi cập nhật bảo trì.', { title: 'Thông báo lỗi', type: 'danger' });
-    }
-  };
 
   const loadVehicles = useCallback(async () => {
     setLoading(true);
@@ -87,18 +63,13 @@ export default function FleetManagement() {
     loadVehicles();
 
     // Lắng nghe sự kiện cập nhật dữ liệu từ các tab hoặc component khác
-    let debounceTimer: any = null;
     const handleStorageUpdate = () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        loadVehicles();
-      }, 500);
+      loadVehicles();
     };
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('dl_vehicles_updated', handleStorageUpdate);
 
     return () => {
-      clearTimeout(debounceTimer);
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('dl_vehicles_updated', handleStorageUpdate);
     };
@@ -152,10 +123,6 @@ export default function FleetManagement() {
 
   // Mở modal sửa xe
   const handleOpenEditModal = (vehicle: Vehicle) => {
-    if (vehicle.status === 'RENTED') {
-      dlDialog.alert('Phương tiện đang trong hợp đồng cho thuê trên đường, không thể chỉnh sửa trạng thái!', { title: 'Cảnh báo ràng buộc', type: 'warning' });
-      return;
-    }
     setEditingVehicle(vehicle);
     setFormData({
       plate: vehicle.plate,
@@ -168,27 +135,6 @@ export default function FleetManagement() {
       driverPhone: vehicle.driverPhone || '',
       notes: vehicle.notes || '',
     });
-    if (vehicle.reservationInfo) {
-      setReservationForm({
-        customerName: vehicle.reservationInfo.customerName || '',
-        phone: vehicle.reservationInfo.phone || '',
-        idCard: vehicle.reservationInfo.idCard || '',
-        startDate: vehicle.reservationInfo.startDate || '',
-        endDate: vehicle.reservationInfo.endDate || '',
-        deposit: vehicle.reservationInfo.deposit || 5000000,
-        notes: vehicle.reservationInfo.notes || '',
-      });
-    } else {
-      setReservationForm({
-        customerName: '',
-        phone: '',
-        idCard: '',
-        startDate: new Date().toISOString().slice(0, 16),
-        endDate: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 16),
-        deposit: 5000000,
-        notes: '',
-      });
-    }
     setFormError('');
     setIsModalOpen(true);
   };
@@ -203,24 +149,9 @@ export default function FleetManagement() {
 
     try {
       if (editingVehicle) {
-        if (formData.status === 'RESERVED' && reservationForm.customerName) {
-          await vehicleService.reserveVehicle(tenantId, editingVehicle.id, reservationForm);
-          await vehicleService.updateVehicle(tenantId, editingVehicle.id, {
-            brand: formData.brand,
-            model: formData.model,
-            year: formData.year,
-            payload: formData.payload,
-            driver: formData.driver,
-            driverPhone: formData.driverPhone,
-          });
-        } else {
-          await vehicleService.updateVehicle(tenantId, editingVehicle.id, formData);
-        }
+        await vehicleService.updateVehicle(tenantId, editingVehicle.id, formData);
       } else {
-        const created = await vehicleService.createVehicle(tenantId, formData);
-        if (formData.status === 'RESERVED' && reservationForm.customerName) {
-          await vehicleService.reserveVehicle(tenantId, created.id, reservationForm);
-        }
+        await vehicleService.createVehicle(tenantId, formData);
       }
       setIsModalOpen(false);
       await loadVehicles();
@@ -237,7 +168,7 @@ export default function FleetManagement() {
       setDeletingVehicle(null);
       await loadVehicles();
     } catch (err: any) {
-      dlDialog.alert(err.message || 'Lỗi khi xóa phương tiện.', { title: 'Không thể xóa xe', type: 'danger' });
+      alert(err.message || 'Lỗi khi xóa phương tiện.');
     }
   };
 
@@ -256,7 +187,24 @@ export default function FleetManagement() {
       setInspectingVehicle(null);
       await loadVehicles();
     } catch (err: any) {
-      dlDialog.alert(err.message, { title: 'Thông báo', type: 'warning' });
+      alert(err.message);
+    }
+  };
+
+  // Xử lý hoàn tất bảo dưỡng xe (từ MAINTENANCE sang AVAILABLE)
+  const handleConfirmCompleteMaintenance = async () => {
+    if (!completingVehicle) return;
+    try {
+      await vehicleService.updateVehicleStatus(
+        tenantId,
+        completingVehicle.id,
+        'AVAILABLE',
+        'Hoàn thành bảo dưỡng - sẵn sàng bàn giao đón khách'
+      );
+      setCompletingVehicle(null);
+      await loadVehicles();
+    } catch (err: any) {
+      alert(err.message || 'Lỗi khi cập nhật trạng thái.');
     }
   };
 
@@ -348,14 +296,14 @@ export default function FleetManagement() {
         </div>
       </div>
 
-      {/* 2. STATS KPI CARDS (6 Trạng thái - Đã khắc phục lỗi mờ chữ & hỗ trợ Toggle) */}
+      {/* 2. STATS KPI CARDS (6 Trạng thái) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         <div
           onClick={() => setSelectedStatus('ALL')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer select-none ${
+          className={`p-4 rounded-xl border transition-all cursor-pointer ${
             selectedStatus === 'ALL'
-              ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-400 scale-[1.02]'
-              : 'bg-white hover:border-slate-300 text-slate-700 hover:shadow-xs'
+              ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-400'
+              : 'bg-white hover:border-slate-300 text-slate-700'
           }`}
         >
           <div className="flex justify-between items-center mb-1">
@@ -367,87 +315,87 @@ export default function FleetManagement() {
         </div>
 
         <div
-          onClick={() => setSelectedStatus(selectedStatus === 'AVAILABLE' ? 'ALL' : 'AVAILABLE')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer select-none ${
+          onClick={() => setSelectedStatus('AVAILABLE')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer ${
             selectedStatus === 'AVAILABLE'
-              ? 'bg-emerald-50 border-2 border-emerald-500 shadow-md ring-2 ring-emerald-300 scale-[1.02]'
-              : 'bg-white hover:border-emerald-200 text-slate-700 hover:shadow-xs'
+              ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-300'
+              : 'bg-white hover:border-emerald-200 text-slate-700'
           }`}
         >
           <div className="flex justify-between items-center mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 group-hover:text-emerald-700">
               {t('fleet.kpiAvailable')}
             </span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
           </div>
-          <h3 className="text-2xl font-black text-emerald-950">{stats.available}</h3>
-          <p className="text-[10px] text-emerald-700 font-medium mt-1">{t('fleet.subAvailable')}</p>
+          <h3 className="text-2xl font-black text-emerald-600">{stats.available}</h3>
+          <p className="text-[10px] text-slate-400 mt-1">{t('fleet.subAvailable')}</p>
         </div>
 
         <div
-          onClick={() => setSelectedStatus(selectedStatus === 'RENTED' ? 'ALL' : 'RENTED')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer select-none ${
+          onClick={() => setSelectedStatus('RENTED')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer ${
             selectedStatus === 'RENTED'
-              ? 'bg-sky-50 border-2 border-sky-500 shadow-md ring-2 ring-sky-300 scale-[1.02]'
-              : 'bg-white hover:border-sky-200 text-slate-700 hover:shadow-xs'
+              ? 'bg-sky-600 text-white border-sky-600 shadow-md ring-2 ring-sky-300'
+              : 'bg-white hover:border-sky-200 text-slate-700'
           }`}
         >
           <div className="flex justify-between items-center mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700">{t('fleet.kpiRented')}</span>
-            <Truck className="w-4 h-4 text-sky-600" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600">{t('fleet.kpiRented')}</span>
+            <Truck className="w-4 h-4 text-sky-500" />
           </div>
-          <h3 className="text-2xl font-black text-sky-950">{stats.rented}</h3>
-          <p className="text-[10px] text-sky-700 font-medium mt-1">{t('fleet.subRented')}</p>
+          <h3 className="text-2xl font-black text-sky-600">{stats.rented}</h3>
+          <p className="text-[10px] text-slate-400 mt-1">{t('fleet.subRented')}</p>
         </div>
 
         <div
-          onClick={() => setSelectedStatus(selectedStatus === 'RESERVED' ? 'ALL' : 'RESERVED')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer select-none ${
+          onClick={() => setSelectedStatus('RESERVED')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer ${
             selectedStatus === 'RESERVED'
-              ? 'bg-indigo-50 border-2 border-indigo-500 shadow-md ring-2 ring-indigo-300 scale-[1.02]'
-              : 'bg-white hover:border-indigo-200 text-slate-700 hover:shadow-xs'
+              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-300'
+              : 'bg-white hover:border-indigo-200 text-slate-700'
           }`}
         >
           <div className="flex justify-between items-center mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">{t('fleet.kpiReserved')}</span>
-            <Clock className="w-4 h-4 text-indigo-600" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">{t('fleet.kpiReserved')}</span>
+            <Clock className="w-4 h-4 text-indigo-500" />
           </div>
-          <h3 className="text-2xl font-black text-indigo-950">{stats.reserved}</h3>
-          <p className="text-[10px] text-indigo-700 font-medium mt-1">{t('fleet.subReserved')}</p>
+          <h3 className="text-2xl font-black text-indigo-600">{stats.reserved}</h3>
+          <p className="text-[10px] text-slate-400 mt-1">{t('fleet.subReserved')}</p>
         </div>
 
         <div
-          onClick={() => setSelectedStatus(selectedStatus === 'MAINTENANCE' ? 'ALL' : 'MAINTENANCE')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer select-none ${
+          onClick={() => setSelectedStatus('MAINTENANCE')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer ${
             selectedStatus === 'MAINTENANCE'
-              ? 'bg-amber-50 border-2 border-amber-500 shadow-md ring-2 ring-amber-300 scale-[1.02]'
-              : 'bg-white hover:border-amber-200 text-slate-700 hover:shadow-xs'
+              ? 'bg-amber-600 text-white border-amber-600 shadow-md ring-2 ring-amber-300'
+              : 'bg-white hover:border-amber-200 text-slate-700'
           }`}
         >
           <div className="flex justify-between items-center mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">{t('fleet.kpiMaintenance')}</span>
-            <Wrench className="w-4 h-4 text-amber-600" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">{t('fleet.kpiMaintenance')}</span>
+            <Wrench className="w-4 h-4 text-amber-500" />
           </div>
-          <h3 className="text-2xl font-black text-amber-950">{stats.maintenance}</h3>
-          <p className="text-[10px] text-amber-700 font-medium mt-1">{t('fleet.subMaintenance')}</p>
+          <h3 className="text-2xl font-black text-amber-600">{stats.maintenance}</h3>
+          <p className="text-[10px] text-slate-400 mt-1">{t('fleet.subMaintenance')}</p>
         </div>
 
         <div
-          onClick={() => setSelectedStatus(selectedStatus === 'PENDING_INSPECTION' ? 'ALL' : 'PENDING_INSPECTION')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer select-none ${
+          onClick={() => setSelectedStatus('PENDING_INSPECTION')}
+          className={`p-4 rounded-xl border transition-all cursor-pointer ${
             selectedStatus === 'PENDING_INSPECTION'
-              ? 'bg-rose-50 border-2 border-rose-500 shadow-md ring-2 ring-rose-300 scale-[1.02]'
-              : 'bg-white hover:border-rose-200 text-slate-700 hover:shadow-xs'
+              ? 'bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-300'
+              : 'bg-white hover:border-rose-200 text-slate-700'
           }`}
         >
           <div className="flex justify-between items-center mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">
               {t('fleet.kpiPendingInspection')}
             </span>
-            <AlertTriangle className="w-4 h-4 text-rose-600 animate-pulse" />
+            <AlertTriangle className="w-4 h-4 text-rose-500 animate-pulse" />
           </div>
-          <h3 className="text-2xl font-black text-rose-950">{stats.pendingInspection}</h3>
-          <p className="text-[10px] text-rose-700 font-medium mt-1">{t('fleet.subPendingInspection')}</p>
+          <h3 className="text-2xl font-black text-rose-600">{stats.pendingInspection}</h3>
+          <p className="text-[10px] text-slate-400 mt-1">{t('fleet.subPendingInspection')}</p>
         </div>
       </div>
 
@@ -470,13 +418,13 @@ export default function FleetManagement() {
             onChange={e => setSelectedStatus(e.target.value as any)}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-sky-500 cursor-pointer"
           >
-            <option value="ALL">{t('fleet.filterAllStatus')} ({vehicles.length})</option>
-            <option value="AVAILABLE">{t('fleet.statusAvailable')} ({stats.available})</option>
-            <option value="RENTED">{t('fleet.statusRented')} ({stats.rented})</option>
-            <option value="RESERVED">{t('fleet.statusReserved')} ({stats.reserved})</option>
-            <option value="MAINTENANCE">{t('fleet.statusMaintenance')} ({stats.maintenance})</option>
-            <option value="PENDING_INSPECTION">{t('fleet.statusPendingInspection')} ({stats.pendingInspection})</option>
-            <option value="INACTIVE">{t('fleet.statusInactive')} ({stats.inactive})</option>
+            <option value="ALL">{t('fleet.filterAllStatus')} • {vehicles.length}</option>
+            <option value="AVAILABLE">{t('fleet.statusAvailable')} • {stats.available}</option>
+            <option value="RENTED">{t('fleet.statusRented')} • {stats.rented}</option>
+            <option value="RESERVED">{t('fleet.statusReserved')} • {stats.reserved}</option>
+            <option value="MAINTENANCE">{t('fleet.statusMaintenance')} • {stats.maintenance}</option>
+            <option value="PENDING_INSPECTION">{t('fleet.statusPendingInspection')} • {stats.pendingInspection}</option>
+            <option value="INACTIVE">{t('fleet.statusInactive')} • {stats.inactive}</option>
           </select>
         </div>
       </div>
@@ -532,20 +480,24 @@ export default function FleetManagement() {
 
                     {/* Cột 3: Trạng thái */}
                     <td className="p-4">
-                      {renderStatusBadge(v.status)}
-                      {v.status === 'MAINTENANCE' && isManager && (
-                        <button
-                          onClick={() => handleCompleteMaintenance(v)}
-                          className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-md transition shadow-xs cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          Đã bảo trì xong
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {renderStatusBadge(v.status)}
+                        {v.status === 'MAINTENANCE' && (
+                          <button
+                            type="button"
+                            onClick={() => setCompletingVehicle(v)}
+                            title={t('fleet.completeMaintenanceBtn')}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer shadow-xs active:scale-95"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{t('fleet.completeMaintenanceBtn')}</span>
+                          </button>
+                        )}
+                      </div>
                       {v.status === 'PENDING_INSPECTION' && isManager && (
                         <button
                           onClick={() => setInspectingVehicle(v)}
-                          className="mt-1.5 block text-[10px] font-bold text-rose-600 hover:text-rose-700 underline cursor-pointer"
+                          className="mt-1.5 block text-[10px] font-bold text-rose-600 hover:text-rose-700 underline"
                         >
                           {t('fleet.inspectNowBtn')}
                         </button>
@@ -597,23 +549,13 @@ export default function FleetManagement() {
 
                         {isManager && (
                           <>
-                            {v.status === 'RENTED' ? (
-                              <button
-                                disabled
-                                title="Xe đang cho thuê trên lộ trình, không thể can thiệp trạng thái!"
-                                className="p-1.5 text-slate-300 cursor-not-allowed rounded-lg"
-                              >
-                                <Edit3 className="w-4 h-4 opacity-40" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleOpenEditModal(v)}
-                                title={t('common.edit')}
-                                className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition cursor-pointer"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                            )}
+                            <button
+                              onClick={() => handleOpenEditModal(v)}
+                              title={t('common.edit')}
+                              className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
 
                             <button
                               onClick={() => setDeletingVehicle(v)}
@@ -757,94 +699,6 @@ export default function FleetManagement() {
                 </div>
               </div>
 
-              {/* Form Hợp đồng tạm / Thông tin đặt trước khi chọn RESERVED */}
-              {formData.status === 'RESERVED' && (
-                <div className="p-4 bg-indigo-50/80 border border-indigo-200 rounded-xl space-y-3 animate-in fade-in">
-                  <div className="flex items-center gap-2 text-indigo-800 font-bold text-xs border-b border-indigo-200 pb-2">
-                    <Clock className="w-4 h-4 text-indigo-600" />
-                    <span>Thông tin Đặt trước xe (Lên hợp đồng tạm)</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Tên khách hàng (*)</label>
-                      <input
-                        type="text"
-                        required
-                        value={reservationForm.customerName}
-                        onChange={e => setReservationForm({ ...reservationForm, customerName: e.target.value })}
-                        placeholder="VD: Nguyễn Văn B..."
-                        className="w-full px-2.5 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs font-medium outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Số điện thoại (*)</label>
-                      <input
-                        type="tel"
-                        required
-                        value={reservationForm.phone}
-                        onChange={e => setReservationForm({ ...reservationForm, phone: e.target.value })}
-                        placeholder="VD: 0905123456"
-                        className="w-full px-2.5 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs font-medium outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Số CCCD / CMND</label>
-                      <input
-                        type="text"
-                        value={reservationForm.idCard}
-                        onChange={e => setReservationForm({ ...reservationForm, idCard: e.target.value })}
-                        placeholder="048099..."
-                        className="w-full px-2.5 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs font-medium outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Ngày giờ nhận xe</label>
-                      <input
-                        type="datetime-local"
-                        value={reservationForm.startDate}
-                        onChange={e => setReservationForm({ ...reservationForm, startDate: e.target.value })}
-                        className="w-full px-2 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs font-medium outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Ngày giờ trả dự kiến</label>
-                      <input
-                        type="datetime-local"
-                        value={reservationForm.endDate}
-                        onChange={e => setReservationForm({ ...reservationForm, endDate: e.target.value })}
-                        className="w-full px-2 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs font-medium outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Tiền cọc giữ chỗ (VNĐ)</label>
-                      <input
-                        type="number"
-                        value={reservationForm.deposit}
-                        onChange={e => setReservationForm({ ...reservationForm, deposit: Number(e.target.value) })}
-                        className="w-full px-2.5 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Ghi chú hợp đồng tạm</label>
-                      <input
-                        type="text"
-                        value={reservationForm.notes}
-                        onChange={e => setReservationForm({ ...reservationForm, notes: e.target.value })}
-                        placeholder="VD: Dự án công trình, cọc giữ xe..."
-                        className="w-full px-2.5 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs font-medium outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -961,6 +815,54 @@ export default function FleetManagement() {
         </div>
       )}
 
+      {/* ================= MODAL: HOÀN TẤT BẢO DƯỠNG ================= */}
+      {completingVehicle && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md p-6 sm:p-8 text-center animate-in zoom-in-95">
+            {/* Icon Checkmark tròn xanh trong khung bo góc mint */}
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-100/80 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500" strokeWidth={2.3} />
+            </div>
+
+            {/* Tiêu đề */}
+            <h3 className="font-extrabold text-slate-900 text-xl mb-3 tracking-tight">
+              {t('fleet.completeMaintenanceModalTitle')}
+            </h3>
+
+            {/* Nội dung thông báo */}
+            <p className="text-sm text-slate-600 leading-relaxed mb-8 max-w-[320px] mx-auto">
+              {language === 'vi' ? (
+                <>
+                  Xác nhận phương tiện <strong className="text-slate-900 font-bold font-mono">{completingVehicle.plate}</strong> đã hoàn thành bảo dưỡng và sẵn sàng bàn giao đón khách?
+                </>
+              ) : (
+                <>
+                  Confirm that vehicle <strong className="text-slate-900 font-bold font-mono">{completingVehicle.plate}</strong> has completed maintenance and is ready for dispatch?
+                </>
+              )}
+            </p>
+
+            {/* 2 Nút thao tác: Hủy bỏ & Xác nhận */}
+            <div className="grid grid-cols-2 gap-3.5">
+              <button
+                type="button"
+                onClick={() => setCompletingVehicle(null)}
+                className="py-3 px-5 text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl transition cursor-pointer shadow-xs active:scale-95"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCompleteMaintenance}
+                className="py-3 px-5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-2xl shadow-md shadow-emerald-600/25 transition cursor-pointer active:scale-95"
+              >
+                {t('common.confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL: CHI TIẾT PHƯƠNG TIỆN ================= */}
       {viewingVehicle && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -978,9 +880,25 @@ export default function FleetManagement() {
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
                 <div>
                   <span className="font-mono text-base font-extrabold text-slate-800">{viewingVehicle.plate}</span>
-                  <p className="text-slate-500 mt-0.5">{viewingVehicle.brand} {viewingVehicle.model} ({viewingVehicle.year})</p>
+                  <p className="text-slate-500 mt-0.5">{viewingVehicle.brand} {viewingVehicle.model} • {viewingVehicle.year}</p>
                 </div>
-                {renderStatusBadge(viewingVehicle.status)}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {renderStatusBadge(viewingVehicle.status)}
+                  {viewingVehicle.status === 'MAINTENANCE' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = viewingVehicle;
+                        setViewingVehicle(null);
+                        setCompletingVehicle(target);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer shadow-xs active:scale-95"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{t('fleet.completeMaintenanceBtn')}</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1001,21 +919,6 @@ export default function FleetManagement() {
                   <span className="font-bold text-emerald-600">{viewingVehicle.speed || '0 km/h'}</span>
                 </div>
               </div>
-
-              {viewingVehicle.reservationInfo && (
-                <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-indigo-900">
-                  <span className="font-bold text-xs flex items-center gap-1.5 text-indigo-800 uppercase tracking-wider">
-                    <Clock className="w-3.5 h-3.5" /> Thông tin Đặt trước / Hợp đồng tạm:
-                  </span>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <p>Khách hàng: <strong>{viewingVehicle.reservationInfo.customerName}</strong></p>
-                    <p>Điện thoại: <strong>{viewingVehicle.reservationInfo.phone}</strong></p>
-                    <p>Nhận xe: <span className="font-mono">{viewingVehicle.reservationInfo.startDate}</span></p>
-                    <p>Trả xe: <span className="font-mono">{viewingVehicle.reservationInfo.endDate}</span></p>
-                    <p className="col-span-2">Tiền cọc giữ chỗ: <strong className="text-emerald-700">{Number(viewingVehicle.reservationInfo.deposit || 0).toLocaleString('vi-VN')} VNĐ</strong></p>
-                  </div>
-                </div>
-              )}
 
               {viewingVehicle.notes && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">

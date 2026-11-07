@@ -8,8 +8,8 @@ import { VehicleResponse } from '@/vehicle/dto/VehicleResponse';
  */
 export class VehicleService {
   private static validateLicensePlate(licensePlate: string, vehicleType: string): void {
-    if (!licensePlate || licensePlate.length < 7 || licensePlate.length > 12) {
-      throw new Error('Biển số xe không hợp lệ về độ dài (phải từ 7 - 12 ký tự)!');
+    if (!licensePlate || licensePlate.length < 8 || licensePlate.length > 10) {
+      throw new Error('Biển số xe không hợp lệ về độ dài (phải từ 8 - 10 ký tự)!');
     }
 
     if (
@@ -21,27 +21,48 @@ export class VehicleService {
       throw new Error('Biển số xe phải bắt đầu bằng 2 chữ số mã tỉnh!');
     }
 
-    const typeUpper = vehicleType ? vehicleType.toUpperCase() : 'CAR';
+    const typeUpper = vehicleType ? vehicleType.toUpperCase() : '';
 
-    if (typeUpper === 'CAR' || typeUpper === 'TRUCK' || typeUpper === 'VAN' || typeUpper === 'SUV') {
+    if (typeUpper === 'CAR' || typeUpper === 'TRUCK') {
+      // Mẫu Ô TÔ: 43A-12345 (length 9) hoặc 43A-1234 (length 8)
       const char2 = licensePlate.charAt(2);
       if (!((char2 >= 'A' && char2 <= 'Z') || (char2 >= 'a' && char2 <= 'z'))) {
-        throw new Error('Biển số Ô tô/Tải: Ký tự thứ 3 phải là chữ cái (VD: 43A-123.45)');
+        throw new Error('Biển số Ô tô/Tải: Ký tự thứ 3 phải là chữ cái in hoa (VD: 43A-12345)');
       }
       if (licensePlate.charAt(3) !== '-') {
-        throw new Error('Biển số Ô tô/Tải: Phải có dấu gạch ngang sau phần chữ (VD: 43A-123.45)');
+        throw new Error('Biển số Ô tô/Tải: Phải có dấu gạch ngang sau phần chữ (VD: 43A-12345)');
       }
       for (let i = 4; i < licensePlate.length; i++) {
         const c = licensePlate.charAt(i);
-        if ((c < '0' || c > '9') && c !== '.') {
-          throw new Error('Phần đuôi của biển số Ô tô/Tải chỉ được chứa số hoặc dấu chấm!');
+        if (c < '0' || c > '9') {
+          throw new Error('Phần đuôi của biển số Ô tô/Tải chỉ được chứa số!');
         }
       }
     } else if (typeUpper === 'MOTORCYCLE') {
+      // Mẫu XE MÁY: 43H1-34615 (length 10) hoặc 43H1-1234 (length 9)
       const char2 = licensePlate.charAt(2);
       if (!((char2 >= 'A' && char2 <= 'Z') || (char2 >= 'a' && char2 <= 'z'))) {
         throw new Error('Biển số Xe máy: Ký tự thứ 3 phải là chữ cái (VD: 43H1-34615)');
       }
+      const char3 = licensePlate.charAt(3);
+      const isAlphaNum =
+        (char3 >= '0' && char3 <= '9') ||
+        (char3 >= 'A' && char3 <= 'Z') ||
+        (char3 >= 'a' && char3 <= 'z');
+      if (!isAlphaNum) {
+        throw new Error('Biển số Xe máy: Ký tự thứ 4 phải là số hoặc chữ (VD: 43H1-34615)');
+      }
+      if (licensePlate.charAt(4) !== '-') {
+        throw new Error('Biển số Xe máy: Phải có dấu gạch ngang sau mã vùng (VD: 43H1-34615)');
+      }
+      for (let i = 5; i < licensePlate.length; i++) {
+        const c = licensePlate.charAt(i);
+        if (c < '0' || c > '9') {
+          throw new Error('Phần đuôi của biển số Xe máy chỉ được chứa số!');
+        }
+      }
+    } else {
+      throw new Error('Loại xe (vehicleType) phải là CAR, TRUCK hoặc MOTORCYCLE');
     }
   }
 
@@ -78,7 +99,7 @@ export class VehicleService {
         brand: request.brand,
         model: request.model,
         organizationId: organizationId,
-        status: request.status || 'AVAILABLE',
+        status: 'AVAILABLE',
       },
     });
 
@@ -107,105 +128,6 @@ export class VehicleService {
     }
 
     return new VehicleResponse(vehicle);
-  }
-
-  public static async updateVehicle(
-    vehicleIdOrPlate: number | string,
-    data: any,
-    orgId: number
-  ): Promise<any> {
-    const whereClause: any = { organizationId: orgId };
-    if (typeof vehicleIdOrPlate === 'number' || !isNaN(Number(vehicleIdOrPlate))) {
-      whereClause.id = Number(vehicleIdOrPlate);
-    } else {
-      whereClause.licensePlate = String(vehicleIdOrPlate);
-    }
-
-    const existing = await prisma.vehicle.findFirst({ where: whereClause });
-    if (!existing) {
-      throw new Error('Không tìm thấy phương tiện cần cập nhật.');
-    }
-
-    const updateData: any = {};
-    if (data.status) updateData.status = data.status;
-    if (data.brand) updateData.brand = data.brand;
-    if (data.model) updateData.model = data.model;
-    if (data.vehicleType) updateData.vehicleType = data.vehicleType;
-    if (data.movementStatus) updateData.movementStatus = data.movementStatus;
-    if (data.lastSpeed !== undefined) updateData.lastSpeed = Number(data.lastSpeed);
-
-    const updated = await prisma.vehicle.update({
-      where: { id: existing.id },
-      data: updateData,
-    });
-
-    return updated;
-  }
-
-  public static async deleteVehicle(
-    vehicleIdOrPlate: number | string,
-    orgId: number
-  ): Promise<boolean> {
-    const whereClause: any = { organizationId: orgId };
-    if (typeof vehicleIdOrPlate === 'number' || !isNaN(Number(vehicleIdOrPlate))) {
-      whereClause.id = Number(vehicleIdOrPlate);
-    } else {
-      whereClause.licensePlate = String(vehicleIdOrPlate);
-    }
-
-    const existing = await prisma.vehicle.findFirst({ where: whereClause });
-    if (!existing) {
-      throw new Error('Không tìm thấy phương tiện cần xóa.');
-    }
-
-    try {
-      await prisma.vehicle.delete({ where: { id: existing.id } });
-    } catch {
-      await prisma.vehicle.update({
-        where: { id: existing.id },
-        data: { status: 'INACTIVE' },
-      });
-    }
-
-    return true;
-  }
-
-  /**
-   * Nghiệm thu xe sau thu hồi (BE-4): Chuyển PENDING_INSPECTION sang AVAILABLE (Đạt) hoặc MAINTENANCE (Cần bảo trì)
-   */
-  public static async inspectVehicle(
-    vehicleIdOrPlate: number | string,
-    result: 'PASS' | 'FAIL',
-    notes: string,
-    orgId: number
-  ): Promise<any> {
-    const whereClause: any = { organizationId: orgId };
-    if (typeof vehicleIdOrPlate === 'number' || !isNaN(Number(vehicleIdOrPlate))) {
-      whereClause.id = Number(vehicleIdOrPlate);
-    } else {
-      whereClause.licensePlate = String(vehicleIdOrPlate);
-    }
-
-    const existing = await prisma.vehicle.findFirst({ where: whereClause });
-    if (!existing) {
-      throw new Error('Không tìm thấy phương tiện để nghiệm thu.');
-    }
-
-    const targetStatus = result === 'PASS' ? 'AVAILABLE' : 'MAINTENANCE';
-
-    const updated = await prisma.vehicle.update({
-      where: { id: existing.id },
-      data: {
-        status: targetStatus,
-      },
-    });
-
-    return {
-      vehicle: updated,
-      inspectionResult: result,
-      status: targetStatus,
-      notes,
-    };
   }
 }
 

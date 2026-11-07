@@ -1,4 +1,3 @@
-import extractAuth from '@/common/security/authHelper';
 import { NextRequest } from 'next/server';
 import ApiResponse from '@/common/response/ApiResponse';
 import JwtService from '@/common/security/JwtService';
@@ -10,18 +9,33 @@ import prisma from '@/lib/prisma';
  * Tương ứng 1:1 với com.drivelinker.vehicle.controller.VehicleController trong Java.
  */
 export class VehicleController {
-  private static async extractAuth(request: NextRequest) {
-    return extractAuth(request);
-  }
-
   /**
    * POST /api/vehicles
    */
   static async createVehicle(request: NextRequest) {
     try {
-      const user = await this.extractAuth(request);
+      const authHeader = request.headers.get('authorization');
+      const token = JwtService.getTokenFromHeader(authHeader);
+      if (!token) {
+        return ApiResponse.unauthorized('Chưa xác thực người dùng.');
+      }
+
+      const userPayload = await JwtService.extractUser(token);
+      if (!userPayload) {
+        return ApiResponse.unauthorized('Token không hợp lệ hoặc đã hết hạn.');
+      }
+
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userPayload.userId },
+        include: { organization: true },
+      });
+
+      if (!currentUser) {
+        return ApiResponse.notFound('Không tìm thấy User');
+      }
+
       const body = await request.json();
-      const response = await VehicleService.createVehicle(body, user.organizationId);
+      const response = await VehicleService.createVehicle(body, currentUser.organizationId);
       return ApiResponse.success(response);
     } catch (error: any) {
       return ApiResponse.error(error.message || 'Lỗi thêm phương tiện.', 400);
@@ -33,8 +47,18 @@ export class VehicleController {
    */
   static async getAllVehicles(request: NextRequest) {
     try {
-      const user = await this.extractAuth(request);
-      const list = await VehicleService.getAllVehicle(user.organizationId);
+      const authHeader = request.headers.get('authorization');
+      const token = JwtService.getTokenFromHeader(authHeader);
+      if (!token) {
+        return ApiResponse.unauthorized('Chưa xác thực người dùng.');
+      }
+
+      const userPayload = await JwtService.extractUser(token);
+      if (!userPayload) {
+        return ApiResponse.unauthorized('Token không hợp lệ hoặc đã hết hạn.');
+      }
+
+      const list = await VehicleService.getAllVehicle(userPayload.organizationId);
       return ApiResponse.success(list);
     } catch (error: any) {
       return ApiResponse.error(error.message || 'Lỗi tải danh sách phương tiện.', 400);
@@ -44,56 +68,23 @@ export class VehicleController {
   /**
    * GET /api/vehicles/[id]
    */
-  static async getVehicleById(request: NextRequest, id: number | string) {
+  static async getVehicleById(request: NextRequest, id: number) {
     try {
-      const user = await this.extractAuth(request);
-      const vehicle = await VehicleService.getVehicleById(Number(id), user.organizationId);
+      const authHeader = request.headers.get('authorization');
+      const token = JwtService.getTokenFromHeader(authHeader);
+      if (!token) {
+        return ApiResponse.unauthorized('Chưa xác thực người dùng.');
+      }
+
+      const userPayload = await JwtService.extractUser(token);
+      if (!userPayload) {
+        return ApiResponse.unauthorized('Token không hợp lệ hoặc đã hết hạn.');
+      }
+
+      const vehicle = await VehicleService.getVehicleById(id, userPayload.organizationId);
       return ApiResponse.success(vehicle);
     } catch (error: any) {
       return ApiResponse.error(error.message || 'Lỗi tải chi tiết phương tiện.', 400);
-    }
-  }
-
-  /**
-   * PUT /api/vehicles/[id]
-   */
-  static async updateVehicle(request: NextRequest, id: number | string) {
-    try {
-      const user = await this.extractAuth(request);
-      const body = await request.json();
-      const updated = await VehicleService.updateVehicle(id, body, user.organizationId);
-      return ApiResponse.success(updated, 'Cập nhật thông tin phương tiện thành công.');
-    } catch (error: any) {
-      return ApiResponse.error(error.message || 'Lỗi cập nhật phương tiện.', 400);
-    }
-  }
-
-  /**
-   * DELETE /api/vehicles/[id]
-   */
-  static async deleteVehicle(request: NextRequest, id: number | string) {
-    try {
-      const user = await this.extractAuth(request);
-      await VehicleService.deleteVehicle(id, user.organizationId);
-      return ApiResponse.success(null, 'Đã xóa phương tiện khỏi hệ thống.');
-    } catch (error: any) {
-      return ApiResponse.error(error.message || 'Lỗi xóa phương tiện.', 400);
-    }
-  }
-
-  /**
-   * POST /api/vehicles/[id]/inspect (BE-4)
-   */
-  static async inspectVehicle(request: NextRequest, id: number | string) {
-    try {
-      const user = await this.extractAuth(request);
-      const body = await request.json();
-      const result = body.result || 'PASS';
-      const notes = body.notes || '';
-      const response = await VehicleService.inspectVehicle(id, result, notes, user.organizationId);
-      return ApiResponse.success(response, 'Nghiệm thu kỹ thuật phương tiện thành công.');
-    } catch (error: any) {
-      return ApiResponse.error(error.message || 'Lỗi nghiệm thu phương tiện.', 400);
     }
   }
 }

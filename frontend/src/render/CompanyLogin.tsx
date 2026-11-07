@@ -20,8 +20,7 @@ export default function CompanyLogin() {
         setTimeout(() => {
             // 1. Tài khoản Chủ doanh nghiệp (Admin)
             if (email === 'admin@ctya.com' && password === '123456') {
-                localStorage.setItem('tenantId', 'COMPANY_A');
-                localStorage.setItem('tenantCode', 'CTA2026');
+                localStorage.setItem('tenantId', 'TENANT_CTYA');
                 localStorage.setItem('tenantName', 'Công ty A');
                 localStorage.setItem('userRole', 'TENANT_ADMIN');
 
@@ -30,8 +29,7 @@ export default function CompanyLogin() {
             }
             // 2. Tài khoản Nhân viên (Staff)
             else if (email === 'staff@ctya.com' && password === '123456') {
-                localStorage.setItem('tenantId', 'COMPANY_A');
-                localStorage.setItem('tenantCode', 'CTA2026');
+                localStorage.setItem('tenantId', 'TENANT_CTYA');
                 localStorage.setItem('tenantName', 'Công ty A');
                 localStorage.setItem('userRole', 'TENANT_STAFF');
 

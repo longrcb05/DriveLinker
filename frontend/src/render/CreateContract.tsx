@@ -1,4 +1,3 @@
-import { dlDialog } from '../context/DialogContext';
 import { useLanguage } from '../context/LanguageContext';
 import React, { useState, useRef, useEffect } from 'react';
 import contractService from '../api/contractService';
@@ -9,7 +8,7 @@ import {
     AlertCircle, Printer, PenTool, Receipt, Check, X, Eraser,
     CheckCircle2, Download, CheckCircle, List, MapPin, Car, DollarSign, Users, Loader2
 } from 'lucide-react';
-import { vehicleService, type Vehicle } from '../services/vehicleService';
+import { vehicleService } from '../services/vehicleService';
 
 export default function CreateContract() {
     const { t, language } = useLanguage();
@@ -66,78 +65,6 @@ export default function CreateContract() {
     const [isDrawing, setIsDrawing] = useState(false);
     const formRef = useRef(formData);
 
-    // Quản lý danh sách phương tiện CSDL của Doanh nghiệp
-    const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-    const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
-    const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
-
-    // Nạp toàn bộ xe của doanh nghiệp từ PostgreSQL DB
-    useEffect(() => {
-        let isMounted = true;
-        const loadFleet = async () => {
-            setIsLoadingVehicles(true);
-            try {
-                const list = await vehicleService.getVehicles(tenantId);
-                if (isMounted) {
-                    setVehicles(list);
-                    if (formData.carPlate) {
-                        const matched = list.find(v => v.plate === formData.carPlate);
-                        if (matched) setSelectedVehicle(matched);
-                    }
-                }
-            } catch (err) {
-                console.warn('[CreateContract] Không thể nạp danh sách xe:', err);
-            } finally {
-                if (isMounted) setIsLoadingVehicles(false);
-            }
-        };
-        loadFleet();
-        return () => { isMounted = false; };
-    }, [tenantId]);
-
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'AVAILABLE':
-                return { label: '🟢 Sẵn sàng cho thuê', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
-            case 'RENTED':
-                return { label: '🔒 Đang cho thuê', color: 'text-rose-500 bg-rose-50 border-rose-200' };
-            case 'MAINTENANCE':
-                return { label: '🔧 Đang bảo dưỡng', color: 'text-amber-600 bg-amber-50 border-amber-200' };
-            case 'RESERVED':
-                return { label: '⏳ Đã đặt trước', color: 'text-sky-600 bg-sky-50 border-sky-200' };
-            case 'PENDING_INSPECTION':
-                return { label: '⚠️ Chờ kiểm định', color: 'text-orange-600 bg-orange-50 border-orange-200' };
-            default:
-                return { label: '⛔ Ngừng hoạt động', color: 'text-slate-400 bg-slate-100 border-slate-200' };
-        }
-    };
-
-    const handleSelectVehicle = (plate: string) => {
-        if (!plate) {
-            setSelectedVehicle(null);
-            setFormData(prev => ({ ...prev, carPlate: '' }));
-            return;
-        }
-        const found = vehicles.find(v => v.plate === plate);
-        if (found) {
-            if (found.status !== 'AVAILABLE') {
-                const badge = getStatusBadge(found.status);
-                dlDialog.toast(language === 'vi' ? `Xe ${found.plate} hiện không sẵn sàng (${badge.label}). Vui lòng chọn xe đang SẴN SÀNG!` : `Vehicle ${found.plate} is not available!`, 'warning');
-                return;
-            }
-            setSelectedVehicle(found);
-            setFormData(prev => ({
-                ...prev,
-                carPlate: found.plate,
-                rentPrice: prev.rentPrice || '800000',
-                depositAmount: prev.depositAmount || '15000000'
-            }));
-        } else {
-            setSelectedVehicle(null);
-            setFormData(prev => ({ ...prev, carPlate: plate }));
-        }
-    };
-
     useEffect(() => {
         if (!draftId) return;
         try {
@@ -191,7 +118,7 @@ export default function CreateContract() {
 
     const handleManualSave = () => {
         saveDraftToStorage();
-        dlDialog.alert(t('createContract.saveDraftSuccess'), { title: 'Lưu bản nháp', type: 'success' });
+        alert(t('createContract.saveDraftSuccess'));
         navigate('/partners');
     };
 
@@ -271,21 +198,21 @@ export default function CreateContract() {
         if (!validateForm()) return;
         setIsSaving(true);
         try {
-            try {
-                await contractService.create({
-                    customerName: formData.renterName,
-                    customerPhone: formData.renterPhone,
-                    idCardNumber: formData.cccdNumber,
-                    carPlate: formData.carPlate,
-                    startTime: formData.rentStartDate ? new Date(formData.rentStartDate).toISOString() : new Date().toISOString(),
-                    endTime: formData.rentEndDate ? new Date(formData.rentEndDate).toISOString() : new Date(Date.now() + 86400000 * 3).toISOString(),
-                    price: Number(formData.rentPrice) || 1000000,
-                    depositAmount: Number(formData.depositAmount) || 0,
-                    notes: `Hợp đồng thuê xe ${formData.carPlate || 'tự lái'} - Khách: ${formData.renterName}`
-                });
-                console.log('[CreateContract] Đã lưu hợp đồng mới vào PostgreSQL.');
-            } catch (beErr) {
-                console.warn('Lỗi ghi nhận hợp đồng Backend:', beErr);
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    await contractService.create({
+                        customerId: 1,
+                        vehicleId: 1,
+                        startTime: formData.rentStartDate ? new Date(formData.rentStartDate).toISOString() : new Date().toISOString(),
+                        endTime: formData.rentEndDate ? new Date(formData.rentEndDate).toISOString() : new Date(Date.now() + 86400000 * 3).toISOString(),
+                        price: Number(formData.rentPrice) || 1000000,
+                        depositAmount: Number(formData.depositAmount) || 0,
+                        notes: `Hợp đồng thuê xe ${formData.carPlate || 'tự lái'} - Khách: ${formData.renterName}`
+                    });
+                } catch (beErr) {
+                    console.warn('Lỗi ghi nhận hợp đồng Backend:', beErr);
+                }
             }
             const contractId = `HD-${Date.now().toString().slice(-6)}`;
             const newContract = {
@@ -362,7 +289,7 @@ export default function CreateContract() {
                 </div>
 
                 <div className="space-y-0.5 mb-2.5 avoid-break">
-                    <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN CHO THUÊ XE (BÊN A):</p>
+                    <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN CHO THUÊ XE - BÊN A:</p>
                     <p>Tên tổ chức/Cá nhân: <span className="font-bold">{formData.partyAName || '............................................................'}</span></p>
                     <p>Địa chỉ trụ sở: {formData.partyAAddress || '..................................................................................'}</p>
                     <p>Điện thoại: {formData.partyAPhone || '............................................................'}</p>
@@ -370,7 +297,7 @@ export default function CreateContract() {
                 </div>
 
                 <div className="space-y-0.5 mb-2.5 avoid-break">
-                    <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN THUÊ XE (BÊN B):</p>
+                    <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN THUÊ XE - BÊN B:</p>
                     <div className="flex justify-between gap-4">
                         <p className="flex-1">Ông/Bà: <span className="font-bold uppercase">{formData.renterName || '........................................'}</span></p>
                         <p className="flex-1">Số điện thoại: <span className="font-bold">{formData.renterPhone || '..........................'}</span></p>
@@ -406,7 +333,7 @@ export default function CreateContract() {
                         <li>Thời gian bắt đầu thuê: {formData.rentStartDate ? new Date(formData.rentStartDate).toLocaleString('vi-VN') : '............................................................'}</li>
                         <li>Thời gian dự kiến trả xe: {formData.rentEndDate ? new Date(formData.rentEndDate).toLocaleString('vi-VN') : '............................................................'}</li>
                         <li>Đơn giá thuê: <span className="font-bold">{formatMoney(formData.rentPrice)}</span> VNĐ / ngày.</li>
-                        <li>Tiền đặt cọc / Tài sản thế chấp: <span className="font-bold">{formatMoney(formData.depositAmount)}</span> VNĐ. (Bên A sẽ hoàn trả lại cho Bên B sau khi thanh lý hợp đồng và trừ đi các khoản phạt vi phạm giao thông nếu có phát sinh).</li>
+                        <li>Tiền đặt cọc / Tài sản thế chấp: <span className="font-bold">{formatMoney(formData.depositAmount)}</span> VNĐ. Bên A sẽ hoàn trả lại cho Bên B sau khi thanh lý hợp đồng và trừ đi các khoản phạt vi phạm giao thông nếu có phát sinh.</li>
                     </ul>
                 </div>
             </div>
@@ -419,7 +346,7 @@ export default function CreateContract() {
                     <p className="font-bold text-[13pt] mt-0.5">3.1. Nghĩa vụ của Bên A:</p>
                     <ul className="list-disc pl-6 space-y-0.5 text-justify">
                         <li>Giao xe đúng chất lượng, đúng thời gian và địa điểm đã thỏa thuận.</li>
-                        <li>Cung cấp đầy đủ giấy tờ pháp lý của xe (bản sao y có công chứng hoặc bản gốc tùy thỏa thuận).</li>
+                        <li>Cung cấp đầy đủ giấy tờ pháp lý của xe - bản sao y có công chứng hoặc bản gốc tùy thỏa thuận.</li>
                     </ul>
                     <p className="font-bold text-[13pt] mt-1.5">3.2. Nghĩa vụ của Bên B:</p>
                     <ul className="list-disc pl-6 space-y-0.5 text-justify">
@@ -448,24 +375,24 @@ export default function CreateContract() {
 
                 <div className="space-y-0.5 mb-4 avoid-break">
                     <p className="font-bold uppercase text-[13pt] mb-0.5">ĐIỀU 5: CAM KẾT CHUNG</p>
-                    <p className="text-justify leading-normal">Hai bên cam kết thực hiện đúng các điều khoản trong hợp đồng. Hợp đồng được lập thành 02 (hai) bản, mỗi bên giữ 01 (một) bản có giá trị pháp lý như nhau và có hiệu lực kể từ ngày ký.</p>
+                    <p className="text-justify leading-normal">Hai bên cam kết thực hiện đúng các điều khoản trong hợp đồng. Hợp đồng được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị pháp lý như nhau và có hiệu lực kể từ ngày ký.</p>
                 </div>
 
                 <div className="grid grid-cols-2 text-center mt-5 gap-6 avoid-break pb-4">
                     <div>
                         <p className="font-bold uppercase text-[13pt] mb-0.5">ĐẠI DIỆN BÊN A</p>
-                        <p className="italic text-[11.5pt] mb-14">(Ký, đóng dấu, ghi rõ họ tên)</p>
+                        <p className="italic text-[11.5pt] mb-14">Ký, đóng dấu, ghi rõ họ tên</p>
                         <p className="font-bold uppercase text-[13pt]">{formData.partyARepresentative}</p>
                     </div>
                     <div>
                         <p className="font-bold uppercase text-[13pt] mb-0.5">ĐẠI DIỆN BÊN B</p>
-                        <p className="italic text-[11.5pt] mb-1">(Ký, ghi rõ họ tên)</p>
+                        <p className="italic text-[11.5pt] mb-1">Ký, ghi rõ họ tên</p>
                         <div className="h-14 flex items-center justify-center mb-1">
                             {signatureData ? (
                                 <img src={signatureData} alt="Chữ ký bên B" className="max-h-full max-w-full mix-blend-multiply object-contain" />
                             ) : (
                                 <div className="w-full h-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 font-sans text-xs no-print">
-                                    (Khu vực Ký tên)
+                                    Khu vực Ký tên
                                 </div>
                             )}
                         </div>
@@ -651,117 +578,10 @@ export default function CreateContract() {
 
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4 border-b border-slate-100 pb-2"><span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs"><Car className="w-3 h-3" /></span>{t('createContract.tradeDetails')}</h3>
-
-                                {/* BỘ CHỌN & HIỂN THỊ TÌNH TRẠNG ĐỘI XE TỪ CƠ SỞ DỮ LIỆU */}
-                                <div className="mb-5 p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl">
-                                    <div className="flex items-center justify-between mb-2.5">
-                                        <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                                            <Car className="w-3.5 h-3.5 text-emerald-600" />
-                                            Đội xe doanh nghiệp trong CSDL ({vehicles.length} xe):
-                                        </span>
-                                        <div className="flex items-center gap-3 text-[11px] text-slate-500">
-                                            <span className="flex items-center gap-1 font-medium text-emerald-700">
-                                                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-                                                Sẵn sàng ({vehicles.filter(v => v.status === 'AVAILABLE').length})
-                                            </span>
-                                            <span className="flex items-center gap-1 text-slate-400">
-                                                <span className="w-2 h-2 rounded-full bg-slate-300 inline-block"></span>
-                                                Không khả dụng ({vehicles.filter(v => v.status !== 'AVAILABLE').length})
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Hàng nút bấm trực quan: Xe sẵn sàng nổi bật, Xe bận bị làm mờ */}
-                                    <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1">
-                                        {vehicles.map((v) => {
-                                            const isAvailable = v.status === 'AVAILABLE';
-                                            const isSelected = formData.carPlate === v.plate;
-                                            const badge = getStatusBadge(v.status);
-
-                                            if (isAvailable) {
-                                                return (
-                                                    <button
-                                                        key={`pill-${v.plate}`}
-                                                        type="button"
-                                                        onClick={() => handleSelectVehicle(v.plate)}
-                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border shadow-2xs ${
-                                                            isSelected
-                                                                ? 'bg-emerald-600 text-white border-emerald-700 shadow-md ring-2 ring-emerald-300 scale-102'
-                                                                : 'bg-white text-emerald-900 border-emerald-300 hover:bg-emerald-50 hover:border-emerald-400'
-                                                        }`}
-                                                        title="Xe sẵn sàng cho thuê - Nhấn để chọn"
-                                                    >
-                                                        <span className="font-mono">{v.plate}</span>
-                                                        <span className="text-[10px] font-medium opacity-90">({v.brand} {v.model})</span>
-                                                        {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
-                                                    </button>
-                                                );
-                                            }
-
-                                            // Xe không ở trạng thái AVAILABLE: Làm mờ đi (blurred / dimmed), gạch ngang và vô hiệu hóa
-                                            return (
-                                                <div
-                                                    key={`pill-${v.plate}`}
-                                                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100/80 text-slate-400 border border-slate-200 opacity-50 cursor-not-allowed flex items-center gap-1.5 select-none filter grayscale transition-opacity"
-                                                    title={`Xe không khả dụng (${badge.label})`}
-                                                >
-                                                    <span className="font-mono line-through">{v.plate}</span>
-                                                    <span className="text-[10px] italic">[{badge.label.replace(/[^a-zA-Z0-9\sÀ-ỹ]/g, '').trim()}]</span>
-                                                </div>
-                                            );
-                                        })}
-                                        {vehicles.length === 0 && (
-                                            <p className="text-xs text-slate-400 italic py-1">Đang tải danh sách phương tiện từ hệ thống...</p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Thông tin chi tiết phương tiện đang được chọn */}
-                                {selectedVehicle && (
-                                    <div className="mb-4 p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-between text-xs animate-in fade-in">
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
-                                                <Check className="w-4 h-4" />
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-emerald-950">
-                                                    Đã chọn xe: <span className="font-mono text-sm">{selectedVehicle.plate}</span> — {selectedVehicle.brand} {selectedVehicle.model} ({selectedVehicle.year || '2024'})
-                                                </p>
-                                                <p className="text-emerald-700 text-[11px] mt-0.5">
-                                                    Phân hạng: {selectedVehicle.payload || 'Xe du lịch'} • Trạng thái: Sẵn sàng bàn giao khách hàng
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-600 text-white shadow-2xs">
-                                            HỢP LỆ
-                                        </span>
-                                    </div>
-                                )}
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div className="grid grid-cols-3 gap-4 mb-4">
                                     <div className="col-span-1">
-                                        <label className="block text-xs font-bold text-slate-600 mb-1">{t('createContract.carPlate')} *</label>
-                                        <select
-                                            value={formData.carPlate}
-                                            onChange={(e) => handleSelectVehicle(e.target.value)}
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-emerald-500 font-mono bg-white font-medium cursor-pointer"
-                                        >
-                                            <option value="">-- Chọn xe từ CSDL (Chỉ xe Sẵn sàng) --</option>
-                                            {vehicles.map((v) => {
-                                                const isAvailable = v.status === 'AVAILABLE';
-                                                const badge = getStatusBadge(v.status);
-                                                return (
-                                                    <option
-                                                        key={`sel-${v.id || v.plate}`}
-                                                        value={v.plate}
-                                                        disabled={!isAvailable}
-                                                        className={!isAvailable ? 'text-slate-400 bg-slate-100 italic' : 'text-slate-900 font-bold bg-white'}
-                                                    >
-                                                        {isAvailable ? '🟢' : '🔒'} {v.plate} - {v.brand} {v.model} ({isAvailable ? 'SẴN SÀNG CHO THUÊ' : badge.label.replace(/[^a-zA-Z0-9\sÀ-ỹ]/g, '').trim()})
-                                                    </option>
-                                                );
-                                            })}
-                                        </select>
+                                        <label className="block text-xs font-bold text-slate-600 mb-1">{t('createContract.carPlate')}</label>
+                                        <input type="text" name="carPlate" value={formData.carPlate} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-emerald-500 font-mono uppercase bg-yellow-50" placeholder="43A-123.45" />
                                     </div>
                                     <div className="col-span-1">
                                         <label className="block text-xs font-bold text-slate-600 mb-1">{t('createContract.pickupTime')}</label>

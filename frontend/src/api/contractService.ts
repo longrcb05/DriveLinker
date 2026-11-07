@@ -1,18 +1,13 @@
 import axiosClient from './axiosClient';
 
 export interface CreateContractPayload {
-  customerId?: number;
-  vehicleId?: number;
-  customerName?: string;
-  customerPhone?: string;
-  idCardNumber?: string;
-  carPlate?: string;
+  customerId: number;
+  vehicleId: number;
   startTime: string;
   endTime: string;
   price: number;
   depositAmount?: number;
   notes?: string;
-  [key: string]: any;
 }
 
 export const contractService = {
@@ -44,16 +39,6 @@ export const contractService = {
 
   returnVehicle: async (id: number | string) => {
     const res = await axiosClient.post(`/contracts/${id}/return`);
-    return res.data;
-  },
-
-  recall: async (id: number | string, data: any) => {
-    const res = await axiosClient.post(`/contracts/${id}/recall`, data);
-    return res.data;
-  },
-
-  settleRecall: async (id: number | string, data: any) => {
-    const res = await axiosClient.put(`/contracts/${id}/recall/settle`, data);
     return res.data;
   }
 };

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { dlDialog } from '../../context/DialogContext';
 import coreAdminService from '../../api/coreAdminService';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -76,7 +75,7 @@ export default function AdminTenantList() {
   const handleAddTenant = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.ownerName) {
-      dlDialog.alert('Vui lòng nhập ít nhất Tên doanh nghiệp và Tên chủ doanh nghiệp!', { title: 'Thiếu thông tin', type: 'warning' });
+      alert("Vui lòng nhập ít nhất Tên doanh nghiệp và Tên chủ doanh nghiệp!");
       return;
     }
 
@@ -269,11 +268,11 @@ export default function AdminTenantList() {
             </div>
             <form onSubmit={handleAddTenant} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase">Tên doanh nghiệp (*)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase">Tên doanh nghiệp *</label>
                 <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-rose-500" placeholder="VD: Công ty Vận tải ABC" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase">Tên chủ doanh nghiệp (*)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase">Tên chủ doanh nghiệp *</label>
                 <input required type="text" value={formData.ownerName} onChange={e => setFormData({...formData, ownerName: e.target.value})} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-rose-500" placeholder="VD: Nguyễn Văn A" />
               </div>
               <div>

@@ -1,16 +1,11 @@
-import { dlDialog } from '../context/DialogContext';
 /**
  * @file PriceApprovals.tsx
  * @description Màn hình Manager xử lý yêu cầu. Cho phép nhập trực tiếp đơn giá mới.
- * Đồng bộ hai chiều với Backend API PostgreSQL (GET/POST /api/price-requests).
  */
 
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { ChevronRight, Edit3, X, CheckCircle2 } from 'lucide-react';
-import { ensureInitialContractSeed } from '../services/contractSeedData';
-import axiosClient from '../api/axiosClient';
-import contractService from '../api/contractService';
 
 export default function PriceApprovals() {
     const { t } = useLanguage();
@@ -23,57 +18,9 @@ export default function PriceApprovals() {
     const [newPrice, setNewPrice] = useState<string>('');
     const [managerNote, setManagerNote] = useState<string>('');
 
-    const loadData = async () => {
-        // Tải seed dữ liệu mẫu phòng khi offline
-        const { contracts: cList, requests: rList } = ensureInitialContractSeed();
-
-        try {
-            // 1. Tải danh sách yêu cầu đổi giá từ CSDL PostgreSQL
-            const [reqRes, contractRes] = await Promise.allSettled([
-                axiosClient.get('/price-requests'),
-                contractService.getAll()
-            ]);
-
-            let loadedRequests = rList;
-            if (reqRes.status === 'fulfilled' && reqRes.value.data?.data) {
-                const apiReqs = reqRes.value.data.data.map((r: any) => ({
-                    id: r.id,
-                    contractId: r.contractId ? `HD-${String(r.contractId).padStart(4, '0')}` : r.id,
-                    rawContractId: r.contractId,
-                    staff: r.staffName || 'Nhân viên',
-                    reason: r.reason,
-                    currentPrice: r.currentPrice,
-                    suggestedPrice: r.proposedPrice || r.currentPrice,
-                    status: r.status,
-                    managerNote: r.managerNote,
-                    createdAt: r.createdAt
-                }));
-                if (apiReqs.length > 0) {
-                    loadedRequests = apiReqs;
-                }
-            }
-
-            let loadedContracts = cList;
-            if (contractRes.status === 'fulfilled' && Array.isArray(contractRes.value.data?.data || contractRes.value)) {
-                const apiData = contractRes.value.data?.data || contractRes.value;
-                if (apiData.length > 0) {
-                    loadedContracts = apiData.map((c: any) => ({
-                        id: c.id ? (typeof c.id === 'number' ? `HD-${String(c.id).padStart(4, '0')}` : c.id) : c.id,
-                        numericId: c.id,
-                        price: c.price,
-                        customerName: c.customerName,
-                        licensePlate: c.licensePlate
-                    }));
-                }
-            }
-
-            setRequests(loadedRequests);
-            setContracts(loadedContracts);
-        } catch (err) {
-            console.warn('Lỗi tải dữ liệu duyệt giá từ Backend, dùng fallback:', err);
-            setRequests(rList);
-            setContracts(cList);
-        }
+    const loadData = () => {
+        setRequests(JSON.parse(localStorage.getItem('sys_price_requests') || '[]'));
+        setContracts(JSON.parse(localStorage.getItem('sys_e_contracts') || '[]'));
     };
 
     useEffect(() => {
@@ -86,44 +33,26 @@ export default function PriceApprovals() {
 
     // Mở modal xử lý
     const openProcessModal = (req: any) => {
-        const contract = contracts.find(c => c.id === req.contractId || c.numericId === req.rawContractId);
-        setProcessingReq({ ...req, currentPrice: contract?.price || req.currentPrice || 0 });
-        setNewPrice(req.suggestedPrice ? String(req.suggestedPrice) : '');
+        const contract = contracts.find(c => c.id === req.contractId);
+        setProcessingReq({ ...req, currentPrice: contract?.price || 0 });
+        setNewPrice('');
         setManagerNote('');
     };
 
     // Submit phê duyệt hoặc từ chối
-    const submitAction = async (action: 'APPROVED' | 'REJECTED') => {
-        if (action === 'APPROVED' && !newPrice) return dlDialog.alert(t('approvals.alertInputNewPrice'), { type: 'warning' });
-        if (action === 'REJECTED' && !managerNote) return dlDialog.alert(t('approvals.alertInputNote'), { type: 'warning' });
+    const submitAction = (action: 'APPROVED' | 'REJECTED') => {
+        if (action === 'APPROVED' && !newPrice) return alert(t('approvals.alertInputNewPrice'));
+        if (action === 'REJECTED' && !managerNote) return alert(t('approvals.alertInputNote'));
 
-        const numericReqId = Number(String(processingReq.id).replace(/\D/g, '')) || processingReq.id;
-
-        // Gọi Backend API để ghi trực tiếp xuống PostgreSQL
-        try {
-            if (action === 'APPROVED') {
-                await axiosClient.post(`/price-requests/${numericReqId}/approve`, {
-                    newPrice: Number(newPrice),
-                    managerNote: managerNote || 'Đã duyệt giá mới theo đề xuất.'
-                });
-            } else {
-                await axiosClient.post(`/price-requests/${numericReqId}/reject`, {
-                    managerNote: managerNote || 'Từ chối yêu cầu đổi giá.'
-                });
-            }
-        } catch (apiErr) {
-            console.warn('Lỗi ghi Backend API giá, thực hiện cập nhật local fallback:', apiErr);
-        }
-
-        // 1. Cập nhật Local Storage & UI state
+        // 1. Update Request Status
         const updatedRequests = requests.map(r =>
             r.id === processingReq.id ? { ...r, status: action, managerNote: managerNote } : r
         );
         localStorage.setItem('sys_price_requests', JSON.stringify(updatedRequests));
 
-        // 2. Cập nhật Contract Data trong Local Storage
+        // 2. Update Contract Data
         const updatedContracts = contracts.map(c => {
-            if (c.id === processingReq.contractId || c.numericId === processingReq.rawContractId) {
+            if (c.id === processingReq.contractId) {
                 return {
                     ...c,
                     hasPendingRequest: false, // Gỡ cờ chờ duyệt
@@ -137,9 +66,9 @@ export default function PriceApprovals() {
         localStorage.setItem('sys_e_contracts', JSON.stringify(updatedContracts));
 
         setProcessingReq(null);
-        await loadData();
+        loadData();
         window.dispatchEvent(new Event('storage'));
-        dlDialog.alert(action === 'APPROVED' ? t('approvals.alertApproveSuccess') : t('approvals.alertRejectSuccess'), { title: 'Phê duyệt giá', type: action === 'APPROVED' ? 'success' : 'info' });
+        alert(action === 'APPROVED' ? t('approvals.alertApproveSuccess') : t('approvals.alertRejectSuccess'));
     };
 
     const filteredData = requests.filter(req => activeTab === 'PENDING' ? req.status === 'PENDING' : req.status !== 'PENDING');
@@ -181,21 +110,14 @@ export default function PriceApprovals() {
                             </tr>
                         ) : (
                             filteredData.map(req => {
-                                const contract = contracts.find(c => c.id === req.contractId || c.numericId === req.rawContractId);
+                                const contract = contracts.find(c => c.id === req.contractId);
                                 return (
                                     <tr key={req.id} className="hover:bg-slate-50">
                                         <td className="p-4 font-mono font-bold text-sky-600">{req.contractId}</td>
                                         <td className="p-4 font-medium text-slate-700">{req.staff}</td>
-                                        <td className="p-4 text-slate-600 max-w-xs">
-                                            <div className="font-medium text-slate-700" title={req.reason}>{req.reason}</div>
-                                            {req.managerNote && (
-                                                <div className="mt-1 text-xs text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block font-sans">
-                                                    💬 QL: {req.managerNote}
-                                                </div>
-                                            )}
-                                        </td>
+                                        <td className="p-4 text-slate-600 max-w-xs truncate" title={req.reason}>{req.reason}</td>
                                         <td className="p-4 text-slate-400 font-bold line-through">
-                                            {formatMoney(contract?.price || req.currentPrice || 0)}
+                                            {formatMoney(contract?.price || 0)}
                                         </td>
                                         <td className="p-4 text-emerald-600 font-bold">
                                             {formatMoney(req.suggestedPrice)}
@@ -220,7 +142,7 @@ export default function PriceApprovals() {
                 </table>
             </div>
 
-            {/* MODAL XỬ LÝ (MANAGER NHẬP TRỰC TIẾP GIÁ MỚI) */}
+            {/* MODAL XỬ LÝ {t('approvals.breadcrumb')} (MANAGER NHẬP TRỰC TIẾP GIÁ MỚI) */}
             {processingReq && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">

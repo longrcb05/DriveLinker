@@ -1,4 +1,3 @@
-import extractAuth from '@/common/security/authHelper';
 import { NextRequest } from 'next/server';
 import ApiResponse from '@/common/response/ApiResponse';
 import JwtService from '@/common/security/JwtService';
@@ -6,7 +5,14 @@ import TenantService from '@/tenant/service/TenantService';
 
 export class TenantController {
   private static async extractAuth(request: NextRequest) {
-    return extractAuth(request);
+    const authHeader = request.headers.get('authorization');
+    const token = JwtService.getTokenFromHeader(authHeader);
+    if (!token) throw new Error('Chưa xác thực người dùng.');
+
+    const user = await JwtService.extractUser(token);
+    if (!user) throw new Error('Token không hợp lệ hoặc đã hết hạn.');
+
+    return user;
   }
 
   /**
