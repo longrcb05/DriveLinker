@@ -80,17 +80,13 @@ const MOCK_DATA_BY_TENANT: Record<string, any> = {
       collection: '85%'
     },
     vehicles: [
-      { id: '43A-112.22', lat: 16.054407, lng: 108.202167, status: 'RENTING', safetyStatus: 'RED', safetyLabel: 'Ngủ gật nguy hiểm (1.5s)', type: 'Hyundai Solati 16 Chỗ', driver: 'Trần Văn Bình', speed: '68 km/h' },
-      { id: '29C-123.45', lat: 16.047079, lng: 108.206230, status: 'RENTING', safetyStatus: 'YELLOW', safetyLabel: 'Ngáp sâu liên tục (3.0s)', type: 'Isuzu Forward 5T', driver: 'Nguyễn Văn A', speed: '52 km/h' },
-      { id: '51D-987.65', lat: 16.038000, lng: 108.212000, status: 'RENTING', safetyStatus: 'YELLOW', safetyLabel: 'Cúi đầu / Mất tập trung', type: 'Hino 500 Series FL 8T', driver: 'Trần Thị B', speed: '40 km/h' },
-      { id: '15C-456.78', lat: 16.035000, lng: 108.225000, status: 'RENTING', safetyStatus: 'GREEN', safetyLabel: 'Lái xe bình thường / Tập trung', type: 'Hyundai Mighty EX8', driver: 'Lê Văn C', speed: '58 km/h' },
+      { id: '43A-112.22', lat: 16.054407, lng: 108.202167, status: 'RENTING', safetyStatus: 'GREEN', safetyLabel: 'Lái xe an toàn / Tỉnh táo', type: 'Hyundai Solati 16 Chỗ', driver: 'Trần Văn Bình', speed: '58 km/h' },
+      { id: '29C-123.45', lat: 16.047079, lng: 108.206230, status: 'RENTING', safetyStatus: 'GREEN', safetyLabel: 'Lái xe an toàn / Tỉnh táo', type: 'Isuzu Forward 5T', driver: 'Nguyễn Văn A', speed: '52 km/h' },
+      { id: '51D-987.65', lat: 16.038000, lng: 108.212000, status: 'RENTING', safetyStatus: 'GREEN', safetyLabel: 'Lái xe an toàn / Tỉnh táo', type: 'Hino 500 Series FL 8T', driver: 'Trần Thị B', speed: '45 km/h' },
+      { id: '15C-456.78', lat: 16.035000, lng: 108.225000, status: 'RENTING', safetyStatus: 'GREEN', safetyLabel: 'Lái xe an toàn / Tỉnh táo', type: 'Hyundai Mighty EX8', driver: 'Lê Văn C', speed: '58 km/h' },
       { id: '29A-111.11', lat: 16.062000, lng: 108.218000, status: 'AVAILABLE', safetyStatus: 'GREEN', safetyLabel: 'An toàn / Tỉnh táo', type: 'Ford Transit Limousine', driver: 'Hoàng Văn D', speed: '60 km/h' },
     ],
-    alerts: [
-      { id: 1, time: '10:30', vehicle: '43A-112.22', type: 'Ngủ gật nguy hiểm', message: 'Mắt nhắm > 1.5s (EAR: 0.14). Đã hú còi cabin.', severity: 'high' },
-      { id: 2, time: '09:15', vehicle: '29C-123.45', type: 'Ngáp sâu liên tục', message: 'Ngáp sâu > 3.0s (MAR: 0.74). Nhắc nhở tài xế.', severity: 'medium' },
-      { id: 3, time: '08:00', vehicle: '51D-987.65', type: 'Mất tập trung', message: 'Cúi đầu xem điện thoại khi đang lái xe.', severity: 'medium' },
-    ]
+    alerts: []
   },
   'COMPANY_B': {
     center: [10.762622, 106.660172], // TP. Hồ Chí Minh
@@ -104,12 +100,10 @@ const MOCK_DATA_BY_TENANT: Record<string, any> = {
       collection: '92%'
     },
     vehicles: [
-      { id: '51F-888.11', lat: 10.762622, lng: 106.660172, status: 'RENTING', safetyStatus: 'RED', safetyLabel: 'Ngủ gật nguy hiểm', type: 'Xe Tải 15T', driver: 'Phạm Văn D', speed: '50 km/h' },
+      { id: '51F-888.11', lat: 10.762622, lng: 106.660172, status: 'RENTING', safetyStatus: 'GREEN', safetyLabel: 'Lái xe an toàn', type: 'Xe Tải 15T', driver: 'Phạm Văn D', speed: '50 km/h' },
       { id: '51G-999.22', lat: 10.775000, lng: 106.700000, status: 'AVAILABLE', safetyStatus: 'GREEN', safetyLabel: 'Lái xe an toàn', type: 'Xe Khách', driver: 'Hoàng Thị E', speed: '0 km/h' },
     ],
-    alerts: [
-      { id: 4, time: '14:20', vehicle: '51F-888.11', type: 'Ngủ gật nguy hiểm', message: 'Mắt nhắm liên tục trên cao tốc.', severity: 'high' },
-    ]
+    alerts: []
   },
   'COMPANY_C': {
     center: [21.028511, 105.804817], // Hà Nội
@@ -672,6 +666,17 @@ export default function Overview() {
           {/* Drawer Body List */}
           <div className="flex-1 overflow-auto p-4 space-y-3 bg-[#F8FAFC]">
             {activePanel === 'ALERTS' ? (
+              alerts.length === 0 ? (
+                <div className="py-16 px-4 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3 shadow-inner ring-1 ring-emerald-200/60">
+                    <CheckCircle2 className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-sm font-extrabold text-slate-800">Không có cảnh báo</h4>
+                  <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                    Toàn bộ phương tiện đang vận hành an toàn. Chưa ghi nhận sự cố vi phạm nào.
+                  </p>
+                </div>
+              ) : (
               alerts.filter(a => a.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) || a.type.toLowerCase().includes(searchTerm.toLowerCase())).map(a => (
                 <div key={a.id} className="p-4 border border-rose-100 bg-white rounded-xl shadow-xs hover:border-rose-300 hover:shadow-sm transition-all">
                   <div className="flex justify-between items-start mb-2">
@@ -690,6 +695,7 @@ export default function Overview() {
                   </button>
                 </div>
               ))
+              )
             ) : (
               getPanelData().map(v => (
                 <div key={v.id} className="p-4 border border-slate-200/80 rounded-xl bg-white hover:border-sky-300 hover:shadow-xs transition-all cursor-pointer group">

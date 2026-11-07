@@ -65,115 +65,30 @@ const MOCK_LIVE_FLEET: LiveVehicle[] = [
     model: 'Hyundai Solati 16 Chỗ',
     driver: 'Trần Văn Bình',
     driverPhone: '0905.123.456',
-    speed: 68,
-    status: 'ALERT_DROWSY',
-    statusLabel: 'Ngủ gật nguy hiểm (1.5s)',
+    speed: 58,
+    status: 'NORMAL',
+    statusLabel: 'Lái xe an toàn / Tỉnh táo',
     lat: 16.054407,
     lng: 108.202167,
-    currentEar: 0.14,
-    currentMar: 0.22,
-    lastSeen: '10 giây trước',
+    currentEar: 0.30,
+    currentMar: 0.16,
+    lastSeen: 'Vừa xong',
     recentEvidence: {
       id: 'EV-01',
-      image: '/bang_chung/NGU_GAT_1.5s_20261101_133537.jpg',
-      time: '09:28:15',
-      date: 'Hôm nay (01/11)',
-      type: 'DROWSY',
-      typeName: 'Ngủ gật nguy hiểm / Mắt nhắm > 1.5s',
-      severity: 'HIGH',
-      ear: 0.14,
-      mar: 0.22,
-      speed: '68 km/h',
+      image: '/bang_chung/CHOP_MAT_CHAM_(0.60s)_20261024_201540.jpg',
+      time: '10:25:00',
+      date: 'Hôm nay',
+      type: 'SLOW_BLINK',
+      typeName: 'Lái xe an toàn / Tỉnh táo',
+      severity: 'LOW',
+      ear: 0.30,
+      mar: 0.16,
+      speed: '58 km/h',
       location: 'Đường Nguyễn Văn Linh, Đà Nẵng',
-      duration: '1.5s',
-      actionTaken: 'Đã kích hoạt còi cabin 10s • Rung ghế lái • Báo động điều hành'
+      duration: '0s',
+      actionTaken: 'Hệ thống AI DMS giám sát an toàn tiêu chuẩn • Không có vi phạm'
     },
-    historyEvidences: [
-      {
-        id: 'EV-01-H1',
-        image: '/bang_chung/NGU_GAT_1.5s_20261101_133323.jpg',
-        time: '09:12:05',
-        date: 'Hôm nay (01/11)',
-        type: 'DROWSY',
-        typeName: 'Ngủ gật / Mắt nhắm kéo dài',
-        severity: 'HIGH',
-        ear: 0.15,
-        speed: '65 km/h',
-        location: 'Cầu Rồng, Đà Nẵng',
-        duration: '1.5s',
-        actionTaken: 'Hú còi cabin mức 2'
-      },
-      {
-        id: 'EV-01-H2',
-        image: '/bang_chung/NGAP_SAU_3.0s_20261029_100625.jpg',
-        time: '08:45:30',
-        date: 'Hôm nay (01/11)',
-        type: 'YAWN',
-        typeName: 'Ngáp sâu liên tục (> 3.0s)',
-        severity: 'MEDIUM',
-        mar: 0.72,
-        speed: '62 km/h',
-        location: 'Ngã tư Nguyễn Hữu Thọ, Đà Nẵng',
-        duration: '3.0s',
-        actionTaken: 'Phát âm thanh nhắc nhở giữ khoảng cách an toàn'
-      },
-      {
-        id: 'EV-01-H3',
-        image: '/bang_chung/GUC_DAU_(NHAM_MAT)_(3.2s)_20261022_220933.jpg',
-        time: '14:30:15',
-        date: '29/10/2026',
-        type: 'HEAD_DROP',
-        typeName: 'Gục đầu nhắm mắt',
-        severity: 'HIGH',
-        pitch: -28,
-        speed: '58 km/h',
-        location: 'Đèo Hải Vân, Đà Nẵng',
-        duration: '3.2s',
-        actionTaken: 'Còi báo động cabin mức 3'
-      },
-      {
-        id: 'EV-01-H4',
-        image: '/bang_chung/CHOP_MAT_CHAM_(0.60s)_20261024_201525.jpg',
-        time: '10:15:40',
-        date: '28/10/2026',
-        type: 'SLOW_BLINK',
-        typeName: 'Chớp mắt chậm bất thường',
-        severity: 'LOW',
-        ear: 0.18,
-        speed: '60 km/h',
-        location: 'QL1A đoạn Liên Chiểu',
-        duration: '0.6s',
-        actionTaken: 'Ghi nhận chỉ số mệt mỏi vào báo cáo'
-      },
-      {
-        id: 'EV-01-H5',
-        image: '/bang_chung/NGU_GAT_(1.5s)_20261022_214414.jpg',
-        time: '09:30:22',
-        date: '28/10/2026',
-        type: 'DROWSY',
-        typeName: 'Ngủ gật khi đang tăng tốc',
-        severity: 'HIGH',
-        ear: 0.13,
-        speed: '70 km/h',
-        location: 'Đường tránh Nam Hải Vân',
-        duration: '1.5s',
-        actionTaken: 'Báo động điều hành & gọi điện thoại tài xế'
-      },
-      {
-        id: 'EV-01-H6',
-        image: '/bang_chung/NGAP_LIEN_TUC_20261022_214426.jpg',
-        time: '14:20:10',
-        date: '27/10/2026',
-        type: 'YAWN',
-        typeName: 'Ngáp liên tục trong 10 phút',
-        severity: 'MEDIUM',
-        mar: 0.68,
-        speed: '55 km/h',
-        location: 'Quận Sơn Trà, Đà Nẵng',
-        duration: '2.5s',
-        actionTaken: 'Yêu cầu tài xế dừng trạm nghỉ ngơi'
-      }
-    ]
+    historyEvidences: []
   },
   {
     id: 'V02',
@@ -182,72 +97,29 @@ const MOCK_LIVE_FLEET: LiveVehicle[] = [
     driver: 'Nguyễn Văn A',
     driverPhone: '0912.888.999',
     speed: 52,
-    status: 'WARNING_YAWN',
-    statusLabel: 'Ngáp sâu liên tục (3.0s)',
+    status: 'NORMAL',
+    statusLabel: 'Lái xe an toàn / Tỉnh táo',
     lat: 16.047079,
     lng: 108.206230,
-    currentEar: 0.24,
-    currentMar: 0.74,
+    currentEar: 0.32,
+    currentMar: 0.15,
     lastSeen: '5 giây trước',
     recentEvidence: {
       id: 'EV-02',
-      image: '/bang_chung/CANH_BAO_DO_5_LAN_VANG_10P_-_NGAP_SAU_3.0s_20261029_100635.jpg',
-      time: '09:15:20',
-      date: 'Hôm nay (01/11)',
-      type: 'YAWN',
-      typeName: 'Ngáp sâu liên tục (> 3.0s)',
-      severity: 'MEDIUM',
-      mar: 0.74,
-      ear: 0.24,
+      image: '/bang_chung/CHOP_MAT_CHAM_(0.60s)_20261024_201535.jpg',
+      time: '10:24:30',
+      date: 'Hôm nay',
+      type: 'SLOW_BLINK',
+      typeName: 'Lái xe an toàn / Tỉnh táo',
+      severity: 'LOW',
+      ear: 0.32,
+      mar: 0.15,
       speed: '52 km/h',
       location: 'QL1A Hòa Phước, Đà Nẵng',
-      duration: '3.0s',
-      actionTaken: 'Cảnh báo âm thanh nhắc nhở lái xe tập trung'
+      duration: '0s',
+      actionTaken: 'Hệ thống AI DMS giám sát an toàn tiêu chuẩn • Không có vi phạm'
     },
-    historyEvidences: [
-      {
-        id: 'EV-02-H1',
-        image: '/bang_chung/NGAP_SAU_3.0s_20261029_100645.jpg',
-        time: '08:50:12',
-        date: 'Hôm nay (01/11)',
-        type: 'YAWN',
-        typeName: 'Ngáp sâu phát hiện lần 2',
-        severity: 'MEDIUM',
-        mar: 0.70,
-        speed: '50 km/h',
-        location: 'Trạm thu phí Hòa Phước',
-        duration: '3.0s',
-        actionTaken: 'Nhắc nhở qua loa cabin'
-      },
-      {
-        id: 'EV-02-H2',
-        image: '/bang_chung/CHOP_MAT_CHAM_(0.60s)_20261024_201530.jpg',
-        time: '11:05:40',
-        date: '28/10/2026',
-        type: 'SLOW_BLINK',
-        typeName: 'Chớp mắt chậm liên hồi',
-        severity: 'LOW',
-        ear: 0.17,
-        speed: '48 km/h',
-        location: 'Đường CMT8, Đà Nẵng',
-        duration: '0.6s',
-        actionTaken: 'Ghi nhật ký hệ thống'
-      },
-      {
-        id: 'EV-02-H3',
-        image: '/bang_chung/NGU_GAT_1.5s_20261101_133333.jpg',
-        time: '16:40:22',
-        date: '26/10/2026',
-        type: 'DROWSY',
-        typeName: 'Mắt nhắm 1.5s khi dừng đèn đỏ',
-        severity: 'HIGH',
-        ear: 0.14,
-        speed: '0 km/h',
-        location: 'Ngã tư cầu Tuyên Sơn',
-        duration: '1.5s',
-        actionTaken: 'Báo động cabin'
-      }
-    ]
+    historyEvidences: []
   },
   {
     id: 'V03',
@@ -255,58 +127,30 @@ const MOCK_LIVE_FLEET: LiveVehicle[] = [
     model: 'Hino 500 Series FL 8T',
     driver: 'Trần Thị B',
     driverPhone: '0988.777.666',
-    speed: 40,
-    status: 'ALERT_DISTRACTED',
-    statusLabel: 'Cúi đầu / Mất tập trung',
+    speed: 45,
+    status: 'NORMAL',
+    statusLabel: 'Lái xe an toàn / Tỉnh táo',
     lat: 16.038000,
     lng: 108.212000,
-    currentEar: 0.20,
-    currentMar: 0.25,
+    currentEar: 0.29,
+    currentMar: 0.17,
     lastSeen: 'Vừa xong',
     recentEvidence: {
       id: 'EV-03',
-      image: '/bang_chung/GUC_DAU_(NHAM_MAT)_(3.2s)_20261022_220943.jpg',
-      time: '09:05:00',
-      date: 'Hôm nay (01/11)',
-      type: 'HEAD_DROP',
-      typeName: 'Cúi đầu xem điện thoại',
-      severity: 'MEDIUM',
-      pitch: -32,
-      speed: '40 km/h',
+      image: '/bang_chung/CHOP_MAT_CHAM_(0.60s)_20261024_201525.jpg',
+      time: '10:23:45',
+      date: 'Hôm nay',
+      type: 'SLOW_BLINK',
+      typeName: 'Lái xe an toàn / Tỉnh táo',
+      severity: 'LOW',
+      ear: 0.29,
+      mar: 0.17,
+      speed: '45 km/h',
       location: 'Đường 2/9, Hải Châu, Đà Nẵng',
-      duration: '3.2s',
-      actionTaken: 'Cảnh báo âm thanh: Hãy chú ý quan sát đường phía trước'
+      duration: '0s',
+      actionTaken: 'Hệ thống AI DMS giám sát an toàn tiêu chuẩn • Không có vi phạm'
     },
-    historyEvidences: [
-      {
-        id: 'EV-03-H1',
-        image: '/bang_chung/GUC_DAU_(NHAM_MAT)_(3.2s)_20261022_220953.jpg',
-        time: '08:30:10',
-        date: 'Hôm nay (01/11)',
-        type: 'HEAD_DROP',
-        typeName: 'Gục đầu trong cabin',
-        severity: 'HIGH',
-        pitch: -35,
-        speed: '38 km/h',
-        location: 'Đường Duy Tân',
-        duration: '3.2s',
-        actionTaken: 'Hú còi cabin cấp 2'
-      },
-      {
-        id: 'EV-03-H2',
-        image: '/bang_chung/NGAP_SAU_3.0s_20261029_100655.jpg',
-        time: '15:20:00',
-        date: '28/10/2026',
-        type: 'YAWN',
-        typeName: 'Ngáp mệt mỏi ca chiều',
-        severity: 'MEDIUM',
-        mar: 0.71,
-        speed: '42 km/h',
-        location: 'Cầu Trần Thị Lý',
-        duration: '3.0s',
-        actionTaken: 'Gợi ý đổi tài xế'
-      }
-    ]
+    historyEvidences: []
   },
   {
     id: 'V04',
@@ -316,43 +160,28 @@ const MOCK_LIVE_FLEET: LiveVehicle[] = [
     driverPhone: '0935.456.789',
     speed: 58,
     status: 'NORMAL',
-    statusLabel: 'Lái xe an toàn / Tập trung',
+    statusLabel: 'Lái xe an toàn / Tỉnh táo',
     lat: 16.035000,
     lng: 108.225000,
-    currentEar: 0.29,
-    currentMar: 0.18,
+    currentEar: 0.31,
+    currentMar: 0.15,
     lastSeen: '15 giây trước',
     recentEvidence: {
       id: 'EV-04',
       image: '/bang_chung/CANH_BAO_VANG_3_LAN_CAM_10P_-_NGAP_LIEN_TUC_20261029_100705.jpg',
-      time: '07:45:00',
-      date: 'Hôm nay (01/11)',
-      type: 'YAWN',
-      typeName: 'Kiểm tra DMS an toàn ban đầu',
+      time: '10:20:00',
+      date: 'Hôm nay',
+      type: 'SLOW_BLINK',
+      typeName: 'Lái xe an toàn / Tỉnh táo',
       severity: 'LOW',
-      ear: 0.29,
-      mar: 0.18,
+      ear: 0.31,
+      mar: 0.15,
       speed: '58 km/h',
       location: 'Đường Võ Nguyên Giáp, Đà Nẵng',
       duration: '0s',
-      actionTaken: 'Chỉ số bình thường, hệ thống duy trì giám sát định kỳ'
+      actionTaken: 'Hệ thống AI DMS giám sát an toàn tiêu chuẩn • Không có vi phạm'
     },
-    historyEvidences: [
-      {
-        id: 'EV-04-H1',
-        image: '/bang_chung/CHOP_MAT_CHAM_(0.60s)_20261024_201535.jpg',
-        time: '14:10:00',
-        date: '27/10/2026',
-        type: 'SLOW_BLINK',
-        typeName: 'Chớp mắt bình thường',
-        severity: 'LOW',
-        ear: 0.21,
-        speed: '55 km/h',
-        location: 'Bán đảo Sơn Trà',
-        duration: '0.6s',
-        actionTaken: 'Ghi nhận an toàn'
-      }
-    ]
+    historyEvidences: []
   },
   {
     id: 'V05',
@@ -362,7 +191,7 @@ const MOCK_LIVE_FLEET: LiveVehicle[] = [
     driverPhone: '0977.111.222',
     speed: 60,
     status: 'NORMAL',
-    statusLabel: 'An toàn / Tỉnh táo hoàn toàn',
+    statusLabel: 'Lái xe an toàn / Tỉnh táo',
     lat: 16.062000,
     lng: 108.218000,
     currentEar: 0.32,
@@ -371,34 +200,19 @@ const MOCK_LIVE_FLEET: LiveVehicle[] = [
     recentEvidence: {
       id: 'EV-05',
       image: '/bang_chung/CHOP_MAT_CHAM_(0.60s)_20261024_201540.jpg',
-      time: '08:00:15',
-      date: 'Hôm nay (01/11)',
+      time: '10:18:15',
+      date: 'Hôm nay',
       type: 'SLOW_BLINK',
-      typeName: 'Trạng thái lái xe tỉnh táo',
+      typeName: 'Lái xe an toàn / Tỉnh táo',
       severity: 'LOW',
       ear: 0.32,
       mar: 0.15,
       speed: '60 km/h',
       location: 'Cảng Tiên Sa, Đà Nẵng',
       duration: '0s',
-      actionTaken: 'Lái xe an toàn tiêu chuẩn'
+      actionTaken: 'Hệ thống AI DMS giám sát an toàn tiêu chuẩn • Không có vi phạm'
     },
-    historyEvidences: [
-      {
-        id: 'EV-05-H1',
-        image: '/bang_chung/NGAP_LIEN_TUC_20261022_214436.jpg',
-        time: '16:00:00',
-        date: '25/10/2026',
-        type: 'YAWN',
-        typeName: 'Ngáp nhẹ trước giờ giao ca',
-        severity: 'MEDIUM',
-        mar: 0.65,
-        speed: '45 km/h',
-        location: 'Đường Bạch Đằng',
-        duration: '2.0s',
-        actionTaken: 'Nhắc nhở nghỉ ngơi'
-      }
-    ]
+    historyEvidences: []
   }
 ];
 
@@ -1010,66 +824,79 @@ export default function LiveTracking() {
                 </div>
               </div>
 
-              {/* Lưới các ảnh chụp trước đó */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {filteredHistory.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => setLightboxImage(item.image)}
-                    className="bg-slate-50 rounded-xl border border-slate-200/90 overflow-hidden shadow-2xs hover:shadow-md hover:border-sky-300 transition-all cursor-pointer group flex flex-col justify-between"
-                  >
-                    <div className="relative h-44 bg-slate-900 overflow-hidden">
-                      <img
-                        src={item.image}
-                        alt={item.typeName}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-80" />
-
-                      {/* Tag nhãn loại vi phạm */}
-                      <div className="absolute top-2 left-2">
-                        <span
-                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shadow ${
-                            item.severity === 'HIGH'
-                              ? 'bg-rose-600 text-white'
-                              : item.severity === 'MEDIUM'
-                              ? 'bg-amber-500 text-white'
-                              : 'bg-sky-600 text-white'
-                          }`}
-                        >
-                          {item.typeName}
-                        </span>
-                      </div>
-
-                      <div className="absolute top-2 right-2 p-1.5 bg-slate-900/80 rounded-lg text-white opacity-0 group-hover:opacity-100 transition">
-                        <ZoomIn className="w-3.5 h-3.5" />
-                      </div>
-
-                      <div className="absolute bottom-2 left-2 right-2 text-white text-[11px] font-mono flex justify-between items-center">
-                        <span>🕒 {item.time} ({item.date})</span>
-                        <span>⚡ {item.speed}</span>
-                      </div>
-                    </div>
-
-                    <div className="p-3 text-xs flex flex-col justify-between flex-1">
-                      <div>
-                        <p className="font-bold text-slate-800 text-[11px] mb-1 line-clamp-1">
-                          {item.typeName} ({item.duration || '2.0s'})
-                        </p>
-                        <p className="text-[10px] text-slate-500 line-clamp-1">
-                          📍 {item.location}
-                        </p>
-                      </div>
-                      <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex justify-between items-center text-[10px] text-slate-400">
-                        <span className="truncate max-w-[180px]">{item.actionTaken}</span>
-                        <span className="text-sky-600 font-bold group-hover:underline flex items-center gap-0.5">
-                          Phóng to <ExternalLink className="w-2.5 h-2.5" />
-                        </span>
-                      </div>
-                    </div>
+              {/* Lưới các ảnh chụp trước đó hoặc Empty State */}
+              {filteredHistory.length === 0 ? (
+                <div className="py-12 px-4 flex flex-col items-center justify-center text-center bg-slate-50/60 rounded-2xl border-2 border-dashed border-slate-200">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 shadow-inner ring-1 ring-emerald-200/60">
+                    <ShieldCheck className="w-7 h-7" />
                   </div>
-                ))}
-              </div>
+                  <h4 className="text-sm font-extrabold text-slate-800">
+                    Chưa ghi nhận hình ảnh vi phạm
+                  </h4>
+                  <p className="text-xs text-slate-400 max-w-sm mt-1 leading-relaxed">
+                    Tài xế đang vận hành an toàn và tập trung. Chưa có bất kỳ cảnh báo buồn ngủ hay mất tập trung nào được phát hiện trong ca làm việc.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {filteredHistory.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => setLightboxImage(item.image)}
+                      className="bg-slate-50 rounded-xl border border-slate-200/90 overflow-hidden shadow-2xs hover:shadow-md hover:border-sky-300 transition-all cursor-pointer group flex flex-col justify-between"
+                    >
+                      <div className="relative h-44 bg-slate-900 overflow-hidden">
+                        <img
+                          src={item.image}
+                          alt={item.typeName}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-80" />
+
+                        <div className="absolute top-2 left-2">
+                          <span
+                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shadow ${
+                              item.severity === 'HIGH'
+                                ? 'bg-rose-600 text-white'
+                                : item.severity === 'MEDIUM'
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-emerald-600 text-white'
+                            }`}
+                          >
+                            {item.typeName}
+                          </span>
+                        </div>
+
+                        <div className="absolute top-2 right-2 p-1.5 bg-slate-900/80 rounded-lg text-white opacity-0 group-hover:opacity-100 transition">
+                          <ZoomIn className="w-3.5 h-3.5" />
+                        </div>
+
+                        <div className="absolute bottom-2 left-2 right-2 text-white text-[11px] font-mono flex justify-between items-center">
+                          <span>🕒 {item.time} ({item.date})</span>
+                          <span>⚡ {item.speed}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3 text-xs flex flex-col justify-between flex-1">
+                        <div>
+                          <p className="font-bold text-slate-800 text-[11px] mb-1 line-clamp-1">
+                            {item.typeName} ({item.duration || '2.0s'})
+                          </p>
+                          <p className="text-[10px] text-slate-500 line-clamp-1">
+                            📍 {item.location}
+                          </p>
+                        </div>
+                        <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex justify-between items-center text-[10px] text-slate-400">
+                          <span className="truncate max-w-[180px]">{item.actionTaken}</span>
+                          <span className="text-sky-600 font-bold group-hover:underline flex items-center gap-0.5">
+                            Phóng to <ExternalLink className="w-2.5 h-2.5" />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
           </div>
