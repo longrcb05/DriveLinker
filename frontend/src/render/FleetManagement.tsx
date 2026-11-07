@@ -418,13 +418,13 @@ export default function FleetManagement() {
             onChange={e => setSelectedStatus(e.target.value as any)}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-sky-500 cursor-pointer"
           >
-            <option value="ALL">{t('fleet.filterAllStatus')} ({vehicles.length})</option>
-            <option value="AVAILABLE">{t('fleet.statusAvailable')} ({stats.available})</option>
-            <option value="RENTED">{t('fleet.statusRented')} ({stats.rented})</option>
-            <option value="RESERVED">{t('fleet.statusReserved')} ({stats.reserved})</option>
-            <option value="MAINTENANCE">{t('fleet.statusMaintenance')} ({stats.maintenance})</option>
-            <option value="PENDING_INSPECTION">{t('fleet.statusPendingInspection')} ({stats.pendingInspection})</option>
-            <option value="INACTIVE">{t('fleet.statusInactive')} ({stats.inactive})</option>
+            <option value="ALL">{t('fleet.filterAllStatus')} • {vehicles.length}</option>
+            <option value="AVAILABLE">{t('fleet.statusAvailable')} • {stats.available}</option>
+            <option value="RENTED">{t('fleet.statusRented')} • {stats.rented}</option>
+            <option value="RESERVED">{t('fleet.statusReserved')} • {stats.reserved}</option>
+            <option value="MAINTENANCE">{t('fleet.statusMaintenance')} • {stats.maintenance}</option>
+            <option value="PENDING_INSPECTION">{t('fleet.statusPendingInspection')} • {stats.pendingInspection}</option>
+            <option value="INACTIVE">{t('fleet.statusInactive')} • {stats.inactive}</option>
           </select>
         </div>
       </div>
@@ -880,7 +880,7 @@ export default function FleetManagement() {
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
                 <div>
                   <span className="font-mono text-base font-extrabold text-slate-800">{viewingVehicle.plate}</span>
-                  <p className="text-slate-500 mt-0.5">{viewingVehicle.brand} {viewingVehicle.model} ({viewingVehicle.year})</p>
+                  <p className="text-slate-500 mt-0.5">{viewingVehicle.brand} {viewingVehicle.model} • {viewingVehicle.year}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {renderStatusBadge(viewingVehicle.status)}

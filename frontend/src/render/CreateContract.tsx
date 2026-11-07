@@ -289,7 +289,7 @@ export default function CreateContract() {
                 </div>
 
                 <div className="space-y-0.5 mb-2.5 avoid-break">
-                    <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN CHO THUÊ XE (BÊN A):</p>
+                    <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN CHO THUÊ XE - BÊN A:</p>
                     <p>Tên tổ chức/Cá nhân: <span className="font-bold">{formData.partyAName || '............................................................'}</span></p>
                     <p>Địa chỉ trụ sở: {formData.partyAAddress || '..................................................................................'}</p>
                     <p>Điện thoại: {formData.partyAPhone || '............................................................'}</p>
@@ -297,7 +297,7 @@ export default function CreateContract() {
                 </div>
 
                 <div className="space-y-0.5 mb-2.5 avoid-break">
-                    <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN THUÊ XE (BÊN B):</p>
+                    <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN THUÊ XE - BÊN B:</p>
                     <div className="flex justify-between gap-4">
                         <p className="flex-1">Ông/Bà: <span className="font-bold uppercase">{formData.renterName || '........................................'}</span></p>
                         <p className="flex-1">Số điện thoại: <span className="font-bold">{formData.renterPhone || '..........................'}</span></p>
@@ -333,7 +333,7 @@ export default function CreateContract() {
                         <li>Thời gian bắt đầu thuê: {formData.rentStartDate ? new Date(formData.rentStartDate).toLocaleString('vi-VN') : '............................................................'}</li>
                         <li>Thời gian dự kiến trả xe: {formData.rentEndDate ? new Date(formData.rentEndDate).toLocaleString('vi-VN') : '............................................................'}</li>
                         <li>Đơn giá thuê: <span className="font-bold">{formatMoney(formData.rentPrice)}</span> VNĐ / ngày.</li>
-                        <li>Tiền đặt cọc / Tài sản thế chấp: <span className="font-bold">{formatMoney(formData.depositAmount)}</span> VNĐ. (Bên A sẽ hoàn trả lại cho Bên B sau khi thanh lý hợp đồng và trừ đi các khoản phạt vi phạm giao thông nếu có phát sinh).</li>
+                        <li>Tiền đặt cọc / Tài sản thế chấp: <span className="font-bold">{formatMoney(formData.depositAmount)}</span> VNĐ. Bên A sẽ hoàn trả lại cho Bên B sau khi thanh lý hợp đồng và trừ đi các khoản phạt vi phạm giao thông nếu có phát sinh.</li>
                     </ul>
                 </div>
             </div>
@@ -346,7 +346,7 @@ export default function CreateContract() {
                     <p className="font-bold text-[13pt] mt-0.5">3.1. Nghĩa vụ của Bên A:</p>
                     <ul className="list-disc pl-6 space-y-0.5 text-justify">
                         <li>Giao xe đúng chất lượng, đúng thời gian và địa điểm đã thỏa thuận.</li>
-                        <li>Cung cấp đầy đủ giấy tờ pháp lý của xe (bản sao y có công chứng hoặc bản gốc tùy thỏa thuận).</li>
+                        <li>Cung cấp đầy đủ giấy tờ pháp lý của xe - bản sao y có công chứng hoặc bản gốc tùy thỏa thuận.</li>
                     </ul>
                     <p className="font-bold text-[13pt] mt-1.5">3.2. Nghĩa vụ của Bên B:</p>
                     <ul className="list-disc pl-6 space-y-0.5 text-justify">
@@ -375,24 +375,24 @@ export default function CreateContract() {
 
                 <div className="space-y-0.5 mb-4 avoid-break">
                     <p className="font-bold uppercase text-[13pt] mb-0.5">ĐIỀU 5: CAM KẾT CHUNG</p>
-                    <p className="text-justify leading-normal">Hai bên cam kết thực hiện đúng các điều khoản trong hợp đồng. Hợp đồng được lập thành 02 (hai) bản, mỗi bên giữ 01 (một) bản có giá trị pháp lý như nhau và có hiệu lực kể từ ngày ký.</p>
+                    <p className="text-justify leading-normal">Hai bên cam kết thực hiện đúng các điều khoản trong hợp đồng. Hợp đồng được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị pháp lý như nhau và có hiệu lực kể từ ngày ký.</p>
                 </div>
 
                 <div className="grid grid-cols-2 text-center mt-5 gap-6 avoid-break pb-4">
                     <div>
                         <p className="font-bold uppercase text-[13pt] mb-0.5">ĐẠI DIỆN BÊN A</p>
-                        <p className="italic text-[11.5pt] mb-14">(Ký, đóng dấu, ghi rõ họ tên)</p>
+                        <p className="italic text-[11.5pt] mb-14">Ký, đóng dấu, ghi rõ họ tên</p>
                         <p className="font-bold uppercase text-[13pt]">{formData.partyARepresentative}</p>
                     </div>
                     <div>
                         <p className="font-bold uppercase text-[13pt] mb-0.5">ĐẠI DIỆN BÊN B</p>
-                        <p className="italic text-[11.5pt] mb-1">(Ký, ghi rõ họ tên)</p>
+                        <p className="italic text-[11.5pt] mb-1">Ký, ghi rõ họ tên</p>
                         <div className="h-14 flex items-center justify-center mb-1">
                             {signatureData ? (
                                 <img src={signatureData} alt="Chữ ký bên B" className="max-h-full max-w-full mix-blend-multiply object-contain" />
                             ) : (
                                 <div className="w-full h-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 font-sans text-xs no-print">
-                                    (Khu vực Ký tên)
+                                    Khu vực Ký tên
                                 </div>
                             )}
                         </div>

@@ -232,7 +232,7 @@ export default function VehicleRecallModal({ contract, onClose, onSuccess }: Veh
         tenantId,
         carPlate,
         targetVehicleStatus,
-        `Hoàn tất thu hồi HĐ ${contract.id}. Kết quả kiểm tra: ${inspectionResult === 'PASS' ? 'ĐẠT (Sẵn sàng cho thuê)' : 'HỎNG (Chuyển bảo dưỡng)'}`
+        `Hoàn tất thu hồi HĐ ${contract.id}. Kết quả kiểm tra: ${inspectionResult === 'PASS' ? 'ĐẠT - Sẵn sàng cho thuê' : 'HỎNG - Chuyển bảo dưỡng'}`
       );
     } catch (err: any) {
       console.warn(err);

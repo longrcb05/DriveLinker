@@ -138,7 +138,7 @@ export default function AdminLogin() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toUpperCase())}
-                placeholder={language === 'vi' ? 'Nhập tài khoản Quản trị viên (VD: ADMINLONG)...' : 'Enter Administrator username (e.g. ADMINLONG)...'}
+                placeholder={language === 'vi' ? 'Nhập tài khoản Quản trị viên - VD: ADMINLONG...' : 'Enter Administrator username - e.g. ADMINLONG...'}
                 autoComplete="off"
                 spellCheck={false}
                 className="w-full pl-11 pr-4 py-3 bg-slate-950/70 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:bg-slate-950 transition-all shadow-inner"

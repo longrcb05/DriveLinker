@@ -329,7 +329,7 @@ export default function Analytics() {
                 <>
                   <span className="flex items-center gap-1.5 text-rose-600">
                     <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    <span>Nguy cơ cao (HIGH)</span>
+                    <span>Nguy cơ cao - HIGH</span>
                   </span>
                   <span className="flex items-center gap-1.5 text-sky-600">
                     <span className="w-2 h-2 rounded-full bg-sky-500" />
@@ -553,7 +553,7 @@ export default function Analytics() {
                       <strong className="text-sky-400 font-mono">{chartPoints[hoveredSlot].count} vụ</strong>
                     </p>
                     <p className="flex justify-between gap-4">
-                      <span className="text-rose-300">Nguy cơ cao (HIGH):</span>
+                      <span className="text-rose-300">Nguy cơ cao - HIGH:</span>
                       <strong className="text-rose-400 font-mono">{chartPoints[hoveredSlot].high}</strong>
                     </p>
                     <p className="flex justify-between gap-4">

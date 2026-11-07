@@ -139,7 +139,7 @@ export default function Overview() {
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_DATA.center);
-  const [mapType, setMapType] = useState<'m' | 'y'>('m'); // 'm': Roadmap (Đường phố), 'y': Satellite/Hybrid (Vệ tinh)
+  const [mapType, setMapType] = useState<'m' | 'y'>('m'); // 'm': Roadmap - Đường phố, 'y': Satellite/Hybrid - Vệ tinh
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [revenueData, setRevenueData] = useState<any>(DEFAULT_DATA.revenue);
@@ -629,7 +629,7 @@ export default function Overview() {
               ) : (
                 <>
                   <Navigation className="w-4 h-4 text-sky-500" />
-                  <span>{t('overview.drawerVehicleList')} ({getPanelData().length})</span>
+                  <span>{t('overview.drawerVehicleList')} • {getPanelData().length}</span>
                 </>
               )}
             </h3>

@@ -284,7 +284,7 @@ export default function ContractManagement() {
 
           {/* BÊN A */}
           <div className="mb-2.5 space-y-0.5 text-[13pt]">
-            <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN CHO THUÊ XE (BÊN A):</p>
+            <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN CHO THUÊ XE - BÊN A:</p>
             <p>Tên tổ chức/Cá nhân: <span className="font-bold">{partyAName}</span></p>
             <p>Địa chỉ trụ sở: {partyAAddress}</p>
             <p>Điện thoại: {partyAPhone}</p>
@@ -293,7 +293,7 @@ export default function ContractManagement() {
 
           {/* BÊN B */}
           <div className="mb-2.5 space-y-0.5 text-[13pt]">
-            <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN THUÊ XE (BÊN B):</p>
+            <p className="font-bold uppercase text-[13pt] mb-0.5">BÊN THUÊ XE - BÊN B:</p>
             <div className="flex justify-between gap-4">
               <p className="flex-1">Ông/Bà: <span className="font-bold uppercase">{renterName}</span></p>
               <p className="flex-1">Số điện thoại: {renterPhone}</p>
@@ -304,7 +304,7 @@ export default function ContractManagement() {
               <p className="flex-1">Nơi cấp: {renterCccdPlace}</p>
             </div>
             <p>Giấy phép lái xe số: {renterLicense}</p>
-            <p>Người bảo lãnh / Liên hệ khẩn cấp: <span className="font-bold">{guarantorName}</span> (Quan hệ: {guarantorRelation}) - SĐT: {guarantorPhone}</p>
+            <p>Người bảo lãnh / Liên hệ khẩn cấp: <span className="font-bold">{guarantorName}</span> - Quan hệ: {guarantorRelation} - SĐT: {guarantorPhone}</p>
           </div>
 
           <p className="italic text-[12.5pt] mb-2">Sau khi thỏa thuận, hai bên đồng ý ký kết Hợp đồng thuê xe với các điều khoản sau:</p>
@@ -323,7 +323,7 @@ export default function ContractManagement() {
               <li>Thời gian bắt đầu thuê: <span className="font-semibold">{startDate}</span></li>
               <li>Thời gian dự kiến trả xe: <span className="font-semibold">{endDate}</span></li>
               <li>Đơn giá thuê: <span className="font-bold">{rentPrice} / ngày</span></li>
-              <li>Tiền đặt cọc / Tài sản thế chấp: <span className="font-bold">{depositAmount}</span> (Bên A sẽ hoàn trả lại cho Bên B sau khi thanh lý hợp đồng và trừ đi các khoản phí vi phạm giao thông nếu có phát sinh).</li>
+              <li>Tiền đặt cọc / Tài sản thế chấp: <span className="font-bold">{depositAmount}</span>. Bên A sẽ hoàn trả lại cho Bên B sau khi thanh lý hợp đồng và trừ đi các khoản phí vi phạm giao thông nếu có phát sinh.</li>
             </ul>
           </div>
         </div>
@@ -339,7 +339,7 @@ export default function ContractManagement() {
             <p className="font-bold uppercase text-[13pt] mb-0.5">ĐIỀU 3: QUYỀN VÀ NGHĨA VỤ CỦA CÁC BÊN</p>
             <p className="font-bold text-[13pt] mt-0.5">3.1. Nghĩa vụ của Bên A:</p>
             <p className="pl-3">• Giao xe đúng chất lượng, đúng thời gian và địa điểm đã thỏa thuận.</p>
-            <p className="pl-3">• Cung cấp đầy đủ giấy tờ pháp lý của xe (bản sao y có công chứng hoặc bản gốc tùy thỏa thuận).</p>
+            <p className="pl-3">• Cung cấp đầy đủ giấy tờ pháp lý của xe - bản sao y có công chứng hoặc bản gốc tùy thỏa thuận.</p>
 
             <p className="font-bold text-[13pt] mt-1.5">3.2. Nghĩa vụ của Bên B:</p>
             <p className="pl-3">• Thanh toán đầy đủ tiền thuê xe và tiền cọc cho Bên A.</p>
@@ -365,19 +365,19 @@ export default function ContractManagement() {
           {/* ĐIỀU 5 */}
           <div className="mb-4 text-[13pt] space-y-0.5">
             <p className="font-bold uppercase text-[13pt] mb-0.5">ĐIỀU 5: CAM KẾT CHUNG</p>
-            <p className="text-justify leading-normal">Hai bên cam kết thực hiện đúng các điều khoản trong hợp đồng. Hợp đồng được lập thành 02 (hai) bản, mỗi bên giữ 01 (một) bản có giá trị pháp lý như nhau và có hiệu lực kể từ ngày ký.</p>
+            <p className="text-justify leading-normal">Hai bên cam kết thực hiện đúng các điều khoản trong hợp đồng. Hợp đồng được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị pháp lý như nhau và có hiệu lực kể từ ngày ký.</p>
           </div>
 
           {/* CHỮ KÝ XÁC NHẬN */}
           <div className="grid grid-cols-2 text-center mt-5 text-[13pt]">
             <div>
               <p className="font-bold uppercase mb-0.5 text-[13pt]">ĐẠI DIỆN BÊN A</p>
-              <p className="italic text-[11.5pt] mb-14">(Ký, ghi rõ họ tên)</p>
+              <p className="italic text-[11.5pt] mb-14">Ký, ghi rõ họ tên</p>
               <p className="font-bold uppercase text-[13pt]">{partyARepresentative}</p>
             </div>
             <div>
               <p className="font-bold uppercase mb-0.5 text-[13pt]">ĐẠI DIỆN BÊN B</p>
-              <p className="italic text-[11.5pt] mb-1">(Ký, ghi rõ họ tên)</p>
+              <p className="italic text-[11.5pt] mb-1">Ký, ghi rõ họ tên</p>
               <div className="h-14 flex items-center justify-center mb-1">
                 {signature ? (
                   <img src={signature} alt="Chữ ký bên B" className="max-h-full mix-blend-multiply object-contain" />
@@ -577,7 +577,7 @@ export default function ContractManagement() {
 
                           {/* Cột 2: Khách hàng */}
                           <td className="p-4">
-                            <p className="font-bold text-slate-800">{item.partnerName || item.partyB?.name || '(Chưa nhập tên)'}</p>
+                            <p className="font-bold text-slate-800">{item.partnerName || item.partyB?.name || 'Chưa nhập tên'}</p>
                             <p className="text-[10px] font-mono text-slate-500">{item.partnerPhone || item.partyB?.phone || '---'}</p>
                           </td>
 
@@ -713,7 +713,7 @@ export default function ContractManagement() {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-in zoom-in-95">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-slate-800 text-base">Cập nhật Đơn giá Hợp đồng (Quản lý)</h3>
+              <h3 className="font-bold text-slate-800 text-base">Cập nhật Đơn giá Hợp đồng</h3>
               <button onClick={() => setEditingPriceContract(null)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
@@ -723,7 +723,7 @@ export default function ContractManagement() {
             </p>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Đơn giá mới (VNĐ)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Đơn giá mới</label>
                 <input
                   type="text"
                   value={managerNewPrice}
