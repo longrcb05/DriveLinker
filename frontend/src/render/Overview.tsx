@@ -354,7 +354,7 @@ export default function Overview() {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    {language === 'vi' ? 'Bản đồ' : 'Roadmap'}
+                    {t('overview.mapRoadmap')}
                   </button>
                   <button
                     type="button"
@@ -365,23 +365,32 @@ export default function Overview() {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    {language === 'vi' ? 'Vệ tinh' : 'Satellite'}
+                    {t('overview.mapSatellite')}
                   </button>
                 </div>
 
-                <div className="hidden sm:flex items-center gap-3 text-xs font-medium pl-2 border-l border-slate-200">
-                  <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block animate-pulse" />
-                    Cảnh báo đỏ ({vehicles.filter(v => v.safetyStatus === 'RED').length})
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
-                    Cảnh báo vàng ({vehicles.filter(v => v.safetyStatus === 'YELLOW').length})
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
-                    An toàn ({vehicles.filter(v => v.safetyStatus === 'GREEN').length})
-                  </span>
+                <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-slate-200">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200/80 text-[11px] font-semibold text-rose-700 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                    <span>{t('overview.statusRed')}</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-rose-200/60 font-mono text-[10px] font-bold text-rose-800">
+                      {vehicles.filter(v => v.safetyStatus === 'RED').length}
+                    </span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200/80 text-[11px] font-semibold text-amber-700 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span>{t('overview.statusYellow')}</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-amber-200/60 font-mono text-[10px] font-bold text-amber-800">
+                      {vehicles.filter(v => v.safetyStatus === 'YELLOW').length}
+                    </span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-[11px] font-semibold text-emerald-700 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>{t('overview.statusGreen')}</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-200/60 font-mono text-[10px] font-bold text-emerald-800">
+                      {vehicles.filter(v => v.safetyStatus === 'GREEN').length}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -426,7 +435,7 @@ export default function Overview() {
                           <div className="space-y-1 text-xs text-slate-600">
                             <p>👤 {t('overview.driverLabel')}: <strong className="text-slate-800">{vehicle.driver}</strong></p>
                             <p>
-                              🚨 Tình trạng:{' '}
+                              🚨 {t('overview.statusLabel')}:{' '}
                               <strong className={
                                 vehicle.safetyStatus === 'RED'
                                   ? 'text-rose-600'
@@ -434,7 +443,11 @@ export default function Overview() {
                                   ? 'text-amber-600'
                                   : 'text-emerald-600'
                               }>
-                                {vehicle.safetyLabel || (vehicle.safetyStatus === 'RED' ? 'Ngủ gật nguy hiểm' : vehicle.safetyStatus === 'YELLOW' ? 'Cảnh báo mất tập trung' : 'Lái xe an toàn')}
+                                {vehicle.safetyStatus === 'RED'
+                                  ? t('tracking.statusDrowsy')
+                                  : vehicle.safetyStatus === 'YELLOW'
+                                  ? t('tracking.statusDistracted')
+                                  : t('tracking.statusSafeNormal')}
                               </strong>
                             </p>
                             <p className="text-[11px] text-slate-500 font-mono">🚗 {t('overview.typeLabel')}: {vehicle.type}</p>
@@ -445,7 +458,7 @@ export default function Overview() {
                             className="mt-2.5 w-full py-1.5 px-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition shadow-xs active:scale-95"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            <span>Xem chi tiết & Camera AI</span>
+                            <span>{t('overview.viewDetailsAiCamera')}</span>
                             <ArrowUpRight className="w-3 h-3" />
                           </button>
                         </div>
@@ -470,7 +483,7 @@ export default function Overview() {
                     {t('overview.revPerformance')}
                   </h3>
                   <p className="text-[10px] text-slate-400 font-medium">
-                    {language === 'vi' ? 'Chỉ số tài chính đội xe' : 'Fleet Financial Metrics'}
+                    {t('overview.fleetFinancialMetrics')}
                   </p>
                 </div>
               </div>
@@ -481,7 +494,7 @@ export default function Overview() {
               ) : (
                 <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-100/90 border border-slate-200/70 px-2.5 py-1 rounded-lg shadow-2xs">
                   <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{language === 'vi' ? 'Tháng 11/2026' : 'Nov 2026'}</span>
+                  <span>{t('overview.currentMonthLabel')}</span>
                 </div>
               )}
             </div>
@@ -495,7 +508,7 @@ export default function Overview() {
                     {t('overview.revTotalEstimated')}
                   </span>
                   <span className="text-[10px] font-semibold text-slate-400">
-                    {language === 'vi' ? 'Chỉ tiêu: 150 Tr' : 'Target: 150M'}
+                    {t('overview.target150M')}
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between gap-2">
@@ -516,7 +529,7 @@ export default function Overview() {
                         {revenueData.growthPercent || revenueData.growth}
                       </span>
                       <span className="text-[9px] text-slate-400 mt-0.5 font-medium">
-                        {language === 'vi' ? 'so với kỳ trước' : 'vs last period'}
+                        {t('overview.vsPrevious')}
                       </span>
                     </div>
                   )}
@@ -529,7 +542,7 @@ export default function Overview() {
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-sky-500 shadow-xs shadow-sky-500/50" />
-                      {language === 'vi' ? 'Thuê xe HĐ' : 'Contract'}
+                      {t('overview.contractRevenue')}
                     </span>
                     <span className="text-[10px] font-bold text-sky-700 bg-sky-100/80 px-1.5 py-0.5 rounded-md font-mono">
                       75%
@@ -547,7 +560,7 @@ export default function Overview() {
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/50" />
-                      {language === 'vi' ? 'Dịch vụ phụ' : 'Services'}
+                      {t('overview.serviceRevenue')}
                     </span>
                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-md font-mono">
                       25%
@@ -671,9 +684,9 @@ export default function Overview() {
                   <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3 shadow-inner ring-1 ring-emerald-200/60">
                     <CheckCircle2 className="w-7 h-7" />
                   </div>
-                  <h4 className="text-sm font-extrabold text-slate-800">Không có cảnh báo</h4>
+                  <h4 className="text-sm font-extrabold text-slate-800">{t('overview.noAlertsTitle')}</h4>
                   <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                    Toàn bộ phương tiện đang vận hành an toàn. Chưa ghi nhận sự cố vi phạm nào.
+                    {t('overview.noAlertsDesc')}
                   </p>
                 </div>
               ) : (

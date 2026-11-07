@@ -44,9 +44,17 @@ const RAW_EVENTS = [
 ];
 
 export default function Analytics() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [isExporting, setIsExporting] = useState(false);
+
+  const getEventTypeName = (type: string) => {
+    if (type === 'Nhắm mắt kéo dài' || type === 'Ngủ gật / Nhắm mắt') return t('analytics.typeDrowsy');
+    if (type === 'Ngáp liên tục') return t('analytics.typeYawn');
+    if (type === 'Mất tập trung') return t('analytics.typeDistracted');
+    if (type === 'Vượt tốc độ') return t('analytics.typeSpeeding');
+    return type;
+  };
 
   // Chế độ hiển thị biểu đồ: 'burn' (Sơ đồ Burndown) hoặc 'bar' (Biểu đồ Cột)
   const [chartMode, setChartMode] = useState<'burn' | 'bar'>('burn');
@@ -168,7 +176,7 @@ export default function Analytics() {
       {/* KHU VỰC 1: HEADER & CÔNG CỤ BỘ LỌC */}
       <div className="px-6 pt-5 pb-3">
         <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-          <span className="hover:text-slate-800 cursor-pointer transition-colors">MENU</span>
+          <span className="hover:text-slate-800 cursor-pointer transition-colors">{t('analytics.breadcrumbMenu')}</span>
           <ChevronRight className="w-3 h-3 mx-2" />
           <span className="text-sky-600 cursor-pointer">{t('nav.analytics')}</span>
         </div>
@@ -261,8 +269,8 @@ export default function Analytics() {
                 </h3>
                 <p className="text-[11px] text-slate-400 font-medium">
                   {chartMode === 'burn'
-                    ? 'Sơ đồ Burndown theo dõi tiến độ triệt tiêu sự cố an toàn theo mốc thời gian'
-                    : 'Phân bổ tần suất cảnh báo và vi phạm an toàn theo từng khung giờ vận hành'}
+                    ? t('analytics.burndownSubtitle')
+                    : t('analytics.barSubtitle')}
                 </p>
               </div>
             </div>
@@ -279,7 +287,7 @@ export default function Analytics() {
                 }`}
               >
                 <TrendingDown className="w-3.5 h-3.5 text-sky-500" />
-                <span>Sơ đồ Burndown</span>
+                <span>{t('analytics.burndownMode')}</span>
               </button>
               <button
                 type="button"
@@ -291,7 +299,7 @@ export default function Analytics() {
                 }`}
               >
                 <BarChart3 className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Biểu đồ Cột</span>
+                <span>{t('analytics.barMode')}</span>
               </button>
             </div>
           </div>
@@ -301,13 +309,13 @@ export default function Analytics() {
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5 font-semibold text-slate-600">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/50" />
-                <span>Hiệu suất xử lý:</span>
-                <strong className="text-emerald-700 font-bold">{stats.resolveRate}% hoàn tất</strong>
+                <span>{t('analytics.resolvePerformance')}:</span>
+                <strong className="text-emerald-700 font-bold">{stats.resolveRate}% {t('analytics.completed')}</strong>
               </span>
               <span className="hidden md:inline-block text-slate-300">|</span>
               <span className="hidden md:flex items-center gap-1.5 font-semibold text-slate-600">
                 <Flame className="w-3.5 h-3.5 text-rose-500" />
-                <span>Cao điểm rủi ro:</span>
+                <span>{t('analytics.peakRisk')}:</span>
                 <span className="text-rose-600 font-bold bg-rose-50 border border-rose-200/60 px-1.5 py-0.5 rounded text-[11px]">14:00 - 16:00</span>
               </span>
             </div>
@@ -318,22 +326,22 @@ export default function Analytics() {
                 <>
                   <span className="flex items-center gap-1.5">
                     <span className="w-4 h-0.5 border-b-2 border-dashed border-slate-400 inline-block" />
-                    <span>Mục tiêu SLA</span>
+                    <span>{t('analytics.slaTarget')}</span>
                   </span>
                   <span className="flex items-center gap-1.5 text-sky-700">
                     <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" />
-                    <span>Sự cố tồn đọng</span>
+                    <span>{t('analytics.pendingIssues')}</span>
                   </span>
                 </>
               ) : (
                 <>
                   <span className="flex items-center gap-1.5 text-rose-600">
                     <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    <span>Nguy cơ cao - HIGH</span>
+                    <span>{t('analytics.highRisk')}</span>
                   </span>
                   <span className="flex items-center gap-1.5 text-sky-600">
                     <span className="w-2 h-2 rounded-full bg-sky-500" />
-                    <span>Trung bình & Thấp</span>
+                    <span>{t('analytics.medLowRisk')}</span>
                   </span>
                 </>
               )}
@@ -529,35 +537,35 @@ export default function Analytics() {
               >
                 <div className="flex items-center gap-2 border-b border-slate-700/80 pb-1 mb-1.5">
                   <span className="font-bold text-sky-400 font-mono">
-                    Khung giờ: {chartPoints[hoveredSlot].label} - {chartPoints[hoveredSlot].end}:00
+                    {t('analytics.timeFrame')}: {chartPoints[hoveredSlot].label} - {chartPoints[hoveredSlot].end}:00
                   </span>
                 </div>
                 {chartMode === 'burn' ? (
                   <div className="space-y-1 text-[11px]">
                     <p className="flex justify-between gap-4">
-                      <span className="text-slate-300">Sự cố tồn đọng thực tế:</span>
-                      <strong className="text-amber-400 font-mono">{chartPoints[hoveredSlot].actual} vụ</strong>
+                      <span className="text-slate-300">{t('analytics.actualPending')}:</span>
+                      <strong className="text-amber-400 font-mono">{chartPoints[hoveredSlot].actual} {t('analytics.casesCount')}</strong>
                     </p>
                     <p className="flex justify-between gap-4">
-                      <span className="text-slate-400">Mục tiêu SLA lý tưởng:</span>
-                      <span className="text-slate-300 font-mono">{chartPoints[hoveredSlot].ideal} vụ</span>
+                      <span className="text-slate-400">{t('analytics.idealSla')}:</span>
+                      <span className="text-slate-300 font-mono">{chartPoints[hoveredSlot].ideal} {t('analytics.casesCount')}</span>
                     </p>
                     <p className="text-[10px] text-emerald-400 pt-0.5">
-                      ✓ Đã xử lý {chartPoints[hoveredSlot].count} cảnh báo trong ca này
+                      {t('analytics.resolvedShift', { count: chartPoints[hoveredSlot].count })}
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-1 text-[11px]">
                     <p className="flex justify-between gap-4">
-                      <span className="text-slate-300">Tổng sự cố phát hiện:</span>
-                      <strong className="text-sky-400 font-mono">{chartPoints[hoveredSlot].count} vụ</strong>
+                      <span className="text-slate-300">{t('analytics.totalDetected')}:</span>
+                      <strong className="text-sky-400 font-mono">{chartPoints[hoveredSlot].count} {t('analytics.casesCount')}</strong>
                     </p>
                     <p className="flex justify-between gap-4">
-                      <span className="text-rose-300">Nguy cơ cao - HIGH:</span>
+                      <span className="text-rose-300">{t('analytics.highRiskLabel')}:</span>
                       <strong className="text-rose-400 font-mono">{chartPoints[hoveredSlot].high}</strong>
                     </p>
                     <p className="flex justify-between gap-4">
-                      <span className="text-slate-400">Trung bình & Nhắc nhở:</span>
+                      <span className="text-slate-400">{t('analytics.medReminder')}:</span>
                       <span className="text-slate-300 font-mono">{chartPoints[hoveredSlot].med + chartPoints[hoveredSlot].low}</span>
                     </p>
                   </div>
@@ -631,7 +639,7 @@ export default function Analytics() {
                     <td className="p-4 font-bold text-slate-800">{e.vehicle}</td>
                     <td className="p-4 text-slate-600">{e.driver}</td>
                     <td className="p-4">
-                      <span className="font-bold text-slate-700">{e.type}</span>
+                      <span className="font-bold text-slate-700">{getEventTypeName(e.type)}</span>
                       <span className={`ml-2 text-[9px] px-1.5 py-0.5 rounded border font-bold ${e.severity === 'HIGH' ? 'border-rose-200 text-rose-600 bg-rose-50' :
                         e.severity === 'MEDIUM' ? 'border-amber-200 text-amber-600 bg-amber-50' :
                           'border-sky-200 text-sky-600 bg-sky-50'

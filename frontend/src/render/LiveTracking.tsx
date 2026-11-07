@@ -217,9 +217,51 @@ const MOCK_LIVE_FLEET: LiveVehicle[] = [
 ];
 
 export default function LiveTracking() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [searchParams] = useSearchParams();
   const plateParam = searchParams.get('plate');
+
+  const getVehicleStatusLabel = (status: string, fallback: string) => {
+    if (status === 'NORMAL') return t('tracking.statusSafeNormal');
+    if (status === 'ALERT_DROWSY') return t('tracking.statusDrowsy');
+    if (status === 'WARNING_YAWN') return t('tracking.statusYawn');
+    if (status === 'ALERT_DISTRACTED') return t('tracking.statusDistracted');
+    return fallback;
+  };
+
+  const formatLastSeen = (lastSeen: string) => {
+    if (!lastSeen) return '';
+    if (language === 'en') {
+      if (lastSeen === 'Vừa xong') return t('tracking.justNow');
+      return lastSeen.replace(' giây trước', 's ago').replace(' phút trước', 'm ago');
+    }
+    return lastSeen;
+  };
+
+  const formatEvidenceTypeName = (typeName: string) => {
+    if (!typeName) return '';
+    if (typeName.includes('Lái xe an toàn') || typeName.includes('Tỉnh táo') || typeName.includes('Bình thường')) {
+      return t('tracking.statusSafeNormal');
+    }
+    if (typeName.includes('Ngủ gật')) {
+      return t('tracking.statusDrowsy');
+    }
+    if (typeName.includes('Ngáp')) {
+      return t('tracking.statusYawn');
+    }
+    if (typeName.includes('Mất tập trung') || typeName.includes('Cúi đầu')) {
+      return t('tracking.statusDistracted');
+    }
+    return typeName;
+  };
+
+  const formatActionTaken = (action: string) => {
+    if (!action) return '';
+    if (action.includes('an toàn') && action.includes('Không có vi phạm')) {
+      return t('tracking.actionSafe');
+    }
+    return action;
+  };
 
   const [vehicles] = useState<LiveVehicle[]>(MOCK_LIVE_FLEET);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('V01');
@@ -426,7 +468,7 @@ export default function LiveTracking() {
                         }`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${isAlert ? 'bg-rose-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                      {v.status === 'NORMAL' ? t('tracking.statusSafeNormal') : v.statusLabel}
+                      {getVehicleStatusLabel(v.status, v.statusLabel)}
                     </span>
                   </div>
 
@@ -440,7 +482,7 @@ export default function LiveTracking() {
                     <div className="flex items-center justify-between mt-1 text-[11px] text-slate-500 font-mono">
                       <span>⚡ {v.speed} km/h</span>
                       <span>EAR: <strong className={v.currentEar < 0.20 ? 'text-rose-600 font-bold' : 'text-emerald-600'}>{v.currentEar}</strong></span>
-                      <span className="text-[10px] text-slate-400">{v.lastSeen}</span>
+                      <span className="text-[10px] text-slate-400">{formatLastSeen(v.lastSeen)}</span>
                     </div>
                   </div>
 
@@ -528,7 +570,7 @@ export default function LiveTracking() {
                 ) : (
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 )}
-                <span>{activeVehicle.status === 'NORMAL' ? t('tracking.statusSafeNormal') : activeVehicle.statusLabel}</span>
+                <span>{getVehicleStatusLabel(activeVehicle.status, activeVehicle.statusLabel)}</span>
               </span>
 
               {/* Phím tắt Gọi tài xế */}
@@ -588,7 +630,7 @@ export default function LiveTracking() {
                   <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-md group flex-1 min-h-[300px] flex items-center justify-center">
                     <img
                       src={currentEvidence.image}
-                      alt={currentEvidence.typeName}
+                      alt={formatEvidenceTypeName(currentEvidence.typeName)}
                       className="w-full h-full max-h-[360px] object-contain bg-black group-hover:scale-[1.01] transition-transform duration-300 cursor-pointer"
                       onClick={() => setLightboxImage(currentEvidence.image)}
                     />
@@ -608,7 +650,7 @@ export default function LiveTracking() {
                         ) : (
                           <ShieldCheck className="w-3.5 h-3.5 text-emerald-200" />
                         )}
-                        <span>{currentEvidence.typeName}</span>
+                        <span>{formatEvidenceTypeName(currentEvidence.typeName)}</span>
                       </span>
                     </div>
 
@@ -661,7 +703,7 @@ export default function LiveTracking() {
                         </span>
                       </div>
                       <h4 className="font-extrabold text-slate-900 text-base leading-tight mt-0.5">
-                        {currentEvidence.typeName}
+                        {formatEvidenceTypeName(currentEvidence.typeName)}
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-1">
                         {t('tracking.duration')} <strong className="text-slate-800 font-semibold">{currentEvidence.duration || '0s'}</strong>
@@ -728,7 +770,7 @@ export default function LiveTracking() {
                         {t('tracking.cabinIntervention')}
                       </span>
                       <p className="font-semibold text-[11px] text-slate-700 leading-relaxed">
-                        {currentEvidence.actionTaken}
+                        {formatActionTaken(currentEvidence.actionTaken)}
                       </p>
                     </div>
                   </div>
@@ -937,7 +979,7 @@ export default function LiveTracking() {
             <div className="flex-1 overflow-hidden flex items-center justify-center p-2 bg-slate-950">
               <img
                 src={lightboxImage}
-                alt="Bằng chứng toàn màn hình"
+                alt={t('tracking.fullscreenAlt')}
                 className="max-w-full max-h-[80vh] object-contain rounded-lg"
               />
             </div>
