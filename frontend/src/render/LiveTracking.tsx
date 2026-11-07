@@ -13,7 +13,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import {
-  ChevronRight, Activity, Search, Camera,
+  ChevronRight, Search, Camera,
   AlertTriangle, CheckCircle2, Clock, X,
   ZoomIn, Download, Truck, User,
   History, MapPin, Eye, Phone, BellRing,
@@ -305,19 +305,17 @@ export default function LiveTracking() {
       {/* =========================================================================
           1. HEADER TỔNG (GỌN GÀNG, TINH TẾ)
           ========================================================================= */}
-      <div className="px-6 py-4 shrink-0 bg-white border-b border-slate-200/80 shadow-2xs">
+      <div className="px-6 py-3.5 shrink-0 bg-white border-b border-slate-200/80 shadow-2xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+            <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
               <span className="hover:text-slate-800 cursor-pointer">{t('overview.breadcrumbHome')}</span>
               <ChevronRight className="w-3 h-3 mx-1 text-slate-400" />
               <span className="text-sky-600 font-extrabold">{t('nav.tracking')}</span>
             </div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-              <Activity className="w-6 h-6 text-sky-600" />
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {t('tracking.title')}
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">{t('tracking.subtitle')}</p>
           </div>
         </div>
       </div>
@@ -350,9 +348,6 @@ export default function LiveTracking() {
               <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
                 <Truck className="w-4 h-4 text-sky-600" />
                 <span>Danh sách xe giám sát</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-mono font-bold">
-                  {filteredVehicles.length}
-                </span>
               </h3>
             </div>
 
@@ -417,8 +412,8 @@ export default function LiveTracking() {
                   onClick={() => setSelectedVehicleId(v.id)}
                   className={`p-3 rounded-xl border transition-all cursor-pointer relative select-none ${
                     isSelected
-                      ? 'bg-white border-sky-500 shadow-md ring-2 ring-sky-200 scale-[1.01]'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-xs'
+                      ? 'bg-sky-50/20 border-sky-500 shadow-sm ring-1 ring-sky-300'
+                      : 'bg-white border-slate-200/80 hover:border-slate-300 hover:bg-slate-50/40'
                   }`}
                 >
                   {/* Hàng 1: Biển số & Huy hiệu trạng thái */}
@@ -429,10 +424,10 @@ export default function LiveTracking() {
                     <span
                       className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         isAlert
-                          ? 'bg-rose-100 text-rose-700 animate-pulse border border-rose-200'
+                          ? 'bg-rose-50 text-rose-700 animate-pulse border border-rose-200'
                           : isWarning
-                          ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                          : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
                       }`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${isAlert ? 'bg-rose-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'}`} />
@@ -485,7 +480,7 @@ export default function LiveTracking() {
         <div className="flex-1 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col overflow-hidden min-h-0">
 
           {/* 1. Thanh Tiêu Đề Xe (Header Thông Tin) */}
-          <div className="px-6 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 via-white to-slate-50/60 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="px-6 py-3.5 border-b border-slate-200/80 bg-white flex flex-wrap items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-3.5 min-w-0">
               {/* Biển số xe */}
               <div className="font-mono font-black text-sm sm:text-base bg-slate-900 text-white px-3.5 py-1.5 rounded-xl shadow-xs whitespace-nowrap shrink-0 tracking-wider">
@@ -524,12 +519,12 @@ export default function LiveTracking() {
             <div className="flex items-center gap-2.5 shrink-0">
               {/* Badge Trạng thái hiện tại của xe */}
               <span
-                className={`inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-2xs whitespace-nowrap shrink-0 ${
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border whitespace-nowrap shrink-0 ${
                   activeVehicle.status === 'ALERT_DROWSY'
-                    ? 'bg-rose-100 text-rose-700 border border-rose-300 animate-pulse'
+                    ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
                     : activeVehicle.status === 'WARNING_YAWN' || activeVehicle.status === 'ALERT_DISTRACTED'
-                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                    : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    ? 'bg-amber-50 text-amber-800 border-amber-300'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                 }`}
               >
                 {activeVehicle.status === 'ALERT_DROWSY' ? (
@@ -570,9 +565,15 @@ export default function LiveTracking() {
                   <div>
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
                       <span>Hình ảnh & Bằng chứng phát hiện thời gian thực (AI DMS)</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 animate-pulse">
-                        Sự cố mới nhất
-                      </span>
+                      {activeVehicle.status === 'ALERT_DROWSY' || currentEvidence.severity === 'HIGH' ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 animate-pulse">
+                          Sự cố mới nhất
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                          Giám sát trực tiếp • Bình thường
+                        </span>
+                      )}
                     </h4>
                   </div>
                 </div>
@@ -601,15 +602,19 @@ export default function LiveTracking() {
                     {/* Huy hiệu loại vi phạm tinh tế ở góc trên */}
                     <div className="absolute top-3 left-3 flex items-center gap-1.5">
                       <span
-                        className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1.5 ${
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1.5 backdrop-blur-xs ${
                           currentEvidence.severity === 'HIGH'
-                            ? 'bg-rose-600 text-white animate-pulse'
+                            ? 'bg-rose-600/90 text-white animate-pulse'
                             : currentEvidence.severity === 'MEDIUM'
-                            ? 'bg-amber-500 text-white'
-                            : 'bg-emerald-600 text-white'
+                            ? 'bg-amber-500/90 text-white'
+                            : 'bg-emerald-600/90 text-white'
                         }`}
                       >
-                        <AlertTriangle className="w-3.5 h-3.5" />
+                        {currentEvidence.severity === 'HIGH' || currentEvidence.severity === 'MEDIUM' ? (
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                        ) : (
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-200" />
+                        )}
                         <span>{currentEvidence.typeName}</span>
                       </span>
                     </div>
@@ -638,45 +643,45 @@ export default function LiveTracking() {
                 <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
                   <div className="space-y-3 text-xs">
 
-                    {/* 1. Tên hành vi vi phạm (To & Đập vào mắt) */}
+                    {/* 1. Tên hành vi vi phạm */}
                     <div
                       className={`p-3.5 rounded-xl border ${
                         currentEvidence.severity === 'HIGH'
                           ? 'bg-rose-50/80 border-rose-200 text-rose-900'
                           : currentEvidence.severity === 'MEDIUM'
                           ? 'bg-amber-50/80 border-amber-200 text-amber-900'
-                          : 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                          : 'bg-slate-50/70 border-slate-200/80 text-slate-800'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                           Hành vi phát hiện
                         </span>
                         <span
-                          className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                             currentEvidence.severity === 'HIGH'
                               ? 'bg-rose-600 text-white'
                               : currentEvidence.severity === 'MEDIUM'
                               ? 'bg-amber-500 text-white'
-                              : 'bg-emerald-600 text-white'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
                           }`}
                         >
                           {currentEvidence.severity === 'HIGH' ? '🚨 CỰC KỲ NGUY HIỂM' : currentEvidence.severity === 'MEDIUM' ? '⚠️ CẢNH BÁO MỨC 2' : '✅ AN TOÀN'}
                         </span>
                       </div>
-                      <h4 className="font-black text-slate-900 text-base leading-tight mt-0.5">
+                      <h4 className="font-extrabold text-slate-900 text-base leading-tight mt-0.5">
                         {currentEvidence.typeName}
                       </h4>
-                      <p className="text-[11px] text-slate-600 mt-1">
-                        Thời lượng duy trì: <strong className="text-slate-900">{currentEvidence.duration || '1.5s'}</strong>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Thời lượng duy trì: <strong className="text-slate-800 font-semibold">{currentEvidence.duration || '0s'}</strong>
                       </p>
                     </div>
 
-                    {/* 2. Lưới 3 Chỉ số Sinh trắc học & Vận tốc */}
+                    {/* 2. Lưới 2 Chỉ số Sinh trắc học & Vận tốc */}
                     <div className="grid grid-cols-2 gap-2.5">
                       {/* Thẻ EAR Chỉ số Mở Mắt */}
-                      <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                      <div className="p-3 bg-slate-50/70 border border-slate-200/80 rounded-xl">
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
                           Chỉ số mở mắt (EAR)
                         </span>
                         <div className="flex items-baseline gap-1 mt-0.5">
@@ -689,10 +694,10 @@ export default function LiveTracking() {
                           >
                             {currentEvidence.ear ?? 0.14}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-normal">/ 0.35</span>
+                          <span className="text-[10px] text-slate-400 font-medium">/ 0.35</span>
                         </div>
                         {/* Thanh đo trực quan EAR */}
-                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-1.5">
+                        <div className="w-full bg-slate-200/70 h-1.5 rounded-full overflow-hidden mt-1.5">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${
                               (currentEvidence.ear ?? 0.20) < 0.20 ? 'bg-rose-500' : 'bg-emerald-500'
@@ -706,16 +711,16 @@ export default function LiveTracking() {
                       </div>
 
                       {/* Thẻ Vận tốc Xe */}
-                      <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                      <div className="p-3 bg-slate-50/70 border border-slate-200/80 rounded-xl">
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
                           Vận tốc xe
                         </span>
                         <div className="flex items-baseline gap-1 mt-0.5">
-                          <span className="text-2xl font-black font-mono text-sky-700">
+                          <span className="text-2xl font-black font-mono text-slate-800">
                             {currentEvidence.speed}
                           </span>
                         </div>
-                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-1.5">
+                        <div className="w-full bg-slate-200/70 h-1.5 rounded-full overflow-hidden mt-1.5">
                           <div
                             className="h-full bg-sky-500 rounded-full transition-all duration-500"
                             style={{ width: `${Math.min(100, (parseInt(currentEvidence.speed) / 100) * 100)}%` }}
@@ -728,25 +733,29 @@ export default function LiveTracking() {
                     </div>
 
                     {/* 3. Hành động can thiệp đã kích hoạt */}
-                    <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl">
-                      <span className="text-[10px] font-bold uppercase tracking-wider block mb-1 text-slate-500 flex items-center gap-1.5">
+                    <div className="p-3 bg-slate-50/70 border border-slate-200/80 rounded-xl">
+                      <span className="text-[10px] font-bold uppercase tracking-wider block mb-1 text-slate-400 flex items-center gap-1.5">
                         <BellRing className="w-3.5 h-3.5 text-amber-500" />
                         Hành động can thiệp cabin đã kích hoạt
                       </span>
-                      <p className="font-semibold text-[11px] text-slate-800 leading-relaxed">
+                      <p className="font-semibold text-[11px] text-slate-700 leading-relaxed">
                         {currentEvidence.actionTaken}
                       </p>
                     </div>
                   </div>
 
-                  {/* 4. Cụm nút xử lý khẩn cấp dành cho Nhân viên giám sát */}
+                  {/* 4. Cụm nút xử lý dành cho Nhân viên giám sát */}
                   <div className="space-y-2 pt-1">
                     <button
                       type="button"
                       onClick={handleTriggerCabinAlarm}
-                      className="w-full py-2 px-3 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-xs cursor-pointer active:scale-95"
+                      className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-xs cursor-pointer active:scale-95 ${
+                        activeVehicle.status === 'ALERT_DROWSY'
+                          ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
+                          : 'bg-slate-900 hover:bg-slate-800 text-white'
+                      }`}
                     >
-                      <Siren className="w-4 h-4 animate-pulse" />
+                      <Siren className={`w-4 h-4 ${activeVehicle.status === 'ALERT_DROWSY' ? 'text-white' : 'text-amber-400'}`} />
                       <span>Phát còi cabin khẩn cấp (Nhắc nhở lái xe)</span>
                     </button>
 
