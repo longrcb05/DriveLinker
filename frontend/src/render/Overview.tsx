@@ -293,11 +293,10 @@ export default function Overview() {
           {/* Thẻ Cảnh Báo AI Nguy Hiểm */}
           <div
             onClick={() => setActivePanel('ALERTS')}
-            className={`group p-4 sm:p-5 rounded-2xl border cursor-pointer transition-all duration-300 relative overflow-hidden flex flex-col justify-between ${
-              activePanel === 'ALERTS'
-                ? 'border-rose-500 bg-rose-50/90 ring-2 ring-rose-300 shadow-md scale-[1.02]'
-                : 'border-rose-100 bg-white hover:border-rose-300 hover:shadow-xs hover:-translate-y-0.5'
-            }`}
+            className={`group p-4 sm:p-5 rounded-2xl border cursor-pointer transition-all duration-300 relative overflow-hidden flex flex-col justify-between ${activePanel === 'ALERTS'
+              ? 'border-rose-500 bg-rose-50/90 ring-2 ring-rose-300 shadow-md scale-[1.02]'
+              : 'border-rose-100 bg-white hover:border-rose-300 hover:shadow-xs hover:-translate-y-0.5'
+              }`}
           >
             <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/10 rounded-bl-full pointer-events-none transition-all group-hover:scale-110" />
 
@@ -324,7 +323,7 @@ export default function Overview() {
 
           {/* Bản đồ Live Tracking Tích Hợp Google Maps API */}
           <div className="flex-[2] bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col relative z-0">
-            
+
             {/* Header của Bản Đồ */}
             <div className="p-3 bg-white border-b border-slate-100 flex justify-between items-center shrink-0 z-10">
               <div className="flex items-center gap-2.5">
@@ -334,9 +333,6 @@ export default function Overview() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">{t('overview.mapTitle')}</h3>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200/80 font-mono">
-                      Google Maps
-                    </span>
                   </div>
                   <p className="text-[10px] text-slate-500">{t('overview.mapSubtitle')}</p>
                 </div>
@@ -348,22 +344,20 @@ export default function Overview() {
                   <button
                     type="button"
                     onClick={() => setMapType('m')}
-                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
-                      mapType === 'm'
-                        ? 'bg-white text-sky-600 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${mapType === 'm'
+                      ? 'bg-white text-sky-600 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                      }`}
                   >
                     {t('overview.mapRoadmap')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setMapType('y')}
-                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
-                      mapType === 'y'
-                        ? 'bg-white text-sky-600 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${mapType === 'y'
+                      ? 'bg-white text-sky-600 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                      }`}
                   >
                     {t('overview.mapSatellite')}
                   </button>
@@ -422,13 +416,12 @@ export default function Overview() {
                         <div className="font-sans pt-1 min-w-[210px]">
                           <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 mb-2 pr-4">
                             <span className="font-black text-slate-900 text-sm font-mono tracking-tight">{vehicle.id}</span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono ${
-                              vehicle.safetyStatus === 'RED'
-                                ? 'bg-rose-100 text-rose-700 animate-pulse'
-                                : vehicle.safetyStatus === 'YELLOW'
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono ${vehicle.safetyStatus === 'RED'
+                              ? 'bg-rose-100 text-rose-700 animate-pulse'
+                              : vehicle.safetyStatus === 'YELLOW'
                                 ? 'bg-amber-100 text-amber-800'
                                 : 'bg-emerald-100 text-emerald-800'
-                            }`}>
+                              }`}>
                               {vehicle.speed}
                             </span>
                           </div>
@@ -440,14 +433,14 @@ export default function Overview() {
                                 vehicle.safetyStatus === 'RED'
                                   ? 'text-rose-600'
                                   : vehicle.safetyStatus === 'YELLOW'
-                                  ? 'text-amber-600'
-                                  : 'text-emerald-600'
+                                    ? 'text-amber-600'
+                                    : 'text-emerald-600'
                               }>
                                 {vehicle.safetyStatus === 'RED'
                                   ? t('tracking.statusDrowsy')
                                   : vehicle.safetyStatus === 'YELLOW'
-                                  ? t('tracking.statusDistracted')
-                                  : t('tracking.statusSafeNormal')}
+                                    ? t('tracking.statusDistracted')
+                                    : t('tracking.statusSafeNormal')}
                               </strong>
                             </p>
                             <p className="text-[11px] text-slate-500 font-mono">🚗 {t('overview.typeLabel')}: {vehicle.type}</p>
@@ -520,11 +513,10 @@ export default function Overview() {
                   </div>
                   {isManager && (
                     <div className="flex flex-col items-end">
-                      <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full shadow-2xs ${
-                        revenueData.growth?.includes('Tăng')
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200/80'
-                      }`}>
+                      <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full shadow-2xs ${revenueData.growth?.includes('Tăng')
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200/80'
+                        }`}>
                         <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
                         {revenueData.growthPercent || revenueData.growth}
                       </span>
@@ -627,7 +619,7 @@ export default function Overview() {
         </div>
       </div>
 
-{/* ================= KHU VỰC CHI TIẾT (RIGHT DRAWER) ================= */}
+      {/* ================= KHU VỰC CHI TIẾT (RIGHT DRAWER) ================= */}
       {activePanel && (
         <div className="w-[420px] bg-white border-l border-slate-200 shadow-2xl flex flex-col z-40 animate-in slide-in-from-right duration-300">
 
@@ -690,34 +682,33 @@ export default function Overview() {
                   </p>
                 </div>
               ) : (
-              alerts.filter(a => a.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) || a.type.toLowerCase().includes(searchTerm.toLowerCase())).map(a => (
-                <div key={a.id} className="p-4 border border-rose-100 bg-white rounded-xl shadow-xs hover:border-rose-300 hover:shadow-sm transition-all">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-bold text-rose-600 text-sm flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5" /> {a.type}
-                    </span>
-                    <span className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {a.time}
-                    </span>
+                alerts.filter(a => a.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) || a.type.toLowerCase().includes(searchTerm.toLowerCase())).map(a => (
+                  <div key={a.id} className="p-4 border border-rose-100 bg-white rounded-xl shadow-xs hover:border-rose-300 hover:shadow-sm transition-all">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-bold text-rose-600 text-sm flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5" /> {a.type}
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> {a.time}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-800 mb-1">{t('overview.vehicleLabel')} <span className="font-bold font-mono">{a.vehicle}</span></p>
+                    <p className="text-xs text-slate-500 mb-3 bg-slate-50 p-2 rounded border border-slate-100">{a.message}</p>
+                    <button onClick={() => navigate(`/tracking?plate=${encodeURIComponent(a.vehicle)}`)} className="text-xs font-bold bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white border border-rose-200 py-1.5 rounded-lg transition-colors w-full cursor-pointer flex items-center justify-center gap-1">
+                      <span>{t('overview.verifyNowBtn')}</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <p className="text-xs text-slate-800 mb-1">{t('overview.vehicleLabel')} <span className="font-bold font-mono">{a.vehicle}</span></p>
-                  <p className="text-xs text-slate-500 mb-3 bg-slate-50 p-2 rounded border border-slate-100">{a.message}</p>
-                  <button onClick={() => navigate(`/tracking?plate=${encodeURIComponent(a.vehicle)}`)} className="text-xs font-bold bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white border border-rose-200 py-1.5 rounded-lg transition-colors w-full cursor-pointer flex items-center justify-center gap-1">
-                    <span>{t('overview.verifyNowBtn')}</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))
+                ))
               )
             ) : (
               getPanelData().map(v => (
                 <div key={v.id} className="p-4 border border-slate-200/80 rounded-xl bg-white hover:border-sky-300 hover:shadow-xs transition-all cursor-pointer group">
                   <div className="flex justify-between items-start mb-2">
                     <span className="font-mono font-bold text-slate-800 text-base group-hover:text-sky-600 transition-colors">{v.id}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      v.status === 'RENTING' ? 'bg-emerald-100 text-emerald-700' :
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${v.status === 'RENTING' ? 'bg-emerald-100 text-emerald-700' :
                       v.status === 'AVAILABLE' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'
-                    }`}>
+                      }`}>
                       {v.status === 'RENTING' ? t('overview.kpiRenting') : v.status === 'AVAILABLE' ? t('overview.kpiAvailable') : t('overview.kpiMaintenance')}
                     </span>
                   </div>
@@ -767,11 +758,10 @@ const StatCard = ({ title, value, icon: Icon, color, onClick, active, desc, badg
   return (
     <div
       onClick={onClick}
-      className={`group p-4 sm:p-5 rounded-2xl border cursor-pointer transition-all duration-300 flex flex-col justify-between select-none relative overflow-hidden ${
-        active
-          ? `${scheme.border} ${scheme.bg} shadow-md ring-2 ${scheme.activeRing} scale-[1.02]`
-          : 'border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs hover:-translate-y-0.5'
-      }`}
+      className={`group p-4 sm:p-5 rounded-2xl border cursor-pointer transition-all duration-300 flex flex-col justify-between select-none relative overflow-hidden ${active
+        ? `${scheme.border} ${scheme.bg} shadow-md ring-2 ${scheme.activeRing} scale-[1.02]`
+        : 'border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs hover:-translate-y-0.5'
+        }`}
     >
       <div className="flex justify-between items-start mb-2">
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{title}</span>
