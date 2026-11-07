@@ -17,9 +17,7 @@ import {
   AlertTriangle, CheckCircle2, Clock, X,
   ZoomIn, Download, Truck, User,
   History, MapPin, Eye, Phone, BellRing,
-  Flame, ShieldCheck, Play, Pause, RotateCcw,
-  SkipBack, SkipForward, Volume2, Siren,
-  ExternalLink, Calendar, Check, Sliders
+  Flame, ShieldCheck, Siren, ExternalLink
 } from 'lucide-react';
 
 // === KIỂU DỮ LIỆU BẰNG CHỨNG AI DMS ===
@@ -423,12 +421,6 @@ export default function LiveTracking() {
   // Trạng thái báo động còi cabin khẩn cấp
   const [cabinAlarmAlert, setCabinAlarmAlert] = useState<string | null>(null);
 
-  // Vị trí mốc bằng chứng đang chọn trên thanh tua thời gian (0 = Gần nhất)
-  const [currentEvidenceIndex, setCurrentEvidenceIndex] = useState<number>(0);
-
-  // Chế độ phát lại tự động (Slideshow / Auto Replay)
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-
   // Tự động chọn xe khi có query param từ trang Tổng quan
   useEffect(() => {
     if (plateParam) {
@@ -446,40 +438,10 @@ export default function LiveTracking() {
     return vehicles.find(v => v.id === selectedVehicleId) || vehicles[0];
   }, [vehicles, selectedVehicleId]);
 
-  // Reset về mốc gần nhất và dừng phát khi đổi xe
-  useEffect(() => {
-    setCurrentEvidenceIndex(0);
-    setIsPlaying(false);
-  }, [selectedVehicleId]);
-
-  // Danh sách toàn bộ bằng chứng của xe hiện tại (Mốc 0 là mới nhất)
-  const timelineEvidences = useMemo(() => {
-    return [activeVehicle.recentEvidence, ...activeVehicle.historyEvidences];
-  }, [activeVehicle]);
-
-  // Bằng chứng đang được chọn xem (theo thanh tua thời gian)
+  // Bằng chứng hình ảnh mới nhất của xe đang chọn
   const currentEvidence = useMemo(() => {
-    return timelineEvidences[currentEvidenceIndex] || timelineEvidences[0];
-  }, [timelineEvidences, currentEvidenceIndex]);
-
-  // Hiệu ứng tự động tua lại qua các mốc bằng chứng
-  useEffect(() => {
-    let timer: NodeJS.Timeout | null = null;
-    if (isPlaying) {
-      timer = setInterval(() => {
-        setCurrentEvidenceIndex(prev => {
-          if (prev >= timelineEvidences.length - 1) {
-            setIsPlaying(false);
-            return 0; // Quay về mốc mới nhất
-          }
-          return prev + 1;
-        });
-      }, 2500);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [isPlaying, timelineEvidences.length]);
+    return activeVehicle.recentEvidence;
+  }, [activeVehicle]);
 
   // Lọc danh sách xe theo từ khóa và trạng thái
   const filteredVehicles = useMemo(() => {
@@ -789,16 +751,10 @@ export default function LiveTracking() {
                   </div>
                   <div>
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
-                      <span>Bằng chứng hình ảnh AI DMS</span>
-                      {currentEvidenceIndex === 0 ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 animate-pulse">
-                          Sự cố mới nhất
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200">
-                          Đang tua lại: Mốc {currentEvidenceIndex + 1}/{timelineEvidences.length}
-                        </span>
-                      )}
+                      <span>Hình ảnh & Bằng chứng phát hiện thời gian thực (AI DMS)</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 animate-pulse">
+                        Sự cố mới nhất
+                      </span>
                     </h4>
                   </div>
                 </div>
@@ -994,149 +950,6 @@ export default function LiveTracking() {
                       </a>
                     </div>
                   </div>
-                </div>
-              </div>
-
-              {/* =============================================================
-                  BỘ ĐIỀU KHIỂN & CHỌN THỜI GIAN ĐỂ TUA LẠI BẰNG CHỨNG (TIME SCRUBBER)
-                  ============================================================= */}
-              <div className="pt-4 mt-2 border-t border-slate-100 bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-2">
-                    <Sliders className="w-4 h-4 text-sky-600" />
-                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                      Thanh tua thời gian & Xem lại bằng chứng
-                    </span>
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
-                      {timelineEvidences.length} mốc ghi nhận
-                    </span>
-                  </div>
-
-                  {/* Nút điều khiển phát lại tua tự động */}
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsPlaying(false);
-                        setCurrentEvidenceIndex(prev => Math.min(timelineEvidences.length - 1, prev + 1));
-                      }}
-                      disabled={currentEvidenceIndex >= timelineEvidences.length - 1}
-                      className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition cursor-pointer"
-                      title="Mốc trước đó (cũ hơn)"
-                    >
-                      <SkipBack className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setIsPlaying(!isPlaying)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                        isPlaying
-                          ? 'bg-amber-500 text-white shadow-xs'
-                          : 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs'
-                      }`}
-                    >
-                      {isPlaying ? (
-                        <>
-                          <Pause className="w-3.5 h-3.5" />
-                          <span>Tạm dừng</span>
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-3.5 h-3.5" />
-                          <span>Tự động tua</span>
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsPlaying(false);
-                        setCurrentEvidenceIndex(prev => Math.max(0, prev - 1));
-                      }}
-                      disabled={currentEvidenceIndex <= 0}
-                      className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition cursor-pointer"
-                      title="Mốc tiếp theo (mới hơn)"
-                    >
-                      <SkipForward className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsPlaying(false);
-                        setCurrentEvidenceIndex(0);
-                      }}
-                      className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border transition cursor-pointer flex items-center gap-1 ${
-                        currentEvidenceIndex === 0
-                          ? 'bg-rose-50 border-rose-200 text-rose-600'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
-                      title="Về sự cố mới nhất"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      <span>Mới nhất</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Thanh Slider Tua Thời Gian */}
-                <div className="relative pt-1 pb-2">
-                  <input
-                    type="range"
-                    min="0"
-                    max={timelineEvidences.length - 1}
-                    value={currentEvidenceIndex}
-                    onChange={(e) => {
-                      setIsPlaying(false);
-                      setCurrentEvidenceIndex(parseInt(e.target.value));
-                    }}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-sky-600"
-                  />
-                  <div className="flex justify-between text-[10px] text-slate-400 font-mono mt-1">
-                    <span>🔴 Mới nhất: {timelineEvidences[0].time}</span>
-                    <span className="font-bold text-sky-600">Đang xem: {currentEvidence.time} ({currentEvidence.date})</span>
-                    <span>Cũ nhất: {timelineEvidences[timelineEvidences.length - 1].time}</span>
-                  </div>
-                </div>
-
-                {/* Dải Chọn Nhanh Các Mốc Thời Gian (Chips / Pills) */}
-                <div className="flex items-center gap-2 overflow-x-auto pt-2 pb-1">
-                  {timelineEvidences.map((ev, idx) => {
-                    const isSelected = idx === currentEvidenceIndex;
-                    const isAlert = ev.severity === 'HIGH';
-                    const isWarning = ev.severity === 'MEDIUM';
-
-                    return (
-                      <button
-                        key={ev.id}
-                        type="button"
-                        onClick={() => {
-                          setIsPlaying(false);
-                          setCurrentEvidenceIndex(idx);
-                        }}
-                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                          isSelected
-                            ? 'bg-slate-900 text-white border-slate-900 shadow-sm scale-105'
-                            : isAlert
-                            ? 'bg-white text-rose-600 border-rose-200 hover:bg-rose-50'
-                            : isWarning
-                            ? 'bg-white text-amber-600 border-amber-200 hover:bg-amber-50'
-                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            isAlert ? 'bg-rose-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'
-                          }`}
-                        />
-                        <span>{ev.time}</span>
-                        <span className="text-[10px] font-normal opacity-75">({ev.date})</span>
-                        {isSelected && <Check className="w-3 h-3 text-emerald-400" />}
-                      </button>
-                    );
-                  })}
                 </div>
               </div>
 
