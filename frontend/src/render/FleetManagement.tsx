@@ -5,7 +5,7 @@
  * tích hợp bộ lọc, tìm kiếm và hỗ trợ song ngữ Tiếng Việt - English.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Truck, Search, Plus, RefreshCw, AlertTriangle, CheckCircle2,
   Clock, Wrench, ShieldAlert, Edit3, Trash2, Eye, X, Phone,
@@ -22,6 +22,7 @@ export default function FleetManagement() {
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const pendingReload = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<VehicleStatus | 'ALL'>('ALL');
 
@@ -48,6 +49,10 @@ export default function FleetManagement() {
   const [formError, setFormError] = useState<string>('');
 
   const loadVehicles = useCallback(async () => {
+    if (pendingReload.current !== null) {
+      clearTimeout(pendingReload.current);
+      pendingReload.current = null;
+    }
     setLoading(true);
     try {
       const data = await vehicleService.getFleetList(tenantId);
@@ -64,7 +69,13 @@ export default function FleetManagement() {
 
     // Lắng nghe sự kiện cập nhật dữ liệu từ các tab hoặc component khác
     const handleStorageUpdate = () => {
-      loadVehicles();
+      // Một thao tác có thể phát cả hai sự kiện; chỉ đọc storage một lần.
+      if (pendingReload.current === null) {
+        pendingReload.current = setTimeout(() => {
+          pendingReload.current = null;
+          void loadVehicles();
+        }, 0);
+      }
     };
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('dl_vehicles_updated', handleStorageUpdate);
@@ -72,27 +83,42 @@ export default function FleetManagement() {
     return () => {
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('dl_vehicles_updated', handleStorageUpdate);
+      if (pendingReload.current !== null) {
+        clearTimeout(pendingReload.current);
+        pendingReload.current = null;
+      }
     };
   }, [loadVehicles]);
 
-  // Thống kê KPI
+  // Đếm các trạng thái trong một lượt duyệt danh sách.
   const stats = useMemo(() => {
-    return {
+    const counts = {
       total: vehicles.length,
-      available: vehicles.filter(v => v.status === 'AVAILABLE').length,
-      rented: vehicles.filter(v => v.status === 'RENTED').length,
-      reserved: vehicles.filter(v => v.status === 'RESERVED').length,
-      maintenance: vehicles.filter(v => v.status === 'MAINTENANCE').length,
-      pendingInspection: vehicles.filter(v => v.status === 'PENDING_INSPECTION').length,
-      inactive: vehicles.filter(v => v.status === 'INACTIVE').length,
+      available: 0,
+      rented: 0,
+      reserved: 0,
+      maintenance: 0,
+      pendingInspection: 0,
+      inactive: 0,
     };
+    for (const vehicle of vehicles) {
+      switch (vehicle.status) {
+        case 'AVAILABLE': counts.available++; break;
+        case 'RENTED': counts.rented++; break;
+        case 'RESERVED': counts.reserved++; break;
+        case 'MAINTENANCE': counts.maintenance++; break;
+        case 'PENDING_INSPECTION': counts.pendingInspection++; break;
+        case 'INACTIVE': counts.inactive++; break;
+      }
+    }
+    return counts;
   }, [vehicles]);
 
   // Bộ lọc dữ liệu
   const filteredVehicles = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim();
     return vehicles.filter(v => {
       const matchStatus = selectedStatus === 'ALL' || v.status === selectedStatus;
-      const q = searchTerm.toLowerCase().trim();
       const matchSearch =
         !q ||
         v.plate.toLowerCase().includes(q) ||
