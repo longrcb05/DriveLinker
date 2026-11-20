@@ -1,6 +1,24 @@
 /**
  * @file Settings.tsx
- * @description Phân hệ Cài đặt hệ thống (Settings) dành cho Quản trị viên doanh nghiệp (Tenant Admin).
+ * @module Frontend/Settings
+ * @description Bảng Cấu hình Bảo mật, Thiết bị Truy cập & Quản trị Nhân sự Doanh nghiệp (Enterprise Settings & Security Audit) dành cho Quản trị viên (Tenant Admin).
+ * 
+ * PHÂN HỆ QUẢN TRỊ & TÍNH NĂNG KỸ THUẬT:
+ * 1. Quản lý Mã Định danh Doanh nghiệp (Company Code Administration):
+ *    - Cho phép Quản lý cập nhật mã đăng nhập riêng (Company Code).
+ *    - Ràng buộc bảo mật 2 lớp: Bắt buộc nhập mật khẩu xác nhận của Quản lý trước khi cho phép ghi đè mã mới.
+ *    - Tự động ghi vết sự kiện đổi mã vào Nhật ký Hệ thống (Audit Log).
+ * 
+ * 2. Giám sát Thiết bị Truy cập & Phát hiện Xung đột IP (Access Device & Anomaly Detection):
+ *    - Thu thập thông tin phiên: Hệ điều hành (Windows, macOS, iOS, Android), Trình duyệt, Địa chỉ IP và Mã vân tay thiết bị (`deviceFingerprint`).
+ *    - Cảnh báo bất thường thời gian thực (Real-time Anomaly Warning) khi phát hiện cùng 1 tài khoản đăng nhập từ nhiều địa chỉ IP khác nhau.
+ * 
+ * 3. Quản trị Nhân sự & Khóa Tài khoản Tức Thời:
+ *    - Thêm tài khoản nhân viên mới (`TENANT_STAFF`), kiểm tra chống trùng username.
+ *    - Tính năng Khóa / Mở khóa tài khoản nhân sự tức thời (`status: 'ACTIVE' | 'LOCKED'`), tự động đồng bộ sang màn hình Đăng nhập.
+ * 
+ * 4. Cấu hình Dịch vụ Lõi (Platform Core Services):
+ *    - Công tắc bật/tắt các module dịch vụ nền tảng (GPS Tracking, AI DMS, Cảnh báo tức thời) dành riêng cho quyền quản trị cấp cao.
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';

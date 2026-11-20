@@ -153,3 +153,49 @@ flowchart TD
   1. Đồng bộ toàn bộ `leaflet`, `react-leaflet`, `axios`, `@types/leaflet` vào đúng `frontend/package.json` và `frontend/node_modules`.
   2. Chuẩn hóa `frontend/tsconfig.json` và `frontend/tsconfig.app.json` với cấu hình `"moduleResolution": "bundler"`, `"types": ["vite/client"]`.
   3. Kiểm tra bằng lệnh `npx tsc --noEmit` và `npm run build`: **0 lỗi (Zero errors), biên dịch thành công 100%**.
+
+
+---
+
+## 5. CẬP NHẬT GIAO DIỆN ĐĂNG NHẬP — 16/11/2026
+
+Các mục dưới đây được tổng hợp từ thay đổi hiện có so với phiên bản đã lưu trong Git; không đủ thông tin để xác định tác giả của từng thay đổi.
+
+- **`frontend/src/render/Login.tsx`:** Thêm import `Login.css`, điều chỉnh danh sách biểu tượng và viết lại phần giao diện đăng nhập. Giao diện có logo, chuyển ngôn ngữ Việt/Anh, thông báo lỗi, biểu mẫu mã doanh nghiệp, tài khoản và mật khẩu, nút hiện hoặc ẩn mật khẩu, trạng thái đang xác thực, gợi ý tài khoản mẫu và liên kết tới trang quản trị. Phần xử lý đăng nhập phía trên `return` không thay đổi so với phiên bản Git được đối chiếu.
+- **`frontend/src/render/Login.css`:** Thêm định dạng riêng cho bố cục sáng, các trường nhập, nút, thông báo và phần gợi ý. Có quy tắc cho màn hình nhỏ, trạng thái focus và tùy chọn giảm chuyển động.
+- **`frontend/src/assets/login-fleet.png` và `login-marble.png`:** Có thêm hai ảnh; CSS hiện sử dụng `login-fleet.png` làm ảnh minh họa trang đăng nhập.
+- **`frontend/package-lock.json`:** Có thay đổi thông tin khóa phụ thuộc, bao gồm `axios`, `leaflet`, `react-leaflet` và `@types/leaflet`.
+- **Tệp hướng dẫn:** `AGENTS.md` và thư mục `.agents/` là các mục chưa được Git theo dõi tại thời điểm tổng hợp.
+
+**Ghi chú:** Các thay đổi trên chưa được commit tại thời điểm tổng hợp. Git không ghi nhận commit nào trong ngày 16/11/2026. Mục này ghi nhận kết quả đối chiếu tệp, không khẳng định đã kiểm thử chức năng hoặc giao diện.
+
+### Bổ sung: nâng cấp giao diện Login
+
+- Bổ sung CSS ở cuối `frontend/src/render/Login.css`, giữ lại các quy tắc cũ để dễ đối chiếu.
+- Điều chỉnh màu xanh, chữ, khoảng cách và kích thước biểu mẫu; làm rõ trạng thái focus, thông báo và các nút tương tác.
+- Điều chỉnh bố cục cho màn hình nhỏ; giữ nguyên cấu trúc `Login.tsx` và logic đăng nhập.
+- Thêm lại khẩu hiệu “Drive Safe - Arrive Alive” dưới tên DriveLinker trong trang đăng nhập; bổ sung CSS để căn vị trí và định dạng chữ nhỏ.
+
+
+
+
+---
+
+## 6. CẬP NHẬT FRONTEND — 18/11/2026
+
+Các thay đổi dưới đây được đối chiếu với phiên bản Git hiện tại và chưa được commit tại thời điểm ghi nhận.
+
+- **`Login.tsx`:** Thay giao diện tối bằng bố cục sáng: biểu mẫu ở bên trái và ảnh đội xe ở bên phải trên màn hình lớn; ảnh được ẩn trên màn hình nhỏ. Giữ phần xử lý đăng nhập hiện có, chuyển ngôn ngữ, hiển thị lỗi, hiện/ẩn mật khẩu, gợi ý tài khoản mẫu và liên kết quản trị. Bổ sung các kiểu focus, thông báo lỗi có `role="alert"` và hỗ trợ giảm chuyển động cho một số tương tác.
+- **Ảnh đăng nhập:** `login-fleet.png` được import trực tiếp vào `Login.tsx` để minh họa; `login-marble.png` cũng đang là tệp mới chưa được Git theo dõi.
+
+- **`Overview.tsx`:** Khai báo kiểu dữ liệu cho xe, cảnh báo và dashboard; khởi tạo dữ liệu mẫu theo doanh nghiệp ngay khi mở trang, bỏ thời gian chờ 600 ms và trạng thái tải được đặt cố định là `false`. Dùng `useMemo` cho thống kê, danh sách marker và dữ liệu ngăn chi tiết; marker dùng mã xe làm khóa. Nút làm mới tăng `refreshKey` để cập nhật lại tâm và kích thước bản đồ Leaflet.
+- **`package-lock.json`:** Có thay đổi thông tin khóa phụ thuộc trong frontend.
+
+Mục này chỉ ghi nhận đối chiếu mã; chưa kiểm thử chức năng hoặc giao diện trong lần cập nhật tài liệu này.
+
+### Bổ sung: tối ưu màn hình quản lý đội xe
+
+- **`FleetManagement.tsx`:** Gộp các sự kiện `storage` và `dl_vehicles_updated` phát sinh gần nhau để hạn chế tải lại danh sách xe trùng lặp; hủy tác vụ tải lại đang chờ khi tải trực tiếp hoặc khi component bị gỡ.
+- Tính các số lượng trạng thái xe trong một lần duyệt danh sách và chuẩn hóa từ khóa tìm kiếm một lần trước khi lọc.
+
+Các thay đổi này được đối chiếu với phiên bản Git hiện tại và chưa được commit tại thời điểm ghi nhận. Lần cập nhật tài liệu này chưa kiểm thử chức năng.

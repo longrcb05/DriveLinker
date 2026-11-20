@@ -1,11 +1,27 @@
 /**
  * @file Overview.tsx
- * @description Trang Tổng quan hệ thống.
- * Cung cấp cái nhìn toàn cảnh về đội xe thông qua các thẻ thống kê KPI.
- * Tích hợp bản đồ Google Maps thời gian thực và phân tích chi tiết hiệu suất doanh thu.
+ * @module Frontend/Dashboard
+ * @description Bảng điều khiển Tổng quan Vận hành & Bản đồ Số Giám sát Đội xe (Executive Fleet Telematics Dashboard).
+ * 
+ * KIẾN TRÚC & TÍNH NĂNG KỸ THUẬT:
+ * 1. Tích hợp Bản đồ Số GIS (Leaflet & Google Maps Tile Server):
+ *    - Sử dụng `react-leaflet` để dựng bản đồ số tương tác mượt mà.
+ *    - Hỗ trợ chuyển đổi linh hoạt giữa 2 chế độ bản đồ: 'm' (Roadmap - Bản đồ đường bộ) và 'y' (Hybrid/Satellite - Vệ tinh).
+ *    - Tự động định vị tâm bản đồ (`mapCenter`) theo tọa độ trụ sở chính của từng doanh nghiệp (Đà Nẵng, TP.HCM, Hà Nội).
+ * 
+ * 2. Biểu tượng Phương tiện Tương tác (Interactive Vehicle Marker):
+ *    - Khởi tạo Marker dạng `L.divIcon` HTML thuần, nhúng trực tiếp biển số xe, màu sắc phân cấp mức độ an toàn
+ *      (Đỏ: Nguy hiểm, Vàng: Cảnh báo, Xanh: An toàn) và hiệu ứng xung nhịp `animate-pulse` khi có rủi ro.
+ * 
+ * 3. Phân quyền Hiển thị Dữ liệu Tài chính (RBAC Financial Data Masking):
+ *    - Quản lý (`TENANT_ADMIN`, `SYS_ADMIN`): Xem chi tiết doanh thu, cơ cấu cho thuê/dịch vụ, tỷ lệ hoàn thành chỉ tiêu.
+ *    - Nhân viên (`TENANT_STAFF`): Tự động che thông tin doanh thu dưới dạng `***` kèm huy hiệu khóa bảo mật.
+ * 
+ * 4. Ngăn trượt Chi tiết Phụ trợ (Sliding Right Drawer):
+ *    - Bấm vào bất kỳ thẻ trạng thái xe hoặc danh sách cảnh báo sẽ mở Drawer chi tiết bên phải màn hình để tìm kiếm/lọc xe.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import {
@@ -18,7 +34,14 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Tạo biểu tượng xe Google Maps phong cách Telematics chuyên nghiệp với 3 trạng thái Đỏ - Vàng - Xanh
+/**
+ * Khởi tạo biểu tượng xe Google Maps phong cách Telematics chuyên nghiệp.
+ * Tự động tính toán màu sắc viền, bóng đổ và hiệu ứng nhấp nháy dựa trên mức độ an toàn.
+ * 
+ * @param {string} safetyStatus - Trạng thái an toàn ('RED', 'YELLOW', 'GREEN' hoặc 'ALERT', 'WARNING')
+ * @param {string} plate - Biển số xe hiển thị trên nhãn Marker
+ * @returns {L.DivIcon} Đối tượng DivIcon của Leaflet sẵn sàng render lên map layer
+ */
 const createVehicleIcon = (safetyStatus: string, plate: string) => {
   const isAlert = safetyStatus === 'RED' || safetyStatus === 'ALERT';
   const isWarning = safetyStatus === 'YELLOW' || safetyStatus === 'WARNING';
@@ -54,7 +77,7 @@ const createVehicleIcon = (safetyStatus: string, plate: string) => {
 /**
  * Component tự động cập nhật tâm bản đồ và làm mới kích thước Leaflet.
  */
-function MapUpdater({ center }: { center: [number, number] }) {
+function MapUpdater({ center, refreshKey }: { center: [number, number]; refreshKey: number }) {
   const map = useMap();
   useEffect(() => {
     map.setView(center, 13);
@@ -62,12 +85,25 @@ function MapUpdater({ center }: { center: [number, number] }) {
       map.invalidateSize();
     }, 150);
     return () => clearTimeout(timer);
-  }, [center, map]);
+  }, [center, map, refreshKey]);
   return null;
 }
 
 // === BỘ DỮ LIỆU DEMO ĐA DOANH NGHIỆP CHI TIẾT ===
-const MOCK_DATA_BY_TENANT: Record<string, any> = {
+// Tối ưu 
+type OverviewVehicle = {
+  id: string; lat: number; lng: number; status: string; safetyStatus: string;
+  safetyLabel: string; type: string; driver: string; speed: string;
+};
+type OverviewAlert = { id: string; vehicle: string; type: string; time: string; message: string };
+type DashboardData = {
+  center: [number, number];
+  revenue: { amount: string; growth: string; growthPercent: string; rentalRevenue: string; serviceRevenue: string; utilization: string; collection: string };
+  vehicles: OverviewVehicle[];
+  alerts: OverviewAlert[];
+};
+
+const MOCK_DATA_BY_TENANT: Record<string, DashboardData> = {
   'COMPANY_A': {
     center: [16.054407, 108.202167], // Đà Nẵng
     revenue: {
@@ -137,56 +173,49 @@ export default function Overview() {
   const [activePanel, setActivePanel] = useState<'ALL' | 'RENTING' | 'AVAILABLE' | 'MAINTENANCE' | 'ALERTS' | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_DATA.center);
-  const [mapType, setMapType] = useState<'m' | 'y'>('m'); // 'm': Roadmap - Đường phố, 'y': Satellite/Hybrid - Vệ tinh
-  const [vehicles, setVehicles] = useState<any[]>([]);
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [revenueData, setRevenueData] = useState<any>(DEFAULT_DATA.revenue);
+  // Dữ liệu mẫu đã có sẵn trong bộ nhớ, nên có thể hiển thị ngay lập tức.
+  const [dashboardData, setDashboardData] = useState(() => MOCK_DATA_BY_TENANT[tenantId] || DEFAULT_DATA);
+  const { center: mapCenter, vehicles, alerts, revenue: revenueData } = dashboardData;
+  const [mapType, setMapType] = useState<'m' | 'y'>('m');
+  const isLoading = false;
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const kpiStats = {
+  const fetchDashboardData = () => {
+    setDashboardData(MOCK_DATA_BY_TENANT[tenantId] || DEFAULT_DATA);
+    setRefreshKey(key => key + 1);
+  };
+
+  const kpiStats = useMemo(() => ({
     totalVehicles: vehicles.length,
-    renting: vehicles.filter(v => v.status === 'RENTING' || v.status === 'RENTED').length,
-    available: vehicles.filter(v => v.status === 'AVAILABLE').length,
-    maintenance: vehicles.filter(v => v.status === 'MAINTENANCE' || v.status === 'PENDING_INSPECTION').length,
+    renting: vehicles.filter((v) => v.status === 'RENTING' || v.status === 'RENTED').length,
+    available: vehicles.filter((v) => v.status === 'AVAILABLE').length,
+    maintenance: vehicles.filter((v) => v.status === 'MAINTENANCE' || v.status === 'PENDING_INSPECTION').length,
     aiAlerts: alerts.length
-  };
+  }), [vehicles, alerts]);
 
-  const fetchDashboardData = async () => {
-    setIsLoading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 600));
-      const currentData = MOCK_DATA_BY_TENANT[tenantId] || DEFAULT_DATA;
+  // Giữ nguyên icon và tọa độ Leaflet khi tìm kiếm hoặc mở ngăn chi tiết.
+  const mapVehicles = useMemo(() => vehicles
+    .filter((vehicle) => vehicle.status !== 'MAINTENANCE')
+    .map((vehicle) => ({
+      vehicle,
+      position: [vehicle.lat, vehicle.lng] as [number, number],
+      icon: createVehicleIcon(vehicle.safetyStatus || 'GREEN', vehicle.id)
+    })), [vehicles]);
 
-      setMapCenter(currentData.center);
-      setVehicles(currentData.vehicles);
-      setAlerts(currentData.alerts);
-      setRevenueData(currentData.revenue);
-    } catch (error) {
-      console.error("Lỗi khi tải dữ liệu Dashboard:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, [tenantId]);
-
-  const getPanelData = () => {
+  const panelData = useMemo(() => {
     let data = vehicles;
-    if (activePanel === 'RENTING') data = vehicles.filter(v => v.status === 'RENTING');
-    if (activePanel === 'AVAILABLE') data = vehicles.filter(v => v.status === 'AVAILABLE');
-    if (activePanel === 'MAINTENANCE') data = vehicles.filter(v => v.status === 'MAINTENANCE');
+    if (activePanel === 'RENTING') data = vehicles.filter((v) => v.status === 'RENTING');
+    if (activePanel === 'AVAILABLE') data = vehicles.filter((v) => v.status === 'AVAILABLE');
+    if (activePanel === 'MAINTENANCE') data = vehicles.filter((v) => v.status === 'MAINTENANCE');
 
     if (searchTerm) {
-      data = data.filter(v =>
-        v.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.driver.toLowerCase().includes(searchTerm.toLowerCase())
+      const query = searchTerm.toLowerCase();
+      data = data.filter((v) =>
+        v.id.toLowerCase().includes(query) || v.driver.toLowerCase().includes(query)
       );
     }
     return data;
-  };
+  }, [vehicles, activePanel, searchTerm]);
 
   // --- LUỒNG HIỂN THỊ DÀNH CHO SYS_ADMIN ---
   if (userRole === 'SYS_ADMIN') {
@@ -368,21 +397,21 @@ export default function Overview() {
                     <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
                     <span>{t('overview.statusRed')}</span>
                     <span className="px-1.5 py-0.2 rounded-full bg-rose-200/60 font-mono text-[10px] font-bold text-rose-800">
-                      {vehicles.filter(v => v.safetyStatus === 'RED').length}
+                      {vehicles.filter((v) => v.safetyStatus === 'RED').length}
                     </span>
                   </div>
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200/80 text-[11px] font-semibold text-amber-700 shadow-2xs">
                     <span className="w-2 h-2 rounded-full bg-amber-500" />
                     <span>{t('overview.statusYellow')}</span>
                     <span className="px-1.5 py-0.2 rounded-full bg-amber-200/60 font-mono text-[10px] font-bold text-amber-800">
-                      {vehicles.filter(v => v.safetyStatus === 'YELLOW').length}
+                      {vehicles.filter((v) => v.safetyStatus === 'YELLOW').length}
                     </span>
                   </div>
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-[11px] font-semibold text-emerald-700 shadow-2xs">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
                     <span>{t('overview.statusGreen')}</span>
                     <span className="px-1.5 py-0.2 rounded-full bg-emerald-200/60 font-mono text-[10px] font-bold text-emerald-800">
-                      {vehicles.filter(v => v.safetyStatus === 'GREEN').length}
+                      {vehicles.filter((v) => v.safetyStatus === 'GREEN').length}
                     </span>
                   </div>
                 </div>
@@ -399,18 +428,18 @@ export default function Overview() {
                   className="w-full h-full z-0"
                   style={{ height: '100%', width: '100%' }}
                 >
-                  <MapUpdater center={mapCenter} />
+                  <MapUpdater center={mapCenter} refreshKey={refreshKey} />
                   <TileLayer
                     attribution='&copy; <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">Google Maps</a>'
                     url={`https://{s}.google.com/vt/lyrs=${mapType}&x={x}&y={y}&z={z}`}
                     subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
                     maxZoom={20}
                   />
-                  {vehicles.filter(v => v.status !== 'MAINTENANCE').map((vehicle, index) => (
+                  {mapVehicles.map(({ vehicle, position, icon }) => (
                     <Marker
-                      key={index}
-                      position={[vehicle.lat, vehicle.lng]}
-                      icon={createVehicleIcon(vehicle.safetyStatus || 'GREEN', vehicle.id)}
+                      key={vehicle.id}
+                      position={position}
+                      icon={icon}
                     >
                       <Popup>
                         <div className="font-sans pt-1 min-w-[210px]">
@@ -634,7 +663,7 @@ export default function Overview() {
               ) : (
                 <>
                   <Navigation className="w-4 h-4 text-sky-500" />
-                  <span>{t('overview.drawerVehicleList')} • {getPanelData().length}</span>
+                  <span>{t('overview.drawerVehicleList')} • {panelData.length}</span>
                 </>
               )}
             </h3>
@@ -702,7 +731,7 @@ export default function Overview() {
                 ))
               )
             ) : (
-              getPanelData().map(v => (
+              panelData.map((v) => (
                 <div key={v.id} className="p-4 border border-slate-200/80 rounded-xl bg-white hover:border-sky-300 hover:shadow-xs transition-all cursor-pointer group">
                   <div className="flex justify-between items-start mb-2">
                     <span className="font-mono font-bold text-slate-800 text-base group-hover:text-sky-600 transition-colors">{v.id}</span>
@@ -728,7 +757,7 @@ export default function Overview() {
             )}
 
             {/* Empty State */}
-            {((activePanel === 'ALERTS' && alerts.length === 0) || (activePanel !== 'ALERTS' && getPanelData().length === 0)) && (
+            {((activePanel === 'ALERTS' && alerts.length === 0) || (activePanel !== 'ALERTS' && panelData.length === 0)) && (
               <div className="text-center py-12">
                 <CheckCircle2 className="w-12 h-12 text-slate-300 mx-auto mb-2.5" />
                 <p className="text-sm font-semibold text-slate-600">{t('overview.noMatchingData')}</p>
