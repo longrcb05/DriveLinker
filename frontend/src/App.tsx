@@ -13,6 +13,7 @@ import FleetManagement from './render/FleetManagement';
 
 import AdminLogin from './render/admin/AdminLogin';
 import AdminTenantList from './render/admin/AdminTenantList';
+import AdminAccountList from './render/admin/AdminAccountList';
 import { LanguageProvider } from './context/LanguageContext';
 
 // Middleware bảo vệ Core Admin - SỬ DỤNG SESSION_STORAGE ĐỂ BẢO MẬT TỐI ĐA
@@ -21,7 +22,7 @@ const RequireAdminAuth = ({ children }: { children: React.ReactNode }) => {
   const role = sessionStorage.getItem('sys_core_role');
   const location = useLocation();
 
-  if (role !== 'SUPER_ADMIN') {
+  if (!role || !['SUPER_ADMIN', 'SUPPORT_ADMIN', 'BILLING_ADMIN'].includes(role)) {
     return <Navigate to="/overview/admin/login" state={{ from: location }} replace />;
   }
   return <>{children}</>;
@@ -40,6 +41,7 @@ export default function App() {
               Phải đặt bên ngoài DashboardLayout để không dính Sidebar
               ========================================================= */}
           <Route path="/overview/admin/login" element={<AdminLogin />} />
+          <Route path="/overview/admin/accounts" element={<RequireAdminAuth><AdminAccountList /></RequireAdminAuth>} />
           <Route
             path="/overview/admin"
             element={

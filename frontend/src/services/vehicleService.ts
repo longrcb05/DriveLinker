@@ -39,6 +39,13 @@ export interface VehicleFilter {
   search?: string;
 }
 
+// Bỏ ký tự ngoài chữ và số, không phân biệt chữ hoa/thường; chuỗi rỗng không tự khớp.
+export function matchesPlate(plate: string, search: string): boolean {
+  const normalize = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const query = normalize(search);
+  return query.length > 0 && normalize(plate).includes(query);
+}
+
 const STORAGE_KEY = 'sys_vehicles';
 
 // Dữ liệu hạt giống mặc định cho các công ty nếu storage rỗng
@@ -244,7 +251,7 @@ class VehicleService {
       const q = filter.search.toLowerCase().trim();
       tenantVehicles = tenantVehicles.filter(
         v =>
-          v.plate.toLowerCase().includes(q) ||
+          matchesPlate(v.plate, q) ||
           v.brand.toLowerCase().includes(q) ||
           v.model.toLowerCase().includes(q) ||
           (v.driver && v.driver.toLowerCase().includes(q))

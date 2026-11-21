@@ -10,6 +10,7 @@
 
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { recordAdminAction } from './admin/adminAudit';
 import {
   Key, CheckCircle2, AlertCircle, Eye, EyeOff,
   History, Clock, ShieldAlert,
@@ -161,9 +162,7 @@ export default function Settings() {
 
     // 2. NẾU LÀ ADMIN NHẬP VAI -> BẮN THÊM LOG VỀ BẢNG ĐIỀU KHIỂN LÕI
     if (isAdminImpersonating) {
-      const adminName = sessionStorage.getItem('sys_core_admin_name') || 'Quản trị viên';
       const tenantName = localStorage.getItem('tenantName') || 'Doanh nghiệp';
-      const coreLogs = JSON.parse(localStorage.getItem('sys_core_audit_logs') || '[]');
 
       // Phân loại nhãn hành động cho dễ nhìn bên bảng Admin
       let coreAction = 'THAY ĐỔI';
@@ -171,15 +170,7 @@ export default function Settings() {
       if (action.includes('Cấu hình dịch vụ')) coreAction = 'CẤU HÌNH';
       if (action.includes('Đổi mã')) coreAction = 'BẢO MẬT';
 
-      const newCoreLog = {
-        id: Date.now() + 1, // +1 để đảm bảo ID không trùng
-        time: new Date().toLocaleString('vi-VN'),
-        admin: adminName,
-        action: coreAction,
-        details: `${action}: ${target} (tại ${tenantName})`
-      };
-
-      localStorage.setItem('sys_core_audit_logs', JSON.stringify([newCoreLog, ...coreLogs]));
+      recordAdminAction(coreAction, `${action}: ${target} (tại ${tenantName})`);
     }
   };
 

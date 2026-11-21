@@ -159,22 +159,28 @@ flowchart TD
 
 ## 5. CẬP NHẬT GIAO DIỆN ĐĂNG NHẬP — 16/11/2026
 
-Các mục dưới đây được tổng hợp từ thay đổi hiện có so với phiên bản đã lưu trong Git; không đủ thông tin để xác định tác giả của từng thay đổi.
+### 🚀 Tổng quan các tính năng & cải tiến giao diện đăng nhập
 
-- **`frontend/src/render/Login.tsx`:** Thêm import `Login.css`, điều chỉnh danh sách biểu tượng và viết lại phần giao diện đăng nhập. Giao diện có logo, chuyển ngôn ngữ Việt/Anh, thông báo lỗi, biểu mẫu mã doanh nghiệp, tài khoản và mật khẩu, nút hiện hoặc ẩn mật khẩu, trạng thái đang xác thực, gợi ý tài khoản mẫu và liên kết tới trang quản trị. Phần xử lý đăng nhập phía trên `return` không thay đổi so với phiên bản Git được đối chiếu.
-- **`frontend/src/render/Login.css`:** Thêm định dạng riêng cho bố cục sáng, các trường nhập, nút, thông báo và phần gợi ý. Có quy tắc cho màn hình nhỏ, trạng thái focus và tùy chọn giảm chuyển động.
-- **`frontend/src/assets/login-fleet.png` và `login-marble.png`:** Có thêm hai ảnh; CSS hiện sử dụng `login-fleet.png` làm ảnh minh họa trang đăng nhập.
-- **`frontend/package-lock.json`:** Có thay đổi thông tin khóa phụ thuộc, bao gồm `axios`, `leaflet`, `react-leaflet` và `@types/leaflet`.
-- **Tệp hướng dẫn:** `AGENTS.md` và thư mục `.agents/` là các mục chưa được Git theo dõi tại thời điểm tổng hợp.
+#### 1. 🎨 Thiết kế & nhận diện thương hiệu
 
-**Ghi chú:** Các thay đổi trên chưa được commit tại thời điểm tổng hợp. Git không ghi nhận commit nào trong ngày 16/11/2026. Mục này ghi nhận kết quả đối chiếu tệp, không khẳng định đã kiểm thử chức năng hoặc giao diện.
+- **Giao diện đăng nhập sáng:** Viết lại bố cục và bổ sung định dạng riêng trong `Login.css`; tinh chỉnh màu xanh, kiểu chữ, khoảng cách và kích thước biểu mẫu.
+- **Nhận diện DriveLinker:** Hiển thị logo và khẩu hiệu “Drive Safe - Arrive Alive”; sử dụng ảnh `login-fleet.png` để minh họa. Bộ tài nguyên cũng được bổ sung ảnh `login-marble.png`.
+- **Tương thích màn hình nhỏ:** Điều chỉnh bố cục theo kích thước màn hình, làm rõ trạng thái focus và hỗ trợ tùy chọn giảm chuyển động.
 
-### Bổ sung: nâng cấp giao diện Login
+#### 2. 🔐 Biểu mẫu & trải nghiệm đăng nhập
 
-- Bổ sung CSS ở cuối `frontend/src/render/Login.css`, giữ lại các quy tắc cũ để dễ đối chiếu.
-- Điều chỉnh màu xanh, chữ, khoảng cách và kích thước biểu mẫu; làm rõ trạng thái focus, thông báo và các nút tương tác.
-- Điều chỉnh bố cục cho màn hình nhỏ; giữ nguyên cấu trúc `Login.tsx` và logic đăng nhập.
-- Thêm lại khẩu hiệu “Drive Safe - Arrive Alive” dưới tên DriveLinker trong trang đăng nhập; bổ sung CSS để căn vị trí và định dạng chữ nhỏ.
+- **Thông tin đăng nhập đầy đủ:** Cung cấp các trường mã doanh nghiệp, tài khoản và mật khẩu, kèm nút hiện hoặc ẩn mật khẩu.
+- **Phản hồi xác thực:** Hiển thị thông báo lỗi và trạng thái đang xác thực; tinh chỉnh các nút và thông báo để dễ nhận biết.
+- **Truy cập thuận tiện:** Bổ sung gợi ý tài khoản mẫu, liên kết đến trang quản trị và nút chuyển ngôn ngữ Tiếng Việt ↔ English.
+- **Xử lý đăng nhập:** Giữ nguyên phần xử lý phía trên `return` so với phiên bản Git được đối chiếu.
+
+#### 3. 📦 Tài nguyên & phụ thuộc
+
+- **Định dạng giao diện:** Bổ sung CSS cho các trường nhập, nút, thông báo và phần gợi ý; giữ lại các quy tắc cũ để dễ đối chiếu.
+- **Khóa phụ thuộc:** `frontend/package-lock.json` có thay đổi thông tin liên quan đến `axios`, `leaflet`, `react-leaflet` và `@types/leaflet`.
+- **Tệp hướng dẫn:** `AGENTS.md` và thư mục `.agents/` chưa được Git theo dõi tại thời điểm tổng hợp.
+
+**Ghi chú:** Nội dung được tổng hợp bằng cách đối chiếu các tệp với phiên bản Git đã lưu; không đủ thông tin để xác định tác giả từng thay đổi. Các thay đổi chưa được commit tại thời điểm tổng hợp, và Git không ghi nhận commit nào trong ngày 16/11/2026. Việc đối chiếu này không xác nhận chức năng hoặc giao diện đã được kiểm thử.
 
 
 

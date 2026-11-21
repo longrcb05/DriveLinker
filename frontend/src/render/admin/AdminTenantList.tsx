@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import coreAdminService from '../../api/coreAdminService';
+import { formatAuditTime, readAdminAuditLogs, recordAdminAction } from './adminAudit';
+import type { AdminAuditLog } from './adminAudit';
 import { useNavigate } from 'react-router-dom';
 import { 
   Building2, Server, LogOut, ArrowRight, UserCircle, 
-  Plus, Info, MapPin, Phone, User, X, History, Clock
+  Plus, Info, MapPin, Phone, User, X, History, Clock, Users
 } from 'lucide-react';
 
 export default function AdminTenantList() {
@@ -16,7 +18,8 @@ export default function AdminTenantList() {
   const [selectedTenant, setSelectedTenant] = useState<any | null>(null);
   
   // State lưu trữ lịch sử
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
+  const [expandedLog, setExpandedLog] = useState<string | number | null>(null);
 
   // State quản lý Form thêm mới
   const [formData, setFormData] = useState({
@@ -36,39 +39,20 @@ export default function AdminTenantList() {
       ]));
     }
     
-    // 2. TỰ ĐỘNG RESET LỊCH SỬ NẾU PHÁT HIỆN DỮ LIỆU CŨ BỊ KẸT LẠI
-    const existingLogs = localStorage.getItem('sys_core_audit_logs');
-    if (!existingLogs || existingLogs.includes('cảnh báo tốc độ') || existingLogs.includes('Quản trị lõi')) {
-      localStorage.setItem('sys_core_audit_logs', JSON.stringify([
-        { id: 1, time: '29/10/2026 08:30:00', admin: 'Nguyễn Phạm Thiện Ân', action: 'ĐỒNG BỘ', details: 'Đồng bộ cấu hình Camera cho Demo CTY A' },
-        { id: 2, time: '29/10/2026 09:15:20', admin: 'Nguyễn Nhật Long', action: 'CẤU HÌNH', details: 'Sửa lỗi giao diện Map cho Demo CTY B' }
-      ]));
-    }
-
     loadData();
   }, []);
 
   const loadData = () => {
     setTenants(JSON.parse(localStorage.getItem('sys_tenants') || '[]'));
-    setAuditLogs(JSON.parse(localStorage.getItem('sys_core_audit_logs') || '[]'));
+    setAuditLogs(readAdminAuditLogs());
   };
 
   /**
    * HÀM LƯU NHẬT KÝ THAO TÁC (AUDIT LOG)
    */
   const logAction = (action: string, details: string) => {
-    const newLog = {
-      id: Date.now(),
-      time: new Date().toLocaleString('vi-VN'),
-      admin: adminName,
-      action: action,
-      details: details
-    };
-    const currentLogs = JSON.parse(localStorage.getItem('sys_core_audit_logs') || '[]');
-    const updatedLogs = [newLog, ...currentLogs];
-    
-    localStorage.setItem('sys_core_audit_logs', JSON.stringify(updatedLogs));
-    setAuditLogs(updatedLogs);
+    recordAdminAction(action, details);
+    setAuditLogs(readAdminAuditLogs());
   };
 
   // Hàm xử lý Thêm doanh nghiệp mới
@@ -112,6 +96,7 @@ export default function AdminTenantList() {
     logAction('ĐĂNG XUẤT', 'Kết thúc phiên làm việc'); // Đã sửa hoàn chỉnh ở đây
     sessionStorage.removeItem('sys_core_role');
     sessionStorage.removeItem('sys_core_admin_name');
+    sessionStorage.removeItem('sys_core_username');
     navigate('/overview/admin/login');
   };
 
@@ -129,10 +114,16 @@ export default function AdminTenantList() {
           </div>
           
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/overview/admin/accounts')}
+              className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-xl flex items-center gap-2 font-bold shadow-sm transition-colors"
+            >
+              <Users className="w-4 h-4" /> Tài khoản Admin
+            </button>
             
             {/* Nút Xem Lịch sử */}
             <button 
-              onClick={() => setIsHistoryModalOpen(true)}
+              onClick={() => { setAuditLogs(readAdminAuditLogs()); setExpandedLog(null); setIsHistoryModalOpen(true); }}
               className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-xl flex items-center gap-2 font-bold shadow-sm transition-colors active:scale-95"
             >
               <History className="w-4 h-4" /> Lịch sử
@@ -232,9 +223,10 @@ export default function AdminTenantList() {
                     </tr>
                   ) : (
                     auditLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-3 text-sm text-slate-500 whitespace-nowrap flex items-center gap-2"><Clock className="w-4 h-4 text-slate-300"/> {log.time}</td>
-                        <td className="px-6 py-3 text-sm font-bold text-slate-700 whitespace-nowrap">{log.admin}</td>
+                      <React.Fragment key={log.id}>
+                      <tr className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-3 text-sm text-slate-500 whitespace-nowrap flex items-center gap-2"><Clock className="w-4 h-4 text-slate-300"/> {formatAuditTime(log)}</td>
+                        <td className="px-6 py-3 text-sm font-bold text-slate-700 whitespace-nowrap">{log.admin || 'Không rõ'}{log.username && <div className="text-xs font-normal text-slate-500">{log.username}</div>}</td>
                         <td className="px-6 py-3 text-sm whitespace-nowrap">
                           <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider ${
                             log.action === 'THÊM MỚI' ? 'bg-emerald-100 text-emerald-700' :
@@ -243,8 +235,10 @@ export default function AdminTenantList() {
                             'bg-rose-100 text-rose-700'
                           }`}>{log.action}</span>
                         </td>
-                        <td className="px-6 py-3 text-sm text-slate-600">{log.details}</td>
+                        <td className="px-6 py-3 text-sm text-slate-600"><div className="flex items-center gap-2"><span>{log.details || 'Không có chi tiết'}</span><button type="button" onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)} aria-expanded={expandedLog === log.id} aria-label={`${expandedLog === log.id ? 'Ẩn' : 'Xem'} lịch sử của ${log.admin || 'tài khoản'}`} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-lg font-bold text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600">{expandedLog === log.id ? '−' : '+'}</button></div></td>
                       </tr>
+                      {expandedLog === log.id && <tr><td colSpan={4} className="bg-slate-50 px-6 py-4"><h3 className="mb-3 text-sm font-bold text-slate-800">Hoạt động của {log.admin || 'tài khoản không rõ'}{log.username ? ` (${log.username})` : ''}</h3><ul className="space-y-2">{auditLogs.filter((item) => log.username && item.username ? item.username === log.username : Boolean(log.admin && item.admin === log.admin)).map((item) => <li key={item.id} className="text-sm text-slate-700"><span className="text-slate-500">{formatAuditTime(item)}</span> · <strong>{item.action || 'Không rõ'}</strong> · {item.details || 'Không có chi tiết'}</li>)}</ul></td></tr>}
+                      </React.Fragment>
                     ))
                   )}
                 </tbody>
