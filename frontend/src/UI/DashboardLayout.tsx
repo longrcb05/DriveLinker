@@ -11,7 +11,6 @@ import {
   ClipboardCheck, Globe
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { recordAdminAction } from '../render/admin/adminAudit';
 
 export default function DashboardLayout() {
   const { language, toggleLanguage, t } = useLanguage();
@@ -42,7 +41,6 @@ export default function DashboardLayout() {
 
   const handleLogout = () => {
     if (isAdminImpersonating) {
-      recordAdminAction('TRUY CẬP', `Thoát chế độ truy cập doanh nghiệp ${tenantName}`);
       localStorage.removeItem('isAdminImpersonating');
       localStorage.removeItem('userRole');
       navigate('/overview/admin');
@@ -53,7 +51,6 @@ export default function DashboardLayout() {
   };
 
   const handleFixSystem = () => {
-    if (isAdminImpersonating) recordAdminAction('CẤU HÌNH', `Thiết lập cấu hình vá lỗi cho ${tenantName}`);
     setSyncState('STAGED');
     alert('Đã thiết lập cấu hình vá lỗi cho doanh nghiệp này. Vui lòng bấm Đồng bộ để lưu thay đổi.');
   };
@@ -62,7 +59,6 @@ export default function DashboardLayout() {
     setSyncState('SYNCING');
     setTimeout(() => {
       setSyncState('IDLE');
-      if (isAdminImpersonating) recordAdminAction('ĐỒNG BỘ', `Đồng bộ cấu hình cho ${tenantName} (mô phỏng)`);
       alert('Đồng bộ hoàn tất! Manager và Staff của doanh nghiệp đã nhận được bản cập nhật.');
     }, 2000);
   };

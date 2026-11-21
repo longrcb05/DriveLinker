@@ -11,7 +11,7 @@ import {
   Clock, Wrench, ShieldAlert, Edit3, Trash2, Eye, X, Phone,
   ChevronRight, Car
 } from 'lucide-react';
-import { vehicleService, matchesPlate, type Vehicle, type VehicleStatus } from '../services/vehicleService';
+import { vehicleService, type Vehicle, type VehicleStatus } from '../services/vehicleService';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function FleetManagement() {
@@ -119,7 +119,12 @@ export default function FleetManagement() {
     const q = searchTerm.toLowerCase().trim();
     return vehicles.filter(v => {
       const matchStatus = selectedStatus === 'ALL' || v.status === selectedStatus;
-      const matchSearch = !q || matchesPlate(v.plate, q);
+      const matchSearch =
+        !q ||
+        v.plate.toLowerCase().includes(q) ||
+        v.brand.toLowerCase().includes(q) ||
+        v.model.toLowerCase().includes(q) ||
+        (v.driver && v.driver.toLowerCase().includes(q));
       return matchStatus && matchSearch;
     });
   }, [vehicles, selectedStatus, searchTerm]);
@@ -153,8 +158,7 @@ export default function FleetManagement() {
       payload: vehicle.payload,
       status: vehicle.status,
       driver: vehicle.driver || '',
-      // Chuẩn hóa số điện thoại cũ trước khi đưa vào biểu mẫu chỉnh sửa.
-      driverPhone: (vehicle.driverPhone || '').replace(/\D/g, ''),
+      driverPhone: vehicle.driverPhone || '',
       notes: vehicle.notes || '',
     });
     setFormError('');
@@ -166,13 +170,6 @@ export default function FleetManagement() {
     e.preventDefault();
     if (!formData.plate.trim()) {
       setFormError('Vui lòng nhập biển số xe.');
-      return;
-    }
-    // Số điện thoại là tùy chọn; nếu có, phải gồm 10 chữ số và bắt đầu bằng 0.
-    if (formData.driverPhone && !/^0\d{9}$/.test(formData.driverPhone)) {
-      setFormError(language === 'vi'
-        ? 'Số điện thoại tài xế phải gồm 10 chữ số và bắt đầu bằng số 0.'
-        : 'The driver phone number must contain 10 digits and start with 0.');
       return;
     }
 
@@ -746,13 +743,11 @@ export default function FleetManagement() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     {t('fleet.formDriverPhone')}
                   </label>
-                  {/* Chỉ giữ tối đa 10 chữ số khi nhập số điện thoại. */}
                   <input
-                    type="tel"
-                    inputMode="numeric"
+                    type="text"
                     value={formData.driverPhone}
-                    onChange={e => setFormData({ ...formData, driverPhone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                    placeholder="0xxxxxxxxx"
+                    onChange={e => setFormData({ ...formData, driverPhone: e.target.value })}
+                    placeholder="09xx.xxx.xxx"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium outline-none focus:border-sky-500"
                   />
                 </div>
