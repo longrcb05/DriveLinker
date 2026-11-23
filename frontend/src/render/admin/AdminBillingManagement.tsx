@@ -1,5 +1,29 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Receipt, Plus, Search, CheckCircle2, Clock, AlertTriangle, Lock, Unlock, CreditCard, Banknote, Building2, Car, FileCheck2, Eye, X, AlertCircle, ShieldCheck, Wallet, Calendar, FileText, Upload } from 'lucide-react';
+import {
+    Receipt,
+    Plus,
+    Search,
+    CheckCircle2,
+    Clock,
+    AlertTriangle,
+    Lock,
+    Unlock,
+    CreditCard,
+    Banknote,
+    Building2,
+    Car,
+    FileCheck2,
+    Eye,
+    X,
+    AlertCircle,
+    ShieldCheck,
+    Wallet,
+    Calendar,
+    FileText,
+    Upload,
+    Sparkles,
+    Calculator
+} from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import type { TenantRecord, TenantStatus, SubscriptionPlan } from './AdminTenantList';
 
@@ -7,6 +31,7 @@ export type PaymentStatus = 'PAID' | 'UNPAID' | 'OVERDUE';
 export type BillingMode = 'PACKAGE' | 'PER_VEHICLE';
 export type PaymentMethod = 'BANK_TRANSFER' | 'CASH';
 export type TxVerifyStatus = 'CONFIRMED' | 'PENDING';
+export type PaidPlanKey = Exclude<SubscriptionPlan, 'TRIAL_14D'>;
 
 export interface PaymentTransaction {
     id: string;
@@ -30,8 +55,14 @@ export interface BillingInvoice {
     tenantCode: string;
     billingPeriod: string;
     billingMode: BillingMode;
+    planKey?: PaidPlanKey;
     planName: string;
+    durationMonths: number;
+    discountPercent: number;
     vehicleCount: number;
+    includedVehicles?: number;
+    overageVehicles?: number;
+    overageAmount?: number;
     unitPricePerVehicle: number;
     totalAmount: number;
     paidAmount: number;
@@ -40,14 +71,73 @@ export interface BillingInvoice {
     transactions: PaymentTransaction[];
 }
 
-const PLAN_LABELS: Record<SubscriptionPlan, string> = {
-    TRIAL_14D: 'Dùng thử (14 ngày)',
-    STARTER: 'Starter (Cơ bản)',
-    PRO: 'Professional (Chuyên nghiệp)',
-    ENTERPRISE: 'Enterprise (Không giới hạn)'
+interface CoreAuditLog {
+    id: number;
+    time: string;
+    admin: string;
+    action: string;
+    details: string;
+}
+
+interface PaidPackageSpec {
+    key: PaidPlanKey;
+    labelVi: string;
+    labelEn: string;
+    monthlyFee: number;
+    maxVehicles: number;
+}
+
+interface DurationOption {
+    months: number;
+    labelVi: string;
+    labelEn: string;
+    discountPercent: number;
+}
+
+const AUDIT_STORAGE_KEY = 'sys_core_audit_logs';
+const OVERAGE_RATE_PER_VEHICLE = 120000; // 120.000đ / xe vượt hạn mức / tháng
+
+const PAID_PACKAGES: Record<PaidPlanKey, PaidPackageSpec> = {
+    STARTER: {
+        key: 'STARTER',
+        labelVi: 'Starter (Cơ bản)',
+        labelEn: 'Starter',
+        monthlyFee: 990000,
+        maxVehicles: 15
+    },
+    PRO: {
+        key: 'PRO',
+        labelVi: 'Professional (Chuyên nghiệp)',
+        labelEn: 'Professional',
+        monthlyFee: 2490000,
+        maxVehicles: 50
+    },
+    ENTERPRISE: {
+        key: 'ENTERPRISE',
+        labelVi: 'Enterprise (Doanh nghiệp lớn)',
+        labelEn: 'Enterprise',
+        monthlyFee: 4990000,
+        maxVehicles: 200
+    }
 };
 
-const DEFAULT_RATE_PER_VEHICLE = 150000;
+const DURATION_OPTIONS: DurationOption[] = [
+    { months: 1, labelVi: '1 tháng', labelEn: '1 Month', discountPercent: 0 },
+    { months: 3, labelVi: '3 tháng (Quý)', labelEn: '3 Months', discountPercent: 5 },
+    { months: 6, labelVi: '6 tháng', labelEn: '6 Months', discountPercent: 10 },
+    { months: 12, labelVi: '12 tháng (Năm)', labelEn: '12 Months', discountPercent: 15 }
+];
+
+// Biểu phí bậc thang theo quy mô đội xe thực tế (Pay-as-you-go)
+const getPerVehicleTierRate = (vehicleCount: number): { rate: number; tierLabel: string } => {
+    if (vehicleCount <= 10) {
+        return { rate: 150000, tierLabel: 'Bậc 1 (1–10 xe)' };
+    }
+    if (vehicleCount <= 30) {
+        return { rate: 130000, tierLabel: 'Bậc 2 (11–30 xe)' };
+    }
+    return { rate: 110000, tierLabel: 'Bậc 3 (Trên 30 xe)' };
+};
 
 const addDaysISO = (baseDateStr: string, days: number): string => {
     const base = baseDateStr ? new Date(baseDateStr) : new Date();
@@ -82,11 +172,17 @@ const buildSeedInvoices = (): BillingInvoice[] => {
             tenantId: 'COMPANY_A',
             tenantName: 'Demo CTY A',
             tenantCode: 'CTYA26',
-            billingPeriod: currentMonth,
+            billingPeriod: `${currentMonth} (1T)`,
             billingMode: 'PACKAGE',
+            planKey: 'PRO',
             planName: 'Professional (Chuyên nghiệp)',
+            durationMonths: 1,
+            discountPercent: 0,
             vehicleCount: 18,
-            unitPricePerVehicle: DEFAULT_RATE_PER_VEHICLE,
+            includedVehicles: 50,
+            overageVehicles: 0,
+            overageAmount: 0,
+            unitPricePerVehicle: 130000,
             totalAmount: 2490000,
             paidAmount: 2490000,
             dueDate: addDaysISO(today, 10),
@@ -102,7 +198,7 @@ const buildSeedInvoices = (): BillingInvoice[] => {
                     verifyStatus: 'CONFIRMED',
                     verifiedBy: 'Nguyễn Nhật Long',
                     verifiedAt: addDaysISO(today, -3),
-                    note: 'Thanh toán đầy đủ phí gói Pro tháng hiện tại'
+                    note: 'Thanh toán đầy đủ gói Pro chu kỳ 1 tháng (18/50 xe)'
                 }
             ]
         },
@@ -112,9 +208,11 @@ const buildSeedInvoices = (): BillingInvoice[] => {
             tenantId: 'COMPANY_B',
             tenantName: 'Demo CTY B',
             tenantCode: 'CTYB26',
-            billingPeriod: currentMonth,
+            billingPeriod: `${currentMonth} (1T)`,
             billingMode: 'PER_VEHICLE',
-            planName: 'Tính theo số lượng xe',
+            planName: 'Tính theo đầu xe • Bậc 1 (1–10 xe)',
+            durationMonths: 1,
+            discountPercent: 0,
             vehicleCount: 10,
             unitPricePerVehicle: 150000,
             totalAmount: 1500000,
@@ -142,7 +240,7 @@ const buildSeedInvoices = (): BillingInvoice[] => {
                     voucherCode: 'UNC-CTYB-019',
                     paidAt: today,
                     verifyStatus: 'PENDING',
-                    note: 'Doanh nghiệp vừa chuyển khoản tất toán phần nợ còn lại, chờ Admin duyệt'
+                    note: 'Doanh nghiệp chuyển khoản tất toán phần nợ còn lại, chờ duyệt'
                 }
             ]
         },
@@ -152,11 +250,17 @@ const buildSeedInvoices = (): BillingInvoice[] => {
             tenantId: 'COMPANY_C',
             tenantName: 'Demo CTY C',
             tenantCode: 'CTYC26',
-            billingPeriod: '10/2026',
+            billingPeriod: '10/2026 (1T)',
             billingMode: 'PACKAGE',
+            planKey: 'STARTER',
             planName: 'Starter (Cơ bản)',
+            durationMonths: 1,
+            discountPercent: 0,
             vehicleCount: 9,
-            unitPricePerVehicle: DEFAULT_RATE_PER_VEHICLE,
+            includedVehicles: 15,
+            overageVehicles: 0,
+            overageAmount: 0,
+            unitPricePerVehicle: 150000,
             totalAmount: 990000,
             paidAmount: 0,
             dueDate: addDaysISO(today, -6),
@@ -170,7 +274,7 @@ export default function AdminBillingManagement() {
     const { language } = useLanguage();
     const isVi = language === 'vi';
 
-    const adminName = sessionStorage.getItem('sys_core_admin_name') || 'System Admin';
+    const adminName = sessionStorage.getItem('sys_core_admin_name') || 'Nguyễn Nhật Long';
 
     const [tenants, setTenants] = useState<TenantRecord[]>([]);
     const [vehicleCountMap, setVehicleCountMap] = useState<Record<string, number>>({});
@@ -180,26 +284,28 @@ export default function AdminBillingManagement() {
     const [statusFilter, setStatusFilter] = useState<'ALL' | PaymentStatus | 'PENDING_VERIFY'>('ALL');
     const [modeFilter, setModeFilter] = useState<'ALL' | BillingMode>('ALL');
 
+    // State Modal Lập kỳ cước mới (theo Gói thuê + Chu kỳ tháng hoặc Đầu xe bậc thang)
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [createError, setCreateError] = useState('');
     const [newInvoiceForm, setNewInvoiceForm] = useState<{
         tenantId: string;
-        billingPeriod: string;
+        startMonth: string;
         billingMode: BillingMode;
+        selectedPackage: PaidPlanKey;
+        durationMonths: number;
         vehicleCount: string;
-        unitPricePerVehicle: string;
-        packageAmount: string;
         dueDate: string;
     }>({
         tenantId: '',
-        billingPeriod: `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`,
+        startMonth: `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`,
         billingMode: 'PACKAGE',
+        selectedPackage: 'STARTER',
+        durationMonths: 1,
         vehicleCount: '5',
-        unitPricePerVehicle: String(DEFAULT_RATE_PER_VEHICLE),
-        packageAmount: '990000',
         dueDate: addDaysISO(new Date().toISOString().split('T')[0], 10)
     });
 
+    // State Modal Ghi nhận giao dịch thanh toán
     const [payModalInvoice, setPayModalInvoice] = useState<BillingInvoice | null>(null);
     const [payError, setPayError] = useState('');
     const [txForm, setTxForm] = useState<{
@@ -223,6 +329,25 @@ export default function AdminBillingManagement() {
     });
 
     const [detailInvoiceId, setDetailInvoiceId] = useState<string | null>(null);
+
+    const logCoreAudit = (action: string, details: string) => {
+        try {
+            const newLog: CoreAuditLog = {
+                id: Date.now() + Math.floor(Math.random() * 1000),
+                time: new Date().toLocaleString('vi-VN'),
+                admin: adminName,
+                action,
+                details
+            };
+            const rawLogs = localStorage.getItem(AUDIT_STORAGE_KEY);
+            const currentLogs: CoreAuditLog[] = rawLogs ? JSON.parse(rawLogs) : [];
+            const updatedLogs = [newLog, ...(Array.isArray(currentLogs) ? currentLogs : [])];
+            localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(updatedLogs));
+            window.dispatchEvent(new Event('storage'));
+        } catch (err) {
+            console.error('Lỗi ghi nhật ký sys_core_audit_logs:', err);
+        }
+    };
 
     const loadData = () => {
         try {
@@ -272,12 +397,29 @@ export default function AdminBillingManagement() {
         window.dispatchEvent(new Event('storage'));
     };
 
-    const handleToggleTenantService = (tenantId: string, targetStatus: TenantStatus) => {
+    const handleToggleTenantService = (
+        tenantId: string,
+        targetStatus: TenantStatus,
+        reason?: string
+    ) => {
+        const targetTenant = tenants.find((t) => t.id === tenantId);
         const updatedTenants = tenants.map((t) =>
             t.id === tenantId ? { ...t, status: targetStatus } : t
         );
         setTenants(updatedTenants);
         localStorage.setItem('sys_tenants', JSON.stringify(updatedTenants));
+
+        const tenantLabel = targetTenant
+            ? `${targetTenant.name} (${targetTenant.code})`
+            : tenantId;
+        const suffix = reason ? ` — ${reason}` : '';
+
+        if (targetStatus === 'SUSPENDED') {
+            logCoreAudit('KHÓA DỊCH VỤ', `Khóa dịch vụ doanh nghiệp: ${tenantLabel}${suffix}`);
+        } else {
+            logCoreAudit('MỞ DỊCH VỤ', `Mở khóa dịch vụ doanh nghiệp: ${tenantLabel}${suffix}`);
+        }
+
         window.dispatchEvent(new Event('storage'));
     };
 
@@ -356,20 +498,22 @@ export default function AdminBillingManagement() {
         [invoices, detailInvoiceId]
     );
 
+    // Mở modal lập kỳ cước & tự đồng bộ gói + số xe thực tế của doanh nghiệp
     const openCreateInvoiceModal = () => {
         const firstTenant = tenants[0];
         const today = new Date().toISOString().split('T')[0];
-        const vCount = firstTenant ? vehicleCountMap[firstTenant.id] || 5 : 5;
-        const pkgFee = firstTenant ? firstTenant.monthlyFee || 990000 : 990000;
+        const actualVehicles = firstTenant ? vehicleCountMap[firstTenant.id] ?? 5 : 5;
+        const initialPkg: PaidPlanKey =
+            firstTenant && firstTenant.plan !== 'TRIAL_14D' ? firstTenant.plan : 'STARTER';
 
         setCreateError('');
         setNewInvoiceForm({
             tenantId: firstTenant?.id || '',
-            billingPeriod: `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`,
+            startMonth: `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`,
             billingMode: 'PACKAGE',
-            vehicleCount: String(vCount),
-            unitPricePerVehicle: String(DEFAULT_RATE_PER_VEHICLE),
-            packageAmount: String(pkgFee),
+            selectedPackage: initialPkg,
+            durationMonths: 1,
+            vehicleCount: String(actualVehicles),
             dueDate: addDaysISO(today, 10)
         });
         setIsCreateModalOpen(true);
@@ -377,22 +521,75 @@ export default function AdminBillingManagement() {
 
     const handleSelectTenantInCreate = (selectedId: string) => {
         const target = tenantMap[selectedId];
-        const vCount = vehicleCountMap[selectedId] ?? 5;
+        const actualVehicles = vehicleCountMap[selectedId] ?? 0;
+        const mappedPkg: PaidPlanKey =
+            target && target.plan !== 'TRIAL_14D' ? target.plan : 'STARTER';
+
         setNewInvoiceForm((prev) => ({
             ...prev,
             tenantId: selectedId,
-            vehicleCount: String(vCount),
-            packageAmount: String(target?.monthlyFee || 990000)
+            selectedPackage: mappedPkg,
+            vehicleCount: String(actualVehicles)
         }));
     };
 
-    const calculatedNewTotal = useMemo(() => {
+    // BÀI TOÁN TÍNH CƯỚC THỰC TẾ (Tự động tính chiết khấu chu kỳ, phụ trội vượt xe, và bậc thang đầu xe)
+    const billingCalculation = useMemo(() => {
+        const months = newInvoiceForm.durationMonths;
+        const durationOpt =
+            DURATION_OPTIONS.find((d) => d.months === months) || DURATION_OPTIONS[0];
+        const discountRate = durationOpt.discountPercent / 100;
+        const vCount = Math.max(0, Number(newInvoiceForm.vehicleCount) || 0);
+
         if (newInvoiceForm.billingMode === 'PACKAGE') {
-            return Math.max(0, Number(newInvoiceForm.packageAmount) || 0);
+            const pkg = PAID_PACKAGES[newInvoiceForm.selectedPackage];
+            const baseSubtotal = pkg.monthlyFee * months;
+            const discountAmount = Math.round(baseSubtotal * discountRate);
+            const packageNetAmount = baseSubtotal - discountAmount;
+
+            const overageVehicles = Math.max(0, vCount - pkg.maxVehicles);
+            const overageAmount = overageVehicles * OVERAGE_RATE_PER_VEHICLE * months;
+            const totalAmount = packageNetAmount + overageAmount;
+
+            return {
+                mode: 'PACKAGE' as BillingMode,
+                pkg,
+                months,
+                discountPercent: durationOpt.discountPercent,
+                discountAmount,
+                baseSubtotal,
+                packageNetAmount,
+                vehicleCount: vCount,
+                includedVehicles: pkg.maxVehicles,
+                overageVehicles,
+                overageAmount,
+                unitRate: 0,
+                tierLabel: '',
+                totalAmount
+            };
         }
-        const count = Math.max(0, Number(newInvoiceForm.vehicleCount) || 0);
-        const rate = Math.max(0, Number(newInvoiceForm.unitPricePerVehicle) || 0);
-        return count * rate;
+
+        const { rate, tierLabel } = getPerVehicleTierRate(vCount);
+        const baseSubtotal = vCount * rate * months;
+        const discountAmount = Math.round(baseSubtotal * discountRate);
+        const totalAmount = baseSubtotal - discountAmount;
+
+        return {
+            mode: 'PER_VEHICLE' as BillingMode,
+            pkg: null,
+            months,
+            discountPercent: durationOpt.discountPercent,
+            discountAmount,
+            baseSubtotal,
+            packageNetAmount: totalAmount,
+            vehicleCount: vCount,
+            includedVehicles: vCount,
+            overageVehicles: 0,
+            overageAmount: 0,
+            unitRate: rate,
+            tierLabel,
+            totalAmount
+        };
     }, [newInvoiceForm]);
 
     const handleCreateInvoice = (e: React.FormEvent) => {
@@ -404,16 +601,27 @@ export default function AdminBillingManagement() {
             );
             return;
         }
-        if (!newInvoiceForm.billingPeriod.trim()) {
+        if (!newInvoiceForm.startMonth.trim()) {
             setCreateError(
-                isVi ? 'Vui lòng nhập kỳ thanh toán (VD: 11/2026).' : 'Please enter billing period.'
+                isVi ? 'Vui lòng nhập kỳ bắt đầu (VD: 11/2026).' : 'Please enter start billing period.'
             );
             return;
         }
-        if (calculatedNewTotal <= 0) {
+        if (
+            newInvoiceForm.billingMode === 'PER_VEHICLE' &&
+            billingCalculation.vehicleCount <= 0
+        ) {
             setCreateError(
                 isVi
-                    ? 'Tổng tiền phải thanh toán của kỳ cước phải lớn hơn 0 VNĐ.'
+                    ? 'Số lượng phương tiện tính phí phải lớn hơn 0 xe.'
+                    : 'Vehicle count must be greater than 0.'
+            );
+            return;
+        }
+        if (billingCalculation.totalAmount <= 0) {
+            setCreateError(
+                isVi
+                    ? 'Tổng tiền thanh toán kỳ cước phải lớn hơn 0 VNĐ.'
                     : 'Total invoice amount must be greater than 0.'
             );
             return;
@@ -426,23 +634,35 @@ export default function AdminBillingManagement() {
         }
 
         const today = new Date().toISOString().split('T')[0];
+        const periodLabel = `${newInvoiceForm.startMonth.trim()} (${billingCalculation.months}T)`;
+
         const created: BillingInvoice = {
             id: `INV-${Date.now()}`,
             invoiceCode: `HD-DV-${Date.now().toString().slice(-6)}`,
             tenantId: targetTenant.id,
             tenantName: targetTenant.name,
             tenantCode: targetTenant.code,
-            billingPeriod: newInvoiceForm.billingPeriod.trim(),
+            billingPeriod: periodLabel,
             billingMode: newInvoiceForm.billingMode,
-            planName:
+            planKey:
                 newInvoiceForm.billingMode === 'PACKAGE'
-                    ? PLAN_LABELS[targetTenant.plan] || targetTenant.plan
-                    : isVi
-                        ? 'Tính theo số lượng phương tiện'
-                        : 'Per-Vehicle Billing',
-            vehicleCount: Math.max(0, Number(newInvoiceForm.vehicleCount) || 0),
-            unitPricePerVehicle: Math.max(0, Number(newInvoiceForm.unitPricePerVehicle) || 0),
-            totalAmount: calculatedNewTotal,
+                    ? newInvoiceForm.selectedPackage
+                    : undefined,
+            planName:
+                newInvoiceForm.billingMode === 'PACKAGE' && billingCalculation.pkg
+                    ? billingCalculation.pkg.labelVi
+                    : `Tính theo đầu xe • ${billingCalculation.tierLabel}`,
+            durationMonths: billingCalculation.months,
+            discountPercent: billingCalculation.discountPercent,
+            vehicleCount: billingCalculation.vehicleCount,
+            includedVehicles: billingCalculation.includedVehicles,
+            overageVehicles: billingCalculation.overageVehicles,
+            overageAmount: billingCalculation.overageAmount,
+            unitPricePerVehicle:
+                newInvoiceForm.billingMode === 'PER_VEHICLE'
+                    ? billingCalculation.unitRate
+                    : OVERAGE_RATE_PER_VEHICLE,
+            totalAmount: billingCalculation.totalAmount,
             paidAmount: 0,
             dueDate: newInvoiceForm.dueDate,
             createdAt: today,
@@ -450,6 +670,16 @@ export default function AdminBillingManagement() {
         };
 
         persistInvoices([created, ...invoices]);
+
+        const basisSummary =
+            newInvoiceForm.billingMode === 'PACKAGE'
+                ? `Gói ${created.planName}, chu kỳ ${created.durationMonths} tháng, ${created.vehicleCount}/${created.includedVehicles} xe`
+                : `${created.vehicleCount} xe × ${created.unitPricePerVehicle.toLocaleString('vi-VN')}đ/xe, chu kỳ ${created.durationMonths} tháng`;
+
+        logCoreAudit(
+            'LẬP KỲ CƯỚC',
+            `Phát hành hóa đơn ${created.invoiceCode} (${basisSummary}) cho ${targetTenant.name} (${targetTenant.code}) — Tổng: ${created.totalAmount.toLocaleString('vi-VN')} ₫`
+        );
         setIsCreateModalOpen(false);
     };
 
@@ -551,12 +781,29 @@ export default function AdminBillingManagement() {
 
         persistInvoices(updatedInvoices);
 
+        const methodText = txForm.method === 'BANK_TRANSFER' ? 'Chuyển khoản' : 'Tiền mặt';
+        if (txForm.verifyNow) {
+            logCoreAudit(
+                'XÁC NHẬN TT',
+                `Thu & xác nhận thanh toán ${amountNum.toLocaleString('vi-VN')} ₫ (${methodText}, Mã GD: ${newTx.transactionCode}, CT: ${newTx.voucherCode}) cho ${payModalInvoice.tenantName} (${payModalInvoice.invoiceCode})`
+            );
+        } else {
+            logCoreAudit(
+                'THANH TOÁN',
+                `Ghi nhận giao dịch chờ duyệt ${amountNum.toLocaleString('vi-VN')} ₫ (${methodText}, Mã GD: ${newTx.transactionCode}) cho ${payModalInvoice.tenantName} (${payModalInvoice.invoiceCode})`
+            );
+        }
+
         if (
             txForm.verifyNow &&
             nextPaidAmount >= payModalInvoice.totalAmount &&
             tenantMap[payModalInvoice.tenantId]?.status === 'SUSPENDED'
         ) {
-            handleToggleTenantService(payModalInvoice.tenantId, 'ACTIVE');
+            handleToggleTenantService(
+                payModalInvoice.tenantId,
+                'ACTIVE',
+                `Tự động mở khóa sau khi tất toán đủ ${payModalInvoice.invoiceCode}`
+            );
         }
 
         setPayModalInvoice(null);
@@ -565,6 +812,8 @@ export default function AdminBillingManagement() {
     const handleConfirmPendingTransaction = (invoiceId: string, txId: string) => {
         const today = new Date().toISOString().split('T')[0];
         let unlockedTenantId: string | null = null;
+        let unlockedInvoiceCode = '';
+        let confirmedLogDetail = '';
 
         const updated = invoices.map((inv) => {
             if (inv.id !== invoiceId) return inv;
@@ -572,6 +821,8 @@ export default function AdminBillingManagement() {
             const nextTxs = inv.transactions.map((tx) => {
                 if (tx.id === txId && tx.verifyStatus === 'PENDING') {
                     addedPaid += tx.amount;
+                    const methodText = tx.method === 'BANK_TRANSFER' ? 'Chuyển khoản' : 'Tiền mặt';
+                    confirmedLogDetail = `Xác nhận thanh toán ${tx.amount.toLocaleString('vi-VN')} ₫ (${methodText}, Mã GD: ${tx.transactionCode}, CT: ${tx.voucherCode}) cho ${inv.tenantName} (${inv.invoiceCode})`;
                     return {
                         ...tx,
                         verifyStatus: 'CONFIRMED' as TxVerifyStatus,
@@ -587,6 +838,7 @@ export default function AdminBillingManagement() {
                 tenantMap[inv.tenantId]?.status === 'SUSPENDED'
             ) {
                 unlockedTenantId = inv.tenantId;
+                unlockedInvoiceCode = inv.invoiceCode;
             }
             return {
                 ...inv,
@@ -596,8 +848,15 @@ export default function AdminBillingManagement() {
         });
 
         persistInvoices(updated);
+        if (confirmedLogDetail) {
+            logCoreAudit('XÁC NHẬN TT', confirmedLogDetail);
+        }
         if (unlockedTenantId) {
-            handleToggleTenantService(unlockedTenantId, 'ACTIVE');
+            handleToggleTenantService(
+                unlockedTenantId,
+                'ACTIVE',
+                `Tự động mở khóa sau khi tất toán đủ ${unlockedInvoiceCode}`
+            );
         }
     };
 
@@ -646,8 +905,8 @@ export default function AdminBillingManagement() {
                     </h1>
                     <p className="text-xs text-slate-500 mt-1">
                         {isVi
-                            ? 'Đối soát phí gói dịch vụ / phí theo đầu xe, theo dõi công nợ (PAID / UNPAID / OVERDUE), xác nhận chứng từ thanh toán và khóa/mở dịch vụ doanh nghiệp.'
-                            : 'Track package or per-vehicle fees, manage receivable balances, verify payment vouchers, and lock/unlock tenant services.'}
+                            ? 'Tính cước tự động theo gói thuê (1/3/6/12 tháng) kèm phụ trội vượt hạn mức xe hoặc theo quy mô đội xe bậc thang; theo dõi công nợ và khóa/mở dịch vụ.'
+                            : 'Calculate fees by subscription plan & rental cycle or tiered fleet size, manage receivables, and lock/unlock tenant services.'}
                     </p>
                 </div>
 
@@ -770,8 +1029,8 @@ export default function AdminBillingManagement() {
                                 type="button"
                                 onClick={() => setStatusFilter(tab.key)}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${active
-                                    ? 'bg-slate-900 text-white'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                                        ? 'bg-slate-900 text-white'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
                                     }`}
                             >
                                 {tab.label}
@@ -824,7 +1083,7 @@ export default function AdminBillingManagement() {
                                     {isVi ? 'Mã kỳ cước & Doanh nghiệp' : 'Invoice & Tenant'}
                                 </th>
                                 <th className="py-3.5 px-4">
-                                    {isVi ? 'Cơ sở tính phí' : 'Billing Basis'}
+                                    {isVi ? 'Gói thuê & Cơ sở tính phí' : 'Plan & Billing Basis'}
                                 </th>
                                 <th className="py-3.5 px-4">
                                     {isVi ? 'Tổng tiền / Đã trả / Còn nợ' : 'Total / Paid / Debt'}
@@ -858,13 +1117,14 @@ export default function AdminBillingManagement() {
                                     const pendingTxs = inv.transactions.filter(
                                         (tx) => tx.verifyStatus === 'PENDING'
                                     );
+                                    const months = inv.durationMonths || 1;
+                                    const overageCars = inv.overageVehicles || 0;
 
                                     return (
                                         <tr
                                             key={inv.id}
                                             className="hover:bg-slate-50/80 transition-colors align-top"
                                         >
-                                            {/* Cột 1: Mã kỳ cước & Doanh nghiệp */}
                                             <td className="py-4 px-4 whitespace-nowrap">
                                                 <div className="font-mono text-xs font-bold text-sky-700">
                                                     {inv.invoiceCode}
@@ -884,35 +1144,57 @@ export default function AdminBillingManagement() {
                                                 </div>
                                             </td>
 
-                                            {/* Cột 2: Phí theo gói hoặc số lượng phương tiện */}
                                             <td className="py-4 px-4 whitespace-nowrap">
                                                 {inv.billingMode === 'PACKAGE' ? (
-                                                    <div>
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold">
-                                                            {isVi ? 'Theo gói dịch vụ' : 'Package Plan'}
-                                                        </span>
-                                                        <div className="text-xs font-semibold text-slate-700 mt-1.5">
-                                                            {inv.planName}
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold">
+                                                                <Sparkles className="w-3 h-3" />
+                                                                {inv.planName}
+                                                            </span>
+                                                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">
+                                                                {months}T
+                                                            </span>
+                                                            {(inv.discountPercent || 0) > 0 && (
+                                                                <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold">
+                                                                    -{inv.discountPercent}%
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        <div className="text-[11px] text-slate-400 mt-0.5">
-                                                            ({inv.vehicleCount} {isVi ? 'xe đang hoạt động' : 'active cars'})
+                                                        <div className="text-[11px] text-slate-500 font-mono">
+                                                            Quy mô: {inv.vehicleCount} / {inv.includedVehicles || 50} xe
+                                                            {overageCars > 0 && (
+                                                                <span className="ml-1.5 text-amber-700 font-bold">
+                                                                    (+{overageCars} xe vượt: +
+                                                                    {(inv.overageAmount || 0).toLocaleString('vi-VN')}₫)
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <div>
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-50 text-cyan-800 border border-cyan-200 text-[11px] font-bold">
-                                                            <Car className="w-3 h-3" />
-                                                            {isVi ? 'Theo số lượng xe' : 'Per Vehicle'}
-                                                        </span>
-                                                        <div className="text-xs font-mono font-semibold text-slate-700 mt-1.5">
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-50 text-cyan-800 border border-cyan-200 text-[11px] font-bold">
+                                                                <Car className="w-3 h-3" />
+                                                                {isVi ? 'Theo đầu xe' : 'Per Vehicle'}
+                                                            </span>
+                                                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">
+                                                                {months}T
+                                                            </span>
+                                                            {(inv.discountPercent || 0) > 0 && (
+                                                                <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold">
+                                                                    -{inv.discountPercent}%
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-xs font-mono font-semibold text-slate-700">
                                                             {inv.vehicleCount} xe ×{' '}
-                                                            {inv.unitPricePerVehicle.toLocaleString('vi-VN')} ₫
+                                                            {inv.unitPricePerVehicle.toLocaleString('vi-VN')} ₫/tháng
                                                         </div>
                                                     </div>
                                                 )}
                                             </td>
 
-                                            {/* Cột 3: Tổng phải thanh toán, Đã thanh toán & Công nợ còn lại */}
                                             <td className="py-4 px-4 whitespace-nowrap font-mono text-xs space-y-1">
                                                 <div className="flex items-center justify-between gap-4">
                                                     <span className="font-sans text-slate-500">
@@ -943,7 +1225,6 @@ export default function AdminBillingManagement() {
                                                 </div>
                                             </td>
 
-                                            {/* Cột 4: Trạng thái thanh toán & Hạn thanh toán */}
                                             <td className="py-4 px-4 whitespace-nowrap">
                                                 <div>{renderPaymentStatusBadge(status)}</div>
                                                 <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-2">
@@ -970,7 +1251,6 @@ export default function AdminBillingManagement() {
                                                 </div>
                                             </td>
 
-                                            {/* Cột 5: Giao dịch & Chứng từ */}
                                             <td className="py-4 px-4">
                                                 {inv.transactions.length === 0 ? (
                                                     <span className="text-xs text-slate-400 italic">
@@ -1008,7 +1288,6 @@ export default function AdminBillingManagement() {
                                                 )}
                                             </td>
 
-                                            {/* Cột 6: Hành động thanh toán, xem chứng từ & Khóa/Mở dịch vụ */}
                                             <td className="py-4 px-4 whitespace-nowrap text-right">
                                                 <div className="inline-flex flex-col items-end gap-1.5">
                                                     <div className="inline-flex items-center gap-1.5">
@@ -1044,12 +1323,13 @@ export default function AdminBillingManagement() {
                                                             onClick={() =>
                                                                 handleToggleTenantService(
                                                                     inv.tenantId,
-                                                                    isServiceSuspended ? 'ACTIVE' : 'SUSPENDED'
+                                                                    isServiceSuspended ? 'ACTIVE' : 'SUSPENDED',
+                                                                    `Thao tác từ kỳ cước ${inv.invoiceCode}`
                                                                 )
                                                             }
                                                             className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border flex items-center gap-1 transition-colors cursor-pointer ${isServiceSuspended
-                                                                ? 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'
-                                                                : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                                                    ? 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'
+                                                                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
                                                                 }`}
                                                         >
                                                             {isServiceSuspended ? (
@@ -1080,10 +1360,10 @@ export default function AdminBillingManagement() {
                 </div>
             </div>
 
-            {/* MODAL 1: LẬP KỲ CƯỚC / HÓA ĐƠN MỚI */}
+            {/* MODAL 1: LẬP KỲ CƯỚC / HÓA ĐƠN MỚI (CHỌN GÓI THUÊ 1/3/6/12 THÁNG & TÍNH XE THỰC TẾ) */}
             {isCreateModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+                    <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
                         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                             <div>
                                 <h3 className="text-base font-bold text-slate-900">
@@ -1091,8 +1371,8 @@ export default function AdminBillingManagement() {
                                 </h3>
                                 <p className="text-xs text-slate-500 mt-0.5">
                                     {isVi
-                                        ? 'Tính phí theo gói dịch vụ cố định hoặc theo số lượng xe đăng ký.'
-                                        : 'Bill by fixed subscription package or registered vehicle count.'}
+                                        ? 'Tự động đồng bộ quy mô đội xe thực tế và áp dụng chiết khấu theo chu kỳ thuê.'
+                                        : 'Auto-sync fleet size and apply rental duration discounts.'}
                                 </p>
                             </div>
                             <button
@@ -1104,7 +1384,7 @@ export default function AdminBillingManagement() {
                             </button>
                         </div>
 
-                        <form onSubmit={handleCreateInvoice} className="p-6 space-y-4">
+                        <form onSubmit={handleCreateInvoice} className="p-6 overflow-y-auto space-y-4">
                             {createError && (
                                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
                                     <AlertCircle className="w-4 h-4 shrink-0" />
@@ -1112,41 +1392,42 @@ export default function AdminBillingManagement() {
                                 </div>
                             )}
 
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1">
-                                    {isVi ? 'Doanh nghiệp áp dụng' : 'Select Tenant'}{' '}
-                                    <span className="text-rose-500">*</span>
-                                </label>
-                                <select
-                                    value={newInvoiceForm.tenantId}
-                                    onChange={(e) => handleSelectTenantInCreate(e.target.value)}
-                                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold outline-none focus:border-sky-500"
-                                >
-                                    {tenants.map((t) => (
-                                        <option key={t.id} value={t.id}>
-                                            {t.name} ({t.code}) • {vehicleCountMap[t.id] || 0} xe
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                            {/* Doanh nghiệp + Kỳ bắt đầu + Hạn thanh toán */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                                        {isVi ? 'Doanh nghiệp áp dụng' : 'Select Tenant'}{' '}
+                                        <span className="text-rose-500">*</span>
+                                    </label>
+                                    <select
+                                        value={newInvoiceForm.tenantId}
+                                        onChange={(e) => handleSelectTenantInCreate(e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold outline-none focus:border-sky-500"
+                                    >
+                                        {tenants.map((t) => (
+                                            <option key={t.id} value={t.id}>
+                                                {t.name} ({t.code}) • {vehicleCountMap[t.id] || 0} xe thực tế
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                            <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        {isVi ? 'Kỳ thanh toán' : 'Billing Period'}{' '}
+                                        {isVi ? 'Kỳ bắt đầu' : 'Start Period'}{' '}
                                         <span className="text-rose-500">*</span>
                                     </label>
                                     <input
                                         type="text"
-                                        value={newInvoiceForm.billingPeriod}
+                                        value={newInvoiceForm.startMonth}
                                         onChange={(e) =>
                                             setNewInvoiceForm((prev) => ({
                                                 ...prev,
-                                                billingPeriod: e.target.value
+                                                startMonth: e.target.value
                                             }))
                                         }
                                         placeholder="11/2026"
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono outline-none focus:border-sky-500"
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono outline-none focus:border-sky-500"
                                     />
                                 </div>
 
@@ -1161,31 +1442,36 @@ export default function AdminBillingManagement() {
                                         onChange={(e) =>
                                             setNewInvoiceForm((prev) => ({ ...prev, dueDate: e.target.value }))
                                         }
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono outline-none focus:border-sky-500"
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono outline-none focus:border-sky-500"
                                     />
                                 </div>
                             </div>
 
+                            {/* Chọn Phương thức tính phí dịch vụ */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                                     {isVi ? 'Phương thức tính phí dịch vụ' : 'Billing Calculation Mode'}
                                 </label>
-                                <div className="grid grid-cols-2 gap-2.5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     <button
                                         type="button"
                                         onClick={() =>
                                             setNewInvoiceForm((prev) => ({ ...prev, billingMode: 'PACKAGE' }))
                                         }
                                         className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${newInvoiceForm.billingMode === 'PACKAGE'
-                                            ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
-                                            : 'border-slate-200 hover:border-slate-300'
+                                                ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
+                                                : 'border-slate-200 hover:border-slate-300'
                                             }`}
                                     >
                                         <div className="text-xs font-bold text-slate-900">
-                                            {isVi ? 'Theo gói dịch vụ' : 'By Package'}
+                                            {isVi
+                                                ? '1. Theo gói thuê & Chu kỳ tháng'
+                                                : '1. By Subscription Package'}
                                         </div>
                                         <div className="text-[11px] text-slate-500 mt-0.5">
-                                            {isVi ? 'Thu phí cố định theo gói' : 'Fixed plan fee'}
+                                            {isVi
+                                                ? 'Chọn gói Starter/Pro/Enterprise + tự tính phụ trội nếu vượt hạn mức xe'
+                                                : 'Fixed package + overage if fleet exceeds plan limit'}
                                         </div>
                                     </button>
 
@@ -1198,86 +1484,234 @@ export default function AdminBillingManagement() {
                                             }))
                                         }
                                         className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${newInvoiceForm.billingMode === 'PER_VEHICLE'
-                                            ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
-                                            : 'border-slate-200 hover:border-slate-300'
+                                                ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
+                                                : 'border-slate-200 hover:border-slate-300'
                                             }`}
                                     >
                                         <div className="text-xs font-bold text-slate-900">
-                                            {isVi ? 'Theo số lượng xe' : 'By Vehicle Count'}
+                                            {isVi
+                                                ? '2. Theo số lượng xe thực tế (Bậc thang)'
+                                                : '2. By Tiered Fleet Size'}
                                         </div>
                                         <div className="text-[11px] text-slate-500 mt-0.5">
-                                            {isVi ? 'Đơn giá × Số xe đăng ký' : 'Rate × Registered cars'}
+                                            {isVi
+                                                ? '1–10 xe: 150k • 11–30 xe: 130k • >30 xe: 110k/xe/tháng'
+                                                : 'Tiered per-vehicle monthly rate'}
                                         </div>
                                     </button>
                                 </div>
                             </div>
 
-                            {newInvoiceForm.billingMode === 'PACKAGE' ? (
+                            {/* CHỌN GÓI DỊCH VỤ (KHI Ở CHẾ ĐỘ PACKAGE) */}
+                            {newInvoiceForm.billingMode === 'PACKAGE' && (
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        {isVi ? 'Phí gói dịch vụ kỳ này (VNĐ)' : 'Package Fee (VND)'}
+                                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                        {isVi ? 'Chọn gói dịch vụ đăng ký' : 'Select Subscription Plan'}
                                     </label>
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={newInvoiceForm.packageAmount}
-                                        onChange={(e) =>
-                                            setNewInvoiceForm((prev) => ({
-                                                ...prev,
-                                                packageAmount: e.target.value.replace(/\D/g, '').slice(0, 10)
-                                            }))
-                                        }
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold text-slate-900 outline-none focus:border-sky-500"
-                                    />
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                                            {isVi ? 'Số lượng phương tiện' : 'Vehicle Count'}
-                                        </label>
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            value={newInvoiceForm.vehicleCount}
-                                            onChange={(e) =>
-                                                setNewInvoiceForm((prev) => ({
-                                                    ...prev,
-                                                    vehicleCount: e.target.value.replace(/\D/g, '').slice(0, 4)
-                                                }))
-                                            }
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold outline-none focus:border-sky-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                                            {isVi ? 'Đơn giá / xe / tháng (₫)' : 'Rate / Vehicle (₫)'}
-                                        </label>
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            value={newInvoiceForm.unitPricePerVehicle}
-                                            onChange={(e) =>
-                                                setNewInvoiceForm((prev) => ({
-                                                    ...prev,
-                                                    unitPricePerVehicle: e.target.value
-                                                        .replace(/\D/g, '')
-                                                        .slice(0, 8)
-                                                }))
-                                            }
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold outline-none focus:border-sky-500"
-                                        />
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                        {(Object.values(PAID_PACKAGES) as PaidPackageSpec[]).map((pkg) => {
+                                            const active = newInvoiceForm.selectedPackage === pkg.key;
+                                            return (
+                                                <button
+                                                    key={pkg.key}
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setNewInvoiceForm((prev) => ({
+                                                            ...prev,
+                                                            selectedPackage: pkg.key
+                                                        }))
+                                                    }
+                                                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${active
+                                                            ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-500/20'
+                                                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                                                        }`}
+                                                >
+                                                    <div className="text-xs font-bold text-slate-900">
+                                                        {isVi ? pkg.labelVi : pkg.labelEn}
+                                                    </div>
+                                                    <div className="text-xs font-mono font-bold text-indigo-700 mt-1">
+                                                        {pkg.monthlyFee.toLocaleString('vi-VN')} ₫/tháng
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-500 mt-0.5">
+                                                        {isVi
+                                                            ? `Hạn mức tối đa ${pkg.maxVehicles} xe`
+                                                            : `Up to ${pkg.maxVehicles} vehicles`}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
 
-                            <div className="p-3.5 rounded-xl bg-slate-900 text-white flex items-center justify-between text-xs">
-                                <span className="text-slate-300">
-                                    {isVi ? 'Tổng tiền phải thanh toán:' : 'Total Amount Due:'}
-                                </span>
-                                <span className="text-base font-mono font-bold text-emerald-400">
-                                    {calculatedNewTotal.toLocaleString('vi-VN')} ₫
-                                </span>
+                            {/* CHỌN CHU KỲ THUÊ (1 THÁNG, 3 THÁNG, 6 THÁNG, 12 THÁNG) */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                    {isVi
+                                        ? 'Chọn chu kỳ thuê dịch vụ (tự động áp dụng chiết khấu)'
+                                        : 'Select Rental Duration'}
+                                </label>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    {DURATION_OPTIONS.map((opt) => {
+                                        const selected = newInvoiceForm.durationMonths === opt.months;
+                                        return (
+                                            <button
+                                                key={opt.months}
+                                                type="button"
+                                                onClick={() =>
+                                                    setNewInvoiceForm((prev) => ({
+                                                        ...prev,
+                                                        durationMonths: opt.months
+                                                    }))
+                                                }
+                                                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${selected
+                                                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                                                    }`}
+                                            >
+                                                <div className="text-xs font-bold">
+                                                    {isVi ? opt.labelVi : opt.labelEn}
+                                                </div>
+                                                <div
+                                                    className={`text-[10px] font-bold mt-0.5 ${selected
+                                                            ? 'text-emerald-300'
+                                                            : opt.discountPercent > 0
+                                                                ? 'text-emerald-600'
+                                                                : 'text-slate-400'
+                                                        }`}
+                                                >
+                                                    {opt.discountPercent > 0
+                                                        ? `Giảm ${opt.discountPercent}%`
+                                                        : 'Nguyên giá'}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* ĐỐI SOÁT SỐ LƯỢNG XE THỰC TẾ */}
+                            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+                                <div>
+                                    <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                        <Car className="w-4 h-4 text-indigo-600" />
+                                        <span>
+                                            {isVi
+                                                ? 'Số lượng phương tiện chốt đối soát kỳ này'
+                                                : 'Reconciled Fleet Size'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                        {isVi
+                                            ? `Hệ thống ghi nhận ${vehicleCountMap[newInvoiceForm.tenantId] ?? 0
+                                            } xe đang đăng ký trong đội xe của doanh nghiệp.`
+                                            : 'Synced from tenant registered vehicles.'}
+                                    </p>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={newInvoiceForm.vehicleCount}
+                                        onChange={(e) =>
+                                            setNewInvoiceForm((prev) => ({
+                                                ...prev,
+                                                vehicleCount: e.target.value.replace(/\D/g, '').slice(0, 4)
+                                            }))
+                                        }
+                                        className="w-24 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm font-mono font-bold text-right text-slate-900 outline-none focus:border-sky-500"
+                                    />
+                                    <span className="text-xs font-bold text-slate-600">xe</span>
+                                </div>
+                            </div>
+
+                            {/* BẢNG PHÂN TÍCH CÔNG THỨC TÍNH TIỀN MINH BẠCH */}
+                            <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2 text-xs">
+                                <div className="flex items-center gap-1.5 text-sky-400 font-bold uppercase tracking-wider text-[11px]">
+                                    <Calculator className="w-3.5 h-3.5" />
+                                    <span>Diễn giải bài toán thanh toán kỳ cước</span>
+                                </div>
+
+                                {billingCalculation.mode === 'PACKAGE' && billingCalculation.pkg ? (
+                                    <div className="space-y-1.5 text-slate-300 border-b border-slate-700/80 pb-2.5">
+                                        <div className="flex justify-between">
+                                            <span>
+                                                Phí gói {billingCalculation.pkg.labelVi} (
+                                                {billingCalculation.pkg.monthlyFee.toLocaleString('vi-VN')}đ ×{' '}
+                                                {billingCalculation.months} tháng):
+                                            </span>
+                                            <span className="font-mono">
+                                                {billingCalculation.baseSubtotal.toLocaleString('vi-VN')} ₫
+                                            </span>
+                                        </div>
+
+                                        {billingCalculation.discountAmount > 0 && (
+                                            <div className="flex justify-between text-emerald-400">
+                                                <span>
+                                                    Chiết khấu chu kỳ {billingCalculation.months} tháng (-
+                                                    {billingCalculation.discountPercent}%):
+                                                </span>
+                                                <span className="font-mono">
+                                                    -{billingCalculation.discountAmount.toLocaleString('vi-VN')} ₫
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        <div className="flex justify-between">
+                                            <span>
+                                                Kiểm tra hạn mức xe ({billingCalculation.vehicleCount} /{' '}
+                                                {billingCalculation.includedVehicles} xe):
+                                            </span>
+                                            {billingCalculation.overageVehicles > 0 ? (
+                                                <span className="font-mono text-amber-400">
+                                                    Vượt {billingCalculation.overageVehicles} xe × 120.000đ ×{' '}
+                                                    {billingCalculation.months}T = +
+                                                    {billingCalculation.overageAmount.toLocaleString('vi-VN')} ₫
+                                                </span>
+                                            ) : (
+                                                <span className="text-emerald-400 font-semibold">
+                                                    Trong hạn mức (0 ₫ phụ trội)
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1.5 text-slate-300 border-b border-slate-700/80 pb-2.5">
+                                        <div className="flex justify-between">
+                                            <span>
+                                                Áp dụng {billingCalculation.tierLabel} (
+                                                {billingCalculation.vehicleCount} xe ×{' '}
+                                                {billingCalculation.unitRate.toLocaleString('vi-VN')}đ ×{' '}
+                                                {billingCalculation.months} tháng):
+                                            </span>
+                                            <span className="font-mono">
+                                                {billingCalculation.baseSubtotal.toLocaleString('vi-VN')} ₫
+                                            </span>
+                                        </div>
+
+                                        {billingCalculation.discountAmount > 0 && (
+                                            <div className="flex justify-between text-emerald-400">
+                                                <span>
+                                                    Chiết khấu chu kỳ {billingCalculation.months} tháng (-
+                                                    {billingCalculation.discountPercent}%):
+                                                </span>
+                                                <span className="font-mono">
+                                                    -{billingCalculation.discountAmount.toLocaleString('vi-VN')} ₫
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="flex items-center justify-between pt-0.5">
+                                    <span className="font-bold text-slate-200">
+                                        {isVi ? 'Tổng tiền phải thanh toán:' : 'Total Amount Due:'}
+                                    </span>
+                                    <span className="text-lg font-mono font-bold text-emerald-400">
+                                        {billingCalculation.totalAmount.toLocaleString('vi-VN')} ₫
+                                    </span>
+                                </div>
                             </div>
 
                             <div className="pt-2 flex items-center justify-end gap-2">
@@ -1352,8 +1786,8 @@ export default function AdminBillingManagement() {
                                             setTxForm((prev) => ({ ...prev, method: 'BANK_TRANSFER' }))
                                         }
                                         className={`p-3 rounded-xl border flex items-center gap-2.5 text-left cursor-pointer ${txForm.method === 'BANK_TRANSFER'
-                                            ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
-                                            : 'border-slate-200 hover:border-slate-300'
+                                                ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
+                                                : 'border-slate-200 hover:border-slate-300'
                                             }`}
                                     >
                                         <CreditCard className="w-4 h-4 text-sky-600 shrink-0" />
@@ -1371,8 +1805,8 @@ export default function AdminBillingManagement() {
                                         type="button"
                                         onClick={() => setTxForm((prev) => ({ ...prev, method: 'CASH' }))}
                                         className={`p-3 rounded-xl border flex items-center gap-2.5 text-left cursor-pointer ${txForm.method === 'CASH'
-                                            ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/20'
-                                            : 'border-slate-200 hover:border-slate-300'
+                                                ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/20'
+                                                : 'border-slate-200 hover:border-slate-300'
                                             }`}
                                     >
                                         <Banknote className="w-4 h-4 text-emerald-600 shrink-0" />

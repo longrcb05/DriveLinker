@@ -5,6 +5,7 @@ import {
   Server,
   LogOut,
   ArrowRight,
+  ArrowLeft,
   UserCircle,
   Plus,
   Info,
@@ -25,14 +26,20 @@ import {
   RefreshCw,
   AlertCircle,
   Sparkles,
-  ArrowUpRight,
   Mail,
-  Receipt
+  Receipt,
+  Banknote,
+  QrCode,
+  Wallet,
+  Upload,
+  FileCheck2,
+  ShieldCheck
 } from 'lucide-react';
 import AdminBillingManagement from './AdminBillingManagement';
 
 export type TenantStatus = 'ACTIVE' | 'TRIAL' | 'SUSPENDED';
 export type SubscriptionPlan = 'TRIAL_14D' | 'STARTER' | 'PRO' | 'ENTERPRISE';
+export type RenewPaymentMethod = 'BANK_TRANSFER' | 'ONLINE_GATEWAY' | 'CASH';
 
 export interface TenantRecord {
   id: string;
@@ -175,7 +182,6 @@ const buildSeedTenants = (): TenantRecord[] => {
   ];
 };
 
-// Bảo toàn toàn bộ dữ liệu gốc đã lưu trong sys_tenants và chỉ bổ sung trường gói cước nếu thiếu
 const normalizeTenantList = (rawList: any[]): TenantRecord[] => {
   const today = new Date().toISOString().split('T')[0];
   return rawList.map((item, idx) => {
@@ -222,19 +228,16 @@ const normalizeTenantList = (rawList: any[]): TenantRecord[] => {
 export default function AdminTenantList() {
   const navigate = useNavigate();
 
-  // Chuyển đổi giữa 2 phân hệ: 1. Quản lý Doanh nghiệp & 2. Công nợ & Thanh toán
-  const [activeSection, setActiveSection] = useState<'tenants' | 'billing'>('tenants');
-  // Chuyển đổi kiểu hiển thị: Dạng bảng chi tiết hoặc Dạng thẻ gốc
+  // Điều hướng nội bộ: Danh sách Doanh nghiệp | Công nợ & Thanh toán | Trang Phương thức Thanh toán Gia hạn
+  const [activeSection, setActiveSection] = useState<'tenants' | 'billing' | 'renew_payment'>('tenants');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   const [tenants, setTenants] = useState<TenantRecord[]>([]);
   const [vehicleCountMap, setVehicleCountMap] = useState<Record<string, number>>({});
 
-  // State quản lý Modals gốc
+  // State quản lý Modals
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null);
-
-  // State lưu trữ lịch sử (đọc đúng khóa gốc sys_core_audit_logs)
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   // Bộ lọc & Tìm kiếm
@@ -277,12 +280,24 @@ export default function AdminTenantList() {
     notes: ''
   });
 
-  // Modal Gia hạn / Nâng cấp gói dịch vụ
+  // State Gia hạn & Trang Phương thức Thanh toán
   const [renewTenant, setRenewTenant] = useState<TenantRecord | null>(null);
+  const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
   const [renewPlan, setRenewPlan] = useState<SubscriptionPlan>('PRO');
   const [renewMonths, setRenewMonths] = useState<number>(1);
 
-  // Đọc tên Admin từ SessionStorage giống nguyên bản gốc
+  const [paymentMethod, setPaymentMethod] = useState<RenewPaymentMethod>('BANK_TRANSFER');
+  const [gatewayProvider, setGatewayProvider] = useState<'VNPAY' | 'MOMO'>('VNPAY');
+  const [paymentTxCode, setPaymentTxCode] = useState('');
+  const [paymentVoucherCode, setPaymentVoucherCode] = useState('');
+  const [paymentVoucherImage, setPaymentVoucherImage] = useState('');
+  const [paymentPaidAt, setPaymentPaidAt] = useState(
+    new Date().toISOString().split('T')[0]
+  );
+  const [paymentNote, setPaymentNote] = useState('');
+  const [confirmPaymentNow, setConfirmPaymentNow] = useState(true);
+  const [paymentError, setPaymentError] = useState('');
+
   const adminName = sessionStorage.getItem('sys_core_admin_name') || 'Quản trị viên';
 
   const loadData = () => {
@@ -323,12 +338,10 @@ export default function AdminTenantList() {
   };
 
   useEffect(() => {
-    // 1. Khởi tạo dữ liệu công ty mẫu nếu chưa có
     if (!localStorage.getItem('sys_tenants')) {
       localStorage.setItem('sys_tenants', JSON.stringify(buildSeedTenants()));
     }
 
-    // 2. Giữ nguyên logic kiểm tra & khởi tạo sys_core_audit_logs của bản gốc
     const existingLogs = localStorage.getItem('sys_core_audit_logs');
     if (
       !existingLogs ||
@@ -363,16 +376,13 @@ export default function AdminTenantList() {
     return () => window.removeEventListener('storage', handleStorageSync);
   }, [activeSection]);
 
-  /**
-   * HÀM LƯU NHẬT KÝ THAO TÁC (AUDIT LOG) — GIỮ NGUYÊN CẤU TRÚC GỐC
-   */
   const logAction = (action: string, details: string) => {
     const newLog = {
-      id: Date.now(),
+      id: Date.now() + Math.floor(Math.random() * 1000),
       time: new Date().toLocaleString('vi-VN'),
       admin: adminName,
-      action: action,
-      details: details
+      action,
+      details
     };
     const currentLogs = JSON.parse(localStorage.getItem('sys_core_audit_logs') || '[]');
     const updatedLogs = [newLog, ...currentLogs];
@@ -387,7 +397,6 @@ export default function AdminTenantList() {
     window.dispatchEvent(new Event('storage'));
   };
 
-  // Hàm xử lý Nhập vai (Truy cập hệ thống) — GIỮ NGUYÊN BẢN GỐC
   const handleImpersonate = (tenantId: string, tenantName: string) => {
     logAction('TRUY CẬP', `Nhập vai quản trị vào hệ thống: ${tenantName}`);
 
@@ -398,7 +407,6 @@ export default function AdminTenantList() {
     navigate('/overview');
   };
 
-  // Hàm Đăng xuất — GIỮ NGUYÊN BẢN GỐC
   const handleLogout = () => {
     logAction('ĐĂNG XUẤT', 'Kết thúc phiên làm việc');
     sessionStorage.removeItem('sys_core_role');
@@ -406,7 +414,6 @@ export default function AdminTenantList() {
     navigate('/overview/admin/login');
   };
 
-  // Thống kê KPI tổng quan
   const metrics = useMemo(() => {
     const total = tenants.length;
     const active = tenants.filter((t) => t.status === 'ACTIVE').length;
@@ -440,7 +447,6 @@ export default function AdminTenantList() {
     };
   }, [tenants, vehicleCountMap]);
 
-  // Danh sách đã lọc
   const filteredTenants = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return tenants.filter((t) => {
@@ -553,7 +559,11 @@ export default function AdminTenantList() {
       setFormError('Số điện thoại liên hệ phải gồm đúng 10 chữ số và bắt đầu bằng số 0.');
       return;
     }
-    if (formValues.activatedAt && formValues.expiresAt && formValues.expiresAt < formValues.activatedAt) {
+    if (
+      formValues.activatedAt &&
+      formValues.expiresAt &&
+      formValues.expiresAt < formValues.activatedAt
+    ) {
       setFormError('Ngày hết hạn gói dịch vụ không được trước ngày kích hoạt.');
       return;
     }
@@ -618,14 +628,66 @@ export default function AdminTenantList() {
     logAction('TRẠNG THÁI', `Chuyển ${tenant.name} (${tenant.code}) sang ${nextStatus}`);
   };
 
+  // Bước 1: Mở modal chọn gói & thời hạn gia hạn
   const openRenewModal = (tenant: TenantRecord) => {
     setRenewTenant(tenant);
     setRenewPlan(tenant.plan === 'TRIAL_14D' ? 'STARTER' : tenant.plan);
     setRenewMonths(1);
+    setIsRenewModalOpen(true);
   };
 
-  const handleConfirmRenew = () => {
+  // Bước 2: Chuyển sang Trang Phương thức Thanh toán Gia hạn
+  const handleProceedToPaymentPage = () => {
     if (!renewTenant) return;
+    const today = new Date().toISOString().split('T')[0];
+    const shortStamp = Date.now().toString().slice(-6);
+    setPaymentMethod('BANK_TRANSFER');
+    setGatewayProvider('VNPAY');
+    setPaymentTxCode(`FT${shortStamp}`);
+    setPaymentVoucherCode(`UNC-${renewTenant.code}-${shortStamp.slice(-3)}`);
+    setPaymentVoucherImage('');
+    setPaymentPaidAt(today);
+    setPaymentNote(
+      `Thanh toán gia hạn gói ${PLAN_CONFIGS[renewPlan].label} (${renewMonths} tháng)`
+    );
+    setConfirmPaymentNow(true);
+    setPaymentError('');
+    setIsRenewModalOpen(false);
+    setActiveSection('renew_payment');
+  };
+
+  const handleSelectPaymentMethod = (method: RenewPaymentMethod) => {
+    setPaymentMethod(method);
+    setPaymentError('');
+    const shortStamp = Date.now().toString().slice(-6);
+    const code = renewTenant?.code || 'DN';
+    if (method === 'BANK_TRANSFER') {
+      setPaymentTxCode(`FT${shortStamp}`);
+      setPaymentVoucherCode(`UNC-${code}-${shortStamp.slice(-3)}`);
+    } else if (method === 'ONLINE_GATEWAY') {
+      setPaymentTxCode(`${gatewayProvider}-${shortStamp}`);
+      setPaymentVoucherCode(`GD-${gatewayProvider}-${shortStamp.slice(-3)}`);
+    } else {
+      setPaymentTxCode(`PT-TM-${shortStamp.slice(-4)}`);
+      setPaymentVoucherCode(`BL-${code}-${shortStamp.slice(-3)}`);
+    }
+  };
+
+  const handleVoucherImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setPaymentVoucherImage(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Tính toán thông tin dự kiến cho trang thanh toán gia hạn
+  const renewalSummary = useMemo(() => {
+    if (!renewTenant) return null;
     const cfg = PLAN_CONFIGS[renewPlan];
     const today = new Date().toISOString().split('T')[0];
     const baseDate =
@@ -634,25 +696,128 @@ export default function AdminTenantList() {
         : today;
     const addedDays = renewPlan === 'TRIAL_14D' ? 14 : renewMonths * 30;
     const nextExpiresAt = addDaysISO(baseDate, addedDays);
+    const totalAmount = cfg.monthlyFee * renewMonths;
 
-    const updated = tenants.map((t) =>
-      t.id === renewTenant.id
-        ? {
-          ...t,
-          plan: renewPlan,
-          status: renewPlan === 'TRIAL_14D' ? ('TRIAL' as TenantStatus) : ('ACTIVE' as TenantStatus),
-          monthlyFee: cfg.monthlyFee,
-          maxVehicles: Math.max(t.maxVehicles, cfg.maxVehicles),
-          expiresAt: nextExpiresAt
-        }
-        : t
-    );
-    persistTenants(updated);
-    logAction(
-      'GIA HẠN',
-      `Gia hạn gói ${cfg.label} (${renewMonths} tháng) cho ${renewTenant.name}`
-    );
+    return {
+      cfg,
+      addedDays,
+      nextExpiresAt,
+      totalAmount
+    };
+  }, [renewTenant, renewPlan, renewMonths]);
+
+  // Hoàn tất thanh toán gia hạn & đồng bộ sang sys_tenants + sys_platform_billing + sys_core_audit_logs
+  const handleCompleteRenewalPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renewTenant || !renewalSummary) return;
+
+    const cleanTx = paymentTxCode.trim().toUpperCase();
+    const cleanVoucher = paymentVoucherCode.trim().toUpperCase();
+
+    if (!cleanTx) {
+      setPaymentError('Vui lòng nhập mã giao dịch hoặc mã phiếu thu để đối soát.');
+      return;
+    }
+    if (!cleanVoucher) {
+      setPaymentError('Vui lòng nhập số chứng từ / biên lai thanh toán.');
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const { cfg, nextExpiresAt, totalAmount } = renewalSummary;
+
+    const methodLabel =
+      paymentMethod === 'BANK_TRANSFER'
+        ? 'Chuyển khoản ngân hàng'
+        : paymentMethod === 'ONLINE_GATEWAY'
+          ? `Cổng thanh toán ${gatewayProvider}`
+          : 'Tiền mặt tại văn phòng';
+
+    // 1. Nếu xác nhận đã thu tiền ngay -> cập nhật gói & cộng nối tiếp thời hạn cho doanh nghiệp
+    if (confirmPaymentNow) {
+      const updatedTenants = tenants.map((t) =>
+        t.id === renewTenant.id
+          ? {
+            ...t,
+            plan: renewPlan,
+            status:
+              renewPlan === 'TRIAL_14D'
+                ? ('TRIAL' as TenantStatus)
+                : ('ACTIVE' as TenantStatus),
+            monthlyFee: cfg.monthlyFee,
+            maxVehicles: Math.max(t.maxVehicles, cfg.maxVehicles),
+            expiresAt: nextExpiresAt
+          }
+          : t
+      );
+      persistTenants(updatedTenants);
+    }
+
+    // 2. Đồng bộ hóa đơn & giao dịch thanh toán sang kho công nợ sys_platform_billing
+    try {
+      const rawInvoices = JSON.parse(
+        localStorage.getItem('sys_platform_billing') || '[]'
+      );
+      const existingInvoices = Array.isArray(rawInvoices) ? rawInvoices : [];
+      const currentMonth = `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`;
+      const newInvoiceCode = `HD-GH-${Date.now().toString().slice(-6)}`;
+
+      const newInvoice = {
+        id: `INV-${Date.now()}`,
+        invoiceCode: newInvoiceCode,
+        tenantId: renewTenant.id,
+        tenantName: renewTenant.name,
+        tenantCode: renewTenant.code,
+        billingPeriod: `${currentMonth} (${renewMonths}T)`,
+        billingMode: 'PACKAGE',
+        planName: cfg.label,
+        vehicleCount: vehicleCountMap[renewTenant.id] || 0,
+        unitPricePerVehicle: 150000,
+        totalAmount,
+        paidAmount: confirmPaymentNow ? totalAmount : 0,
+        dueDate: paymentPaidAt || today,
+        createdAt: today,
+        transactions: [
+          {
+            id: `TX-${Date.now().toString().slice(-6)}`,
+            amount: totalAmount,
+            method: paymentMethod === 'CASH' ? 'CASH' : 'BANK_TRANSFER',
+            transactionCode: cleanTx,
+            voucherCode: cleanVoucher,
+            voucherImage: paymentVoucherImage || undefined,
+            paidAt: paymentPaidAt || today,
+            verifyStatus: confirmPaymentNow ? 'CONFIRMED' : 'PENDING',
+            verifiedBy: confirmPaymentNow ? adminName : undefined,
+            verifiedAt: confirmPaymentNow ? today : undefined,
+            note: `[${methodLabel}] ${paymentNote.trim()}`
+          }
+        ]
+      };
+
+      localStorage.setItem(
+        'sys_platform_billing',
+        JSON.stringify([newInvoice, ...existingInvoices])
+      );
+    } catch (err) {
+      console.error('Lỗi đồng bộ hóa đơn gia hạn:', err);
+    }
+
+    // 3. Ghi nhật ký hoạt động vào sys_core_audit_logs
+    if (confirmPaymentNow) {
+      logAction(
+        'GIA HẠN',
+        `Gia hạn ${cfg.label} (${renewMonths} tháng) cho ${renewTenant.name} (${renewTenant.code}) — Đã thu ${totalAmount.toLocaleString('vi-VN')} ₫ qua ${methodLabel} (Mã GD: ${cleanTx})`
+      );
+    } else {
+      logAction(
+        'THANH TOÁN',
+        `Tạo yêu cầu gia hạn ${cfg.label} (${renewMonths} tháng) cho ${renewTenant.name} (${renewTenant.code}) — Chờ duyệt ${totalAmount.toLocaleString('vi-VN')} ₫ qua ${methodLabel} (Mã GD: ${cleanTx})`
+      );
+    }
+
+    window.dispatchEvent(new Event('storage'));
     setRenewTenant(null);
+    setActiveSection('tenants');
   };
 
   const handleDeleteTenant = (tenant: TenantRecord) => {
@@ -757,8 +922,11 @@ export default function AdminTenantList() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setActiveSection('tenants')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${activeSection === 'tenants'
+              onClick={() => {
+                setRenewTenant(null);
+                setActiveSection('tenants');
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${activeSection === 'tenants' || activeSection === 'renew_payment'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
                 }`}
@@ -769,7 +937,10 @@ export default function AdminTenantList() {
 
             <button
               type="button"
-              onClick={() => setActiveSection('billing')}
+              onClick={() => {
+                setRenewTenant(null);
+                setActiveSection('billing');
+              }}
               className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${activeSection === 'billing'
                   ? 'bg-[#0EA5E9] text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
@@ -807,9 +978,433 @@ export default function AdminTenantList() {
         </div>
       </div>
 
-      {/* ================= NỘI DUNG PHÂN HỆ 2: CÔNG NỢ & THANH TOÁN ================= */}
+      {/* ================= NỘI DUNG CHÍNH THEO TỪNG MÀN HÌNH ================= */}
       {activeSection === 'billing' ? (
         <AdminBillingManagement />
+      ) : activeSection === 'renew_payment' && renewTenant && renewalSummary ? (
+        /* ================= TRANG PHƯƠNG THỨC THANH TOÁN GIA HẠN ================= */
+        <div className="flex-1 max-w-[1280px] w-full mx-auto p-8 space-y-6">
+          {/* Thanh điều hướng quay lại & tiêu đề trang thanh toán */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setRenewTenant(null);
+                  setActiveSection('tenants');
+                }}
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Quay lại Danh sách Doanh nghiệp</span>
+              </button>
+              <div>
+                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-sky-600">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>CỔNG THANH TOÁN & ĐỐI SOÁT GIA HẠN DỊCH VỤ</span>
+                </div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  Chọn Phương thức Thanh toán • {renewTenant.name} ({renewTenant.code})
+                </h2>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs font-bold">
+              <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                ✓ 1. Chọn gói & Thời hạn
+              </span>
+              <span className="text-slate-300">→</span>
+              <span className="px-2.5 py-1 rounded-full bg-slate-900 text-white">
+                2. Phương thức thanh toán
+              </span>
+            </div>
+          </div>
+
+          <form
+            onSubmit={handleCompleteRenewalPayment}
+            className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start"
+          >
+            {/* CỘT TRÁI (2/3): CHỌN PHƯƠNG THỨC THANH TOÁN & THÔNG TIN CHỨNG TỪ */}
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">
+                  1. Chọn phương thức thanh toán
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPaymentMethod('BANK_TRANSFER')}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${paymentMethod === 'BANK_TRANSFER'
+                        ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="w-9 h-9 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      {paymentMethod === 'BANK_TRANSFER' && (
+                        <CheckCircle2 className="w-4 h-4 text-sky-600" />
+                      )}
+                    </div>
+                    <div className="text-xs font-bold text-slate-900">
+                      Chuyển khoản / VietQR
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      Internet Banking 24/7
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPaymentMethod('ONLINE_GATEWAY')}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${paymentMethod === 'ONLINE_GATEWAY'
+                        ? 'border-indigo-500 bg-indigo-50/70 ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                        <Wallet className="w-4 h-4" />
+                      </div>
+                      {paymentMethod === 'ONLINE_GATEWAY' && (
+                        <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                      )}
+                    </div>
+                    <div className="text-xs font-bold text-slate-900">
+                      Cổng VNPay / Ví MoMo
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      Thanh toán trực tuyến
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPaymentMethod('CASH')}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${paymentMethod === 'CASH'
+                        ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                        <Banknote className="w-4 h-4" />
+                      </div>
+                      {paymentMethod === 'CASH' && (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      )}
+                    </div>
+                    <div className="text-xs font-bold text-slate-900">
+                      Tiền mặt tại quầy
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      Lập phiếu thu trực tiếp
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* CHI TIẾT HƯỚNG DẪN TƯƠNG ỨNG VỚI PHƯƠNG THỨC ĐÃ CHỌN */}
+              {paymentMethod === 'BANK_TRANSFER' && (
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-28 h-28 rounded-xl bg-white border border-slate-200 flex flex-col items-center justify-center shrink-0 p-2 text-center">
+                    <QrCode className="w-14 h-14 text-slate-800" />
+                    <span className="text-[10px] font-mono font-bold text-sky-700 mt-1">
+                      VIETQR 24/7
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 text-xs flex-1 w-full">
+                    <div className="font-bold text-slate-800 text-sm">
+                      Thông tin tài khoản thụ hưởng DriveLinker
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-slate-600">
+                      <div>
+                        Ngân hàng: <strong className="text-slate-900">Vietcombank (VCB)</strong>
+                      </div>
+                      <div>
+                        Số tài khoản:{' '}
+                        <strong className="font-mono text-slate-900">1029384756</strong>
+                      </div>
+                      <div className="sm:col-span-2">
+                        Chủ tài khoản:{' '}
+                        <strong className="text-slate-900">
+                          CONG TY CO PHAN CONG NGHE DRIVELINKER
+                        </strong>
+                      </div>
+                      <div className="sm:col-span-2">
+                        Nội dung CK:{' '}
+                        <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-mono font-bold">
+                          GIAHAN {renewTenant.code} {renewPlan} {renewMonths}T
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === 'ONLINE_GATEWAY' && (
+                <div className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-200 space-y-3">
+                  <div className="text-xs font-bold text-indigo-900">
+                    Chọn cổng thanh toán trực tuyến liên kết:
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGatewayProvider('VNPAY');
+                        setPaymentTxCode(`VNPAY-${Date.now().toString().slice(-6)}`);
+                      }}
+                      className={`p-3 rounded-xl border text-left font-bold text-xs cursor-pointer ${gatewayProvider === 'VNPAY'
+                          ? 'bg-white border-indigo-600 text-indigo-700 shadow-2xs'
+                          : 'bg-white/60 border-slate-200 text-slate-600'
+                        }`}
+                    >
+                      VNPay QR / Thẻ nội địa Napas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGatewayProvider('MOMO');
+                        setPaymentTxCode(`MOMO-${Date.now().toString().slice(-6)}`);
+                      }}
+                      className={`p-3 rounded-xl border text-left font-bold text-xs cursor-pointer ${gatewayProvider === 'MOMO'
+                          ? 'bg-white border-pink-600 text-pink-700 shadow-2xs'
+                          : 'bg-white/60 border-slate-200 text-slate-600'
+                        }`}
+                    >
+                      Ví điện tử MoMo Doanh nghiệp
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === 'CASH' && (
+                <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 text-xs text-emerald-900 space-y-1">
+                  <div className="font-bold">
+                    Thu tiền mặt trực tiếp tại Văn phòng DriveLinker
+                  </div>
+                  <p className="text-emerald-800">
+                    Kế toán lập phiếu thu 2 liên, giao 1 liên cho đại diện{' '}
+                    <strong>{renewTenant.name}</strong> và lưu mã phiếu thu bên dưới để đối soát.
+                  </p>
+                </div>
+              )}
+
+              {/* THÔNG TIN CHỨNG TỪ & MÃ GIAO DỊCH */}
+              <div className="space-y-4 pt-2 border-t border-slate-100">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  2. Thông tin giao dịch & Chứng từ đối soát
+                </h3>
+
+                {paymentError && (
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{paymentError}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      {paymentMethod === 'CASH'
+                        ? 'Mã phiếu thu tiền mặt *'
+                        : 'Mã giao dịch thanh toán *'}
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentTxCode}
+                      onChange={(e) => {
+                        setPaymentTxCode(e.target.value.toUpperCase());
+                        if (paymentError) setPaymentError('');
+                      }}
+                      placeholder="VD: FT26320981"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono uppercase outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Số chứng từ / Biên lai *
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentVoucherCode}
+                      onChange={(e) => {
+                        setPaymentVoucherCode(e.target.value.toUpperCase());
+                        if (paymentError) setPaymentError('');
+                      }}
+                      placeholder="VD: UNC-2026-01"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono uppercase outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Ngày thanh toán
+                    </label>
+                    <input
+                      type="date"
+                      value={paymentPaidAt}
+                      onChange={(e) => setPaymentPaidAt(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono outline-none focus:border-sky-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Ghi chú đối soát
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentNote}
+                      onChange={(e) => setPaymentNote(e.target.value)}
+                      placeholder="Nhập ghi chú thanh toán..."
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Ảnh chứng từ / Ủy nhiệm chi (tùy chọn)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <label className="px-3.5 py-2 rounded-lg border border-dashed border-slate-300 hover:border-sky-400 bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-2 cursor-pointer">
+                        <Upload className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Tải ảnh biên lai...</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleVoucherImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      {paymentVoucherImage && (
+                        <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Đã đính kèm
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2.5 p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={confirmPaymentNow}
+                    onChange={(e) => setConfirmPaymentNow(e.target.checked)}
+                    className="w-4 h-4 accent-emerald-600"
+                  />
+                  <span className="text-xs font-semibold text-emerald-900">
+                    Xác nhận đã nhận đủ thanh toán & Kích hoạt gia hạn gói dịch vụ ngay lập tức
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* CỘT PHẢI (1/3): TÓM TẮT ĐƠN HÀNG GIA HẠN */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+              <div className="border-b border-slate-100 pb-4">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  Tóm tắt Đơn hàng Gia hạn
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Kiểm tra lại thông tin gói cước và thời hạn trước khi xác nhận.
+                </p>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500">Doanh nghiệp:</span>
+                  <strong className="text-slate-900 text-right">{renewTenant.name}</strong>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500">Mã định danh:</span>
+                  <strong className="font-mono text-slate-800">{renewTenant.code}</strong>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500">Gói dịch vụ mới:</span>
+                  <strong className="text-indigo-700">{renewalSummary.cfg.label}</strong>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500">Hạn mức phương tiện:</span>
+                  <strong className="font-mono text-slate-800">
+                    {Math.max(renewTenant.maxVehicles, renewalSummary.cfg.maxVehicles)} xe
+                  </strong>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500">Chu kỳ gia hạn:</span>
+                  <strong className="text-slate-900">
+                    {renewMonths} tháng (+{renewalSummary.addedDays} ngày)
+                  </strong>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500">HSD hiện tại:</span>
+                  <span className="font-mono text-slate-600">
+                    {formatDateVN(renewTenant.expiresAt)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500">HSD mới sau gia hạn:</span>
+                  <strong className="font-mono text-emerald-700">
+                    {formatDateVN(renewalSummary.nextExpiresAt)}
+                  </strong>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500">Phương thức TT:</span>
+                  <strong className="text-slate-900">
+                    {paymentMethod === 'BANK_TRANSFER'
+                      ? 'Chuyển khoản ngân hàng'
+                      : paymentMethod === 'ONLINE_GATEWAY'
+                        ? `Cổng ${gatewayProvider}`
+                        : 'Tiền mặt'}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-900 text-white space-y-1">
+                <div className="text-[11px] text-slate-400 uppercase font-bold">
+                  Tổng số tiền thanh toán
+                </div>
+                <div className="text-2xl font-mono font-bold text-emerald-400">
+                  {renewalSummary.totalAmount.toLocaleString('vi-VN')} ₫
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  ({renewalSummary.cfg.monthlyFee.toLocaleString('vi-VN')} đ/tháng ×{' '}
+                  {renewMonths} tháng)
+                </div>
+              </div>
+
+              <div className="space-y-2.5 pt-1">
+                <button
+                  type="submit"
+                  className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
+                >
+                  <FileCheck2 className="w-4 h-4" />
+                  <span>
+                    {confirmPaymentNow
+                      ? 'Xác nhận thanh toán & Gia hạn'
+                      : 'Lưu chứng từ chờ đối soát'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveSection('tenants');
+                    setIsRenewModalOpen(true);
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  ← Đổi gói dịch vụ / Số tháng
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       ) : (
         /* ================= NỘI DUNG PHÂN HỆ 1: QUẢN LÝ DOANH NGHIỆP ================= */
         <div className="flex-1 max-w-[1520px] w-full mx-auto p-8 space-y-6">
@@ -963,7 +1558,7 @@ export default function AdminTenantList() {
           </div>
 
           {viewMode === 'cards' ? (
-            /* ================= DẠNG THẺ TRỰC QUAN NHƯ BẢN GỐC ================= */
+            /* ================= DẠNG THẺ TRỰC QUAN ================= */
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredTenants.map((t) => {
                 const planCfg = PLAN_CONFIGS[t.plan] || PLAN_CONFIGS.STARTER;
@@ -994,6 +1589,8 @@ export default function AdminTenantList() {
                             <span className="font-mono">
                               {registeredCount}/{t.maxVehicles} xe
                             </span>
+                            <span>•</span>
+                            <span className="font-mono">HSD: {formatDateVN(t.expiresAt)}</span>
                           </div>
                         </div>
                       </div>
@@ -1001,20 +1598,27 @@ export default function AdminTenantList() {
                       {renderStatusBadge(t.status)}
                     </div>
 
-                    <div className="border-t border-slate-100 bg-slate-50 grid grid-cols-2 divide-x divide-slate-200">
+                    <div className="border-t border-slate-100 bg-slate-50 grid grid-cols-3 divide-x divide-slate-200">
                       <button
                         type="button"
                         onClick={() => setSelectedTenant(t)}
-                        className="py-3 flex items-center justify-center gap-2 text-sm font-bold text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
+                        className="py-3 flex items-center justify-center gap-1.5 text-xs font-bold text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
                       >
-                        <Info className="w-4 h-4" /> Xem chi tiết
+                        <Info className="w-4 h-4" /> Chi tiết
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openRenewModal(t)}
+                        className="py-3 flex items-center justify-center gap-1.5 text-xs font-bold text-sky-700 hover:bg-sky-50 transition-colors cursor-pointer"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Gia hạn
                       </button>
                       <button
                         type="button"
                         onClick={() => handleImpersonate(t.id, t.name)}
-                        className="py-3 flex items-center justify-center gap-2 text-sm font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        className="py-3 flex items-center justify-center gap-1.5 text-xs font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                       >
-                        Truy cập hệ thống <ArrowRight className="w-4 h-4" />
+                        Truy cập <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -1245,7 +1849,7 @@ export default function AdminTenantList() {
         </div>
       )}
 
-      {/* ================= MODAL: LỊCH SỬ THAO TÁC GỐC ================= */}
+      {/* ================= MODAL: LỊCH SỬ THAO TÁC ================= */}
       {isHistoryModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
@@ -1300,7 +1904,9 @@ export default function AdminTenantList() {
                           <span
                             className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider ${log.action === 'THÊM MỚI' || log.action === 'XÁC NHẬN TT'
                                 ? 'bg-emerald-100 text-emerald-700'
-                                : log.action === 'TRUY CẬP' || log.action === 'GIA HẠN'
+                                : log.action === 'TRUY CẬP' ||
+                                  log.action === 'GIA HẠN' ||
+                                  log.action === 'THANH TOÁN'
                                   ? 'bg-sky-100 text-sky-700'
                                   : log.action === 'ĐĂNG XUẤT'
                                     ? 'bg-slate-200 text-slate-600'
@@ -1717,8 +2323,8 @@ export default function AdminTenantList() {
         </div>
       )}
 
-      {/* ================= MODAL: GIA HẠN / NÂNG CẤP GÓI ================= */}
-      {renewTenant && (
+      {/* ================= BƯỚC 1 GIA HẠN: CHỌN GÓI & THỜI HẠN ================= */}
+      {isRenewModalOpen && renewTenant && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
@@ -1727,12 +2333,15 @@ export default function AdminTenantList() {
                   Gia hạn & Nâng cấp gói dịch vụ
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {renewTenant.name} ({renewTenant.code})
+                  Bước 1/2 • {renewTenant.name} ({renewTenant.code})
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setRenewTenant(null)}
+                onClick={() => {
+                  setIsRenewModalOpen(false);
+                  setRenewTenant(null);
+                }}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1810,18 +2419,21 @@ export default function AdminTenantList() {
               <div className="pt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setRenewTenant(null)}
+                  onClick={() => {
+                    setIsRenewModalOpen(false);
+                    setRenewTenant(null);
+                  }}
                   className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="button"
-                  onClick={handleConfirmRenew}
-                  className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  onClick={handleProceedToPaymentPage}
+                  className="px-5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
-                  <ArrowUpRight className="w-4 h-4" />
-                  <span>Xác nhận gia hạn</span>
+                  <span>Tiếp tục phương thức thanh toán</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>

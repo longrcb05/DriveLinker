@@ -28,7 +28,7 @@ import {
   Clock, Wrench, ShieldAlert, Edit3, Trash2, Eye, X, Phone,
   ChevronRight, Car
 } from 'lucide-react';
-import { vehicleService, type Vehicle, type VehicleStatus } from '../services/vehicleService';
+import { vehicleService, matchesPlate, type Vehicle, type VehicleStatus } from '../services/vehicleService';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function FleetManagement() {
@@ -136,12 +136,7 @@ export default function FleetManagement() {
     const q = searchTerm.toLowerCase().trim();
     return vehicles.filter(v => {
       const matchStatus = selectedStatus === 'ALL' || v.status === selectedStatus;
-      const matchSearch =
-        !q ||
-        v.plate.toLowerCase().includes(q) ||
-        v.brand.toLowerCase().includes(q) ||
-        v.model.toLowerCase().includes(q) ||
-        (v.driver && v.driver.toLowerCase().includes(q));
+      const matchSearch = !q || matchesPlate(v.plate, q) || v.plate.toLowerCase().includes(q) || v.brand.toLowerCase().includes(q) || v.model.toLowerCase().includes(q) || (v.driver && v.driver.toLowerCase().includes(q));
       return matchStatus && matchSearch;
     });
   }, [vehicles, selectedStatus, searchTerm]);

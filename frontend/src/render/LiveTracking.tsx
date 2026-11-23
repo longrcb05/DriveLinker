@@ -27,6 +27,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import { matchesPlate } from '../services/vehicleService';
 import {
   ChevronRight, Search, Camera,
   AlertTriangle, CheckCircle2, Clock, X,
@@ -318,6 +319,7 @@ export default function LiveTracking() {
   const filteredVehicles = useMemo(() => {
     return vehicles.filter(v => {
       const matchSearch =
+        matchesPlate(v.plate, searchTerm) ||
         v.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.driver.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.model.toLowerCase().includes(searchTerm.toLowerCase());
