@@ -90,3 +90,4 @@ Các mục dưới đây được đối chiếu với mã nguồn và Git tại
 - Kết nối giao diện quản trị và trang Camera & Định vị; kết hợp với trang doanh nghiệp và thanh toán hiện có.
 - Nối đăng nhập và nhật ký admin với dữ liệu tài khoản và lịch sử dùng chung trong trình duyệt.
 - Build frontend thành công; chưa kiểm thử đầy đủ từng thao tác trên trình duyệt.
+- Khôi phục nút mở rộng lịch sử theo tài khoản, thẻ tổng quan doanh nghiệp và hoạt động gần đây, cùng thông báo tài khoản admin bị khóa. Đăng xuất doanh nghiệp chỉ xóa thông tin phiên, giữ dữ liệu đã lưu trong trình duyệt.

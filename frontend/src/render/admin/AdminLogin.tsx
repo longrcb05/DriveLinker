@@ -90,7 +90,13 @@ export default function AdminLogin() {
         setIsLoading(false);
         return;
       }
-      const account = accounts.find(item => item.username.toLowerCase() === username.trim().toLowerCase() && item.password === password && item.status === 'ACTIVE');
+      const account = accounts.find(item => item.username.toLowerCase() === username.trim().toLowerCase() && item.password === password);
+
+      if (account?.status === 'LOCKED') {
+        setError(language === 'vi' ? 'Tài khoản đã bị khóa.' : 'This account is locked.');
+        setIsLoading(false);
+        return;
+      }
 
       if (account) {
         if (!localStorage.getItem('sys_tenants')) {
