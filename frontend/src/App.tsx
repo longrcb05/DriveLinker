@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import DashboardLayout from './UI/DashboardLayout';
+import AdminLayout from './UI/AdminLayout';
+import AdminDevices from './render/admin/AdminDevices';
 
 import Login from './render/Login';
 import Overview from './render/Overview';
@@ -41,15 +43,11 @@ export default function App() {
               Phải đặt bên ngoài DashboardLayout để không dính Sidebar
               ========================================================= */}
           <Route path="/overview/admin/login" element={<AdminLogin />} />
-          <Route path="/overview/admin/accounts" element={<RequireAdminAuth><AdminAccountList /></RequireAdminAuth>} />
-          <Route
-            path="/overview/admin"
-            element={
-              <RequireAdminAuth>
-                <AdminTenantList />
-              </RequireAdminAuth>
-            }
-          />
+          <Route element={<RequireAdminAuth><AdminLayout /></RequireAdminAuth>}>
+            <Route path="/overview/admin" element={<AdminTenantList />} />
+            <Route path="/overview/admin/accounts" element={<AdminAccountList />} />
+            <Route path="/overview/admin/devices" element={<AdminDevices />} />
+          </Route>
 
           {/* =========================================================
               KHU VỰC 2: GIAO DIỆN KHÁCH HÀNG (Manager, Staff, Admin nhập vai)

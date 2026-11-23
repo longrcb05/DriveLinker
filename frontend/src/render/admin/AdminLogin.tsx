@@ -9,6 +9,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { getAdminAccounts, saveAdminAccounts } from './adminAccounts';
+import { recordAdminAction } from './adminAudit';
 
 // Danh sách ảnh ô tô cho thuê độ phân giải cao (tự động chuyển ảnh kế tiếp nếu lỗi mạng)
 const CAR_RENTAL_IMAGES = [
@@ -82,22 +84,28 @@ export default function AdminLogin() {
     setError('');
 
     setTimeout(() => {
-      let adminName = '';
-      const inputUser = username.trim().toUpperCase();
-
-      if (inputUser === 'ADMINLONG' && password === '123456') {
-        adminName = 'Nguyễn Nhật Long';
-      } else if (inputUser === 'ADMINAN' && password === '123456') {
-        adminName = 'Nguyễn Phạm Thiện Ân';
+      let accounts;
+      try { accounts = getAdminAccounts(); } catch {
+        setError('Không thể đọc dữ liệu tài khoản trên trình duyệt.');
+        setIsLoading(false);
+        return;
       }
+      const account = accounts.find(item => item.username.toLowerCase() === username.trim().toLowerCase() && item.password === password && item.status === 'ACTIVE');
 
-      if (adminName) {
+      if (account) {
         if (!localStorage.getItem('sys_tenants')) {
           localStorage.setItem('sys_tenants', JSON.stringify(DEFAULT_TENANTS));
         }
 
-        sessionStorage.setItem('sys_core_role', 'SUPER_ADMIN');
-        sessionStorage.setItem('sys_core_admin_name', adminName);
+        try { saveAdminAccounts(accounts.map(item => item.username === account.username ? { ...item, lastLogin: new Date().toLocaleString('vi-VN') } : item)); } catch {
+          setError('Không thể lưu dữ liệu tài khoản trên trình duyệt.');
+          setIsLoading(false);
+          return;
+        }
+        sessionStorage.setItem('sys_core_role', account.role);
+        sessionStorage.setItem('sys_core_admin_name', account.fullName);
+        sessionStorage.setItem('sys_core_username', account.username);
+        recordAdminAction('ĐĂNG NHẬP', 'Đăng nhập hệ thống quản trị', account);
         navigate('/overview/admin');
       } else {
         setError(
