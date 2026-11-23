@@ -51,7 +51,7 @@ Danh sách được đối chiếu với Git và nội dung tài liệu hiện c
 - **GitHub:** Gỡ thư mục `.agents/skills/` khỏi nhánh `NgocBang` bằng commit `e253328` và đã push; các file vẫn được giữ lại trên máy và hiện không được Git theo dõi.
 - **Kiểm tra:** Build sau thay đổi định dạng ngày thành công; lint ghi nhận 104 lỗi và 4 cảnh báo trên toàn dự án. Sau thay đổi tìm kiếm biển số, build và lint không hoàn tất do thiếu bộ nhớ; chưa kiểm tra trực quan các thay đổi trên trình duyệt.
 
-## Cập nhật hiện trạng — 21/11/2026
+## Ghi nhận trước khi commit — 21/11/2026
 
 Các mục dưới đây được đối chiếu với mã nguồn và Git tại thời điểm ghi nhận. Những thay đổi frontend này hiện **chưa commit**; ngày ghi nhận không nhất thiết là ngày thực hiện.
 
@@ -59,6 +59,27 @@ Các mục dưới đây được đối chiếu với mã nguồn và Git tại
 - **Dữ liệu tài khoản mẫu:** Thêm `adminAccounts.ts` để quản lý các tài khoản mẫu, vai trò, trạng thái và lần đăng nhập cuối; dữ liệu và mật khẩu được lưu trong `localStorage` của trình duyệt. Đây là cơ chế dữ liệu mẫu phía frontend.
 - **Đăng nhập Admin:** Đối chiếu thông tin với danh sách tài khoản mẫu, từ chối tài khoản bị khóa, cập nhật lần đăng nhập cuối và lưu tên đăng nhập, tên hiển thị cùng vai trò vào `sessionStorage`.
 - **Điều hướng Admin:** Thêm đường dẫn `/overview/admin/accounts` được bảo vệ; chấp nhận các vai trò `SUPER_ADMIN`, `SUPPORT_ADMIN` và `BILLING_ADMIN` qua lớp bảo vệ route. Thêm nút mở trang tài khoản từ danh sách doanh nghiệp và xóa username khỏi phiên khi đăng xuất.
-- **Các thay đổi frontend khác:** Phần phân tích, tìm biển số, kiểm tra số điện thoại tài xế và nội dung tiếng Việt/Anh vẫn đang có thay đổi chưa commit như đã mô tả ở trên. `lichsuFE.md` cũng đang có thay đổi chưa commit.
-- **Trạng thái Git:** Nhánh `NgocBang` đang ở commit `e253328`; `bang.md`, hai tệp tài khoản Admin mới và thư mục `.agents/` chưa được Git theo dõi.
+- **Ghi nhận từ nhánh main ngày 21/11:** Các thay đổi phân tích, tìm biển số, kiểm tra số điện thoại, nội dung tiếng Việt/Anh và `lichsuFE.md` lúc đó chưa commit; nhánh `NgocBang` lúc đó ở `e253328`, còn `bang.md`, hai file tài khoản Admin và `.agents/` chưa được Git theo dõi.
 - **Kiểm tra:** Lần cập nhật tài liệu này chỉ đối chiếu mã nguồn và trạng thái Git; chưa chạy lại build, lint hoặc kiểm thử chức năng.
+- **Nhật ký hoạt động Admin:** Thêm `adminAudit.ts` để đọc, ghi và định dạng nhật ký trong `localStorage`. Ghi nhận đăng nhập, đăng xuất và các thao tác quản trị; khi nhập vai doanh nghiệp, ghi thêm thao tác cấu hình, đồng bộ và thoát chế độ truy cập. Việc đồng bộ được ghi là mô phỏng.
+- **Xem lịch sử:** Cập nhật cửa sổ lịch sử trong `AdminTenantList.tsx`: đọc lại nhật ký khi mở, hiển thị thời gian và username nếu có, cho phép mở rộng để xem các hoạt động của cùng tài khoản. Bỏ cơ chế tự đặt lại nhật ký cũ bằng dữ liệu mẫu.
+- **Cài đặt doanh nghiệp:** Dùng hàm ghi nhật ký Admin chung cho các thay đổi được thực hiện khi quản trị viên nhập vai.
+
+
+## Cập nhật khu vực Admin — 22/11/2026
+
+- **Bố cục và điều hướng:** Tạo giao diện admin dùng chung với thanh menu cố định bên trái, tông đỏ–trắng, logo xe và khẩu hiệu “Drive Safe - Arrive Alive”. Menu gồm Tổng Quan, Quản lý tài khoản và Camera & Định vị; có thông tin admin và nút đăng xuất.
+- **Tổng Quan:** Thiết kế lại trang với hai thẻ thống kê đã được thu gọn, danh sách doanh nghiệp, xem chi tiết, thêm doanh nghiệp, truy cập hệ thống và xem lịch sử thao tác. Các chức năng doanh nghiệp và truy cập hiện vẫn dùng dữ liệu mô phỏng phía trình duyệt.
+- **Lịch sử thao tác:** Nhãn đăng xuất có màu xám, đăng nhập màu xanh lá và các hành động khác màu đỏ.
+- **Quản lý tài khoản:** Đưa trang vào bố cục admin; giữ chức năng tìm kiếm, lọc, thêm, khóa/mở khóa và đổi mật khẩu. Đã bỏ chức năng sửa và xóa tài khoản. Khi đổi mật khẩu phải nhập đúng mật khẩu hiện tại; việc đối chiếu vẫn thực hiện với dữ liệu mẫu trên trình duyệt.
+- **Camera & Định vị:** Tạo trang quản lý AI Camera và GPS Tracker với ba thiết bị mẫu, thống kê theo trạng thái, tìm kiếm, lọc, thêm thiết bị, cập nhật trạng thái, xem chi tiết và lịch sử thay đổi. Có thể liên kết hoặc tháo liên kết doanh nghiệp và phương tiện; hỗ trợ các trạng thái Trong kho, Đang lắp đặt, Đang sử dụng, Lỗi và Bảo hành. Kiểm tra IMEI 15 chữ số và trùng IMEI hoặc Serial Number.
+- **Giới hạn dữ liệu:** Tài khoản, doanh nghiệp, lịch sử và thiết bị admin hiện dùng dữ liệu mẫu hoặc dữ liệu lưu trong trình duyệt, chưa kết nối đầy đủ với backend. Biển số tại trang thiết bị được nhập thủ công, chưa đối chiếu với danh sách xe của doanh nghiệp.
+- **Kiểm tra:** Build frontend đã thành công sau các thay đổi chính, gồm giao diện admin, yêu cầu mật khẩu hiện tại và trang thiết bị. Những chỉnh sửa nhỏ tiếp theo về thông báo, kích thước thẻ và màu lịch sử chưa được build lại riêng; chưa kiểm thử đầy đủ trên trình duyệt.
+
+## Cập nhật Camera & Định vị — 23/11/2026
+
+- Đổi tên loại thiết bị từ **AI Camera** thành **Camera** và từ **GPS Tracker** thành **DL GPS** trong danh sách, bộ lọc và biểu mẫu.
+- Gộp hai trạng thái **Lỗi** và **Bảo hành** thành **Lỗi/Bảo hành**; đổi **Trong kho** thành **Tồn kho** trên thẻ thống kê, bộ lọc và biểu mẫu.
+- Cập nhật biểu tượng các thẻ thống kê cho phù hợp với tổng thiết bị, tồn kho, đang lắp đặt, đang sử dụng và lỗi/bảo hành.
+- Khi đọc thiết bị đã lưu trong trình duyệt, chuyển các tên loại và trạng thái cũ sang cách hiển thị mới.
+- **Kiểm tra:** Build frontend thành công sau khi đổi tên loại và gộp trạng thái; ESLint cho trang thiết bị thành công sau khi cập nhật biểu tượng. Chưa chạy lại kiểm tra sau thay đổi nhãn **Tồn kho** và chưa kiểm thử trực quan trên trình duyệt.
