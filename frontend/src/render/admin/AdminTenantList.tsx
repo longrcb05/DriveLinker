@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2,
   Server,
@@ -33,9 +33,19 @@ import {
   Wallet,
   Upload,
   FileCheck2,
-  ShieldCheck
+  ShieldCheck,
+  BarChart3,
+  Users
 } from 'lucide-react';
+import {
+  readAdminAuditLogs,
+  recordAdminAction,
+  formatAuditTime
+} from './adminAudit';
+import type { AdminAuditLog } from './adminAudit';
+import type { AdminRole } from './adminAccounts';
 import AdminBillingManagement from './AdminBillingManagement';
+import AdminDashboard from './AdminDashboard';
 
 export type TenantStatus = 'ACTIVE' | 'TRIAL' | 'SUSPENDED';
 export type SubscriptionPlan = 'TRIAL_14D' | 'STARTER' | 'PRO' | 'ENTERPRISE';
@@ -66,6 +76,12 @@ interface PlanConfig {
   defaultDays: number;
   badgeClass: string;
 }
+
+const ROLE_LABELS: Record<AdminRole, string> = {
+  SUPER_ADMIN: 'Quản trị hệ thống',
+  SUPPORT_ADMIN: 'Hỗ trợ kỹ thuật',
+  BILLING_ADMIN: 'Quản lý thanh toán'
+};
 
 const PLAN_CONFIGS: Record<SubscriptionPlan, PlanConfig> = {
   TRIAL_14D: {
@@ -228,8 +244,10 @@ const normalizeTenantList = (rawList: any[]): TenantRecord[] => {
 export default function AdminTenantList() {
   const navigate = useNavigate();
 
-  // Điều hướng nội bộ: Danh sách Doanh nghiệp | Công nợ & Thanh toán | Trang Phương thức Thanh toán Gia hạn
-  const [activeSection, setActiveSection] = useState<'tenants' | 'billing' | 'renew_payment'>('tenants');
+  // Điều hướng 3 phân hệ chính + Trang Phương thức Thanh toán Gia hạn
+  const [activeSection, setActiveSection] = useState<
+    'tenants' | 'billing' | 'dashboard' | 'renew_payment'
+  >('tenants');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   const [tenants, setTenants] = useState<TenantRecord[]>([]);
@@ -238,7 +256,7 @@ export default function AdminTenantList() {
   // State quản lý Modals
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
 
   // Bộ lọc & Tìm kiếm
   const [searchQuery, setSearchQuery] = useState('');
@@ -298,7 +316,25 @@ export default function AdminTenantList() {
   const [confirmPaymentNow, setConfirmPaymentNow] = useState(true);
   const [paymentError, setPaymentError] = useState('');
 
+  // Đọc thông tin phiên Admin đồng bộ với AdminAccountList & adminAudit
   const adminName = sessionStorage.getItem('sys_core_admin_name') || 'Quản trị viên';
+  const adminUsername = sessionStorage.getItem('sys_core_username') || '';
+  const rawSessionRole = sessionStorage.getItem('sys_core_role') as AdminRole | null;
+  const roleDisplay =
+    rawSessionRole && ROLE_LABELS[rawSessionRole]
+      ? ROLE_LABELS[rawSessionRole]
+      : 'System Admin';
+
+  // Ghi nhật ký thông qua hàm dùng chung recordAdminAction trong adminAudit.ts
+  const logAction = (action: string, details: string) => {
+    recordAdminAction(
+      action,
+      details,
+      adminUsername ? { username: adminUsername, fullName: adminName } : undefined
+    );
+    setAuditLogs(readAdminAuditLogs());
+    window.dispatchEvent(new Event('storage'));
+  };
 
   const loadData = () => {
     try {
@@ -330,7 +366,7 @@ export default function AdminTenantList() {
       });
       setVehicleCountMap(counts);
 
-      setAuditLogs(JSON.parse(localStorage.getItem('sys_core_audit_logs') || '[]'));
+      setAuditLogs(readAdminAuditLogs());
     } catch (err) {
       console.error('Lỗi tải dữ liệu Admin:', err);
       setTenants(buildSeedTenants());
@@ -355,6 +391,7 @@ export default function AdminTenantList() {
             id: 1,
             time: '29/10/2026 08:30:00',
             admin: 'Nguyễn Phạm Thiện Ân',
+            username: 'adminan',
             action: 'ĐỒNG BỘ',
             details: 'Đồng bộ cấu hình Camera cho Demo CTY A'
           },
@@ -362,6 +399,7 @@ export default function AdminTenantList() {
             id: 2,
             time: '29/10/2026 09:15:20',
             admin: 'Nguyễn Nhật Long',
+            username: 'adminlong',
             action: 'CẤU HÌNH',
             details: 'Sửa lỗi giao diện Map cho Demo CTY B'
           }
@@ -375,21 +413,6 @@ export default function AdminTenantList() {
     window.addEventListener('storage', handleStorageSync);
     return () => window.removeEventListener('storage', handleStorageSync);
   }, [activeSection]);
-
-  const logAction = (action: string, details: string) => {
-    const newLog = {
-      id: Date.now() + Math.floor(Math.random() * 1000),
-      time: new Date().toLocaleString('vi-VN'),
-      admin: adminName,
-      action,
-      details
-    };
-    const currentLogs = JSON.parse(localStorage.getItem('sys_core_audit_logs') || '[]');
-    const updatedLogs = [newLog, ...currentLogs];
-
-    localStorage.setItem('sys_core_audit_logs', JSON.stringify(updatedLogs));
-    setAuditLogs(updatedLogs);
-  };
 
   const persistTenants = (nextList: TenantRecord[]) => {
     setTenants(nextList);
@@ -411,6 +434,7 @@ export default function AdminTenantList() {
     logAction('ĐĂNG XUẤT', 'Kết thúc phiên làm việc');
     sessionStorage.removeItem('sys_core_role');
     sessionStorage.removeItem('sys_core_admin_name');
+    sessionStorage.removeItem('sys_core_username');
     navigate('/overview/admin/login');
   };
 
@@ -685,7 +709,6 @@ export default function AdminTenantList() {
     reader.readAsDataURL(file);
   };
 
-  // Tính toán thông tin dự kiến cho trang thanh toán gia hạn
   const renewalSummary = useMemo(() => {
     if (!renewTenant) return null;
     const cfg = PLAN_CONFIGS[renewPlan];
@@ -706,7 +729,6 @@ export default function AdminTenantList() {
     };
   }, [renewTenant, renewPlan, renewMonths]);
 
-  // Hoàn tất thanh toán gia hạn & đồng bộ sang sys_tenants + sys_platform_billing + sys_core_audit_logs
   const handleCompleteRenewalPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!renewTenant || !renewalSummary) return;
@@ -733,7 +755,6 @@ export default function AdminTenantList() {
           ? `Cổng thanh toán ${gatewayProvider}`
           : 'Tiền mặt tại văn phòng';
 
-    // 1. Nếu xác nhận đã thu tiền ngay -> cập nhật gói & cộng nối tiếp thời hạn cho doanh nghiệp
     if (confirmPaymentNow) {
       const updatedTenants = tenants.map((t) =>
         t.id === renewTenant.id
@@ -753,7 +774,6 @@ export default function AdminTenantList() {
       persistTenants(updatedTenants);
     }
 
-    // 2. Đồng bộ hóa đơn & giao dịch thanh toán sang kho công nợ sys_platform_billing
     try {
       const rawInvoices = JSON.parse(
         localStorage.getItem('sys_platform_billing') || '[]'
@@ -770,9 +790,15 @@ export default function AdminTenantList() {
         tenantCode: renewTenant.code,
         billingPeriod: `${currentMonth} (${renewMonths}T)`,
         billingMode: 'PACKAGE',
+        planKey: renewPlan === 'TRIAL_14D' ? undefined : renewPlan,
         planName: cfg.label,
+        durationMonths: renewMonths,
+        discountPercent: 0,
         vehicleCount: vehicleCountMap[renewTenant.id] || 0,
-        unitPricePerVehicle: 150000,
+        includedVehicles: cfg.maxVehicles,
+        overageVehicles: 0,
+        overageAmount: 0,
+        unitPricePerVehicle: 130000,
         totalAmount,
         paidAmount: confirmPaymentNow ? totalAmount : 0,
         dueDate: paymentPaidAt || today,
@@ -802,7 +828,6 @@ export default function AdminTenantList() {
       console.error('Lỗi đồng bộ hóa đơn gia hạn:', err);
     }
 
-    // 3. Ghi nhật ký hoạt động vào sys_core_audit_logs
     if (confirmPaymentNow) {
       logAction(
         'GIA HẠN',
@@ -856,7 +881,7 @@ export default function AdminTenantList() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* ================= HEADER GỐC: DRIVELINKER ADMIN ================= */}
+      {/* ================= HEADER: DRIVELINKER ADMIN ================= */}
       <div className="bg-white border-b border-slate-200 px-8 py-5">
         <div className="max-w-[1520px] mx-auto flex flex-wrap justify-between items-center gap-4">
           <div>
@@ -869,10 +894,21 @@ export default function AdminTenantList() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {/* Nút điều hướng sang Quản lý Tài khoản Admin (AdminAccountList.tsx) */}
+            <Link
+              to="/overview/admin/accounts"
+              className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-rose-200 hover:text-rose-600 px-4 py-2 rounded-xl flex items-center gap-2 font-bold shadow-sm transition-colors"
+            >
+              <Users className="w-4 h-4" /> Tài khoản Admin
+            </Link>
+
             {/* Nút Xem Lịch sử */}
             <button
               type="button"
-              onClick={() => setIsHistoryModalOpen(true)}
+              onClick={() => {
+                setAuditLogs(readAdminAuditLogs());
+                setIsHistoryModalOpen(true);
+              }}
               className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-xl flex items-center gap-2 font-bold shadow-sm transition-colors active:scale-95 cursor-pointer"
             >
               <History className="w-4 h-4" /> Lịch sử
@@ -890,15 +926,22 @@ export default function AdminTenantList() {
               <Plus className="w-5 h-5" /> Thêm mới
             </button>
 
-            {/* Thông tin Admin */}
+            {/* Thông tin Admin đồng bộ từ sessionStorage */}
             <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm ml-1">
               <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center">
                 <UserCircle className="w-5 h-5 text-rose-600" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-bold text-slate-700 leading-none">{adminName}</p>
+                <p className="text-sm font-bold text-slate-700 leading-none">
+                  {adminName}
+                  {adminUsername && (
+                    <span className="ml-1.5 text-[11px] font-mono font-normal text-slate-400">
+                      ({adminUsername})
+                    </span>
+                  )}
+                </p>
                 <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
-                  System Admin
+                  {roleDisplay}
                 </p>
               </div>
             </div>
@@ -916,10 +959,10 @@ export default function AdminTenantList() {
         </div>
       </div>
 
-      {/* ================= THANH CHUYỂN TAB 2 PHÂN HỆ ================= */}
+      {/* ================= THANH CHUYỂN TAB 3 PHÂN HỆ ================= */}
       <div className="bg-white border-b border-slate-200 px-8 py-2.5">
         <div className="max-w-[1520px] mx-auto flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => {
@@ -948,6 +991,21 @@ export default function AdminTenantList() {
             >
               <Receipt className="w-4 h-4" />
               <span>2. Công nợ & Thanh toán (Billing)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setRenewTenant(null);
+                setActiveSection('dashboard');
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${activeSection === 'dashboard'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>3. Dashboard Thống kê nền tảng</span>
             </button>
           </div>
 
@@ -979,12 +1037,13 @@ export default function AdminTenantList() {
       </div>
 
       {/* ================= NỘI DUNG CHÍNH THEO TỪNG MÀN HÌNH ================= */}
-      {activeSection === 'billing' ? (
+      {activeSection === 'dashboard' ? (
+        <AdminDashboard onNavigateSection={(sec) => setActiveSection(sec)} />
+      ) : activeSection === 'billing' ? (
         <AdminBillingManagement />
       ) : activeSection === 'renew_payment' && renewTenant && renewalSummary ? (
         /* ================= TRANG PHƯƠNG THỨC THANH TOÁN GIA HẠN ================= */
         <div className="flex-1 max-w-[1280px] w-full mx-auto p-8 space-y-6">
-          {/* Thanh điều hướng quay lại & tiêu đề trang thanh toán */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <button
@@ -1106,7 +1165,6 @@ export default function AdminTenantList() {
                 </div>
               </div>
 
-              {/* CHI TIẾT HƯỚNG DẪN TƯƠNG ỨNG VỚI PHƯƠNG THỨC ĐÃ CHỌN */}
               {paymentMethod === 'BANK_TRANSFER' && (
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center gap-4">
                   <div className="w-28 h-28 rounded-xl bg-white border border-slate-200 flex flex-col items-center justify-center shrink-0 p-2 text-center">
@@ -1192,7 +1250,6 @@ export default function AdminTenantList() {
                 </div>
               )}
 
-              {/* THÔNG TIN CHỨNG TỪ & MÃ GIAO DỊCH */}
               <div className="space-y-4 pt-2 border-t border-slate-100">
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                   2. Thông tin giao dịch & Chứng từ đối soát
@@ -1849,7 +1906,7 @@ export default function AdminTenantList() {
         </div>
       )}
 
-      {/* ================= MODAL: LỊCH SỬ THAO TÁC ================= */}
+      {/* ================= MODAL: LỊCH SỬ THAO TÁC (ĐỒNG BỘ adminAudit.ts) ================= */}
       {isHistoryModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
@@ -1895,20 +1952,31 @@ export default function AdminTenantList() {
                     auditLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-3 text-sm text-slate-500 whitespace-nowrap flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-slate-300" /> {log.time}
+                          <Clock className="w-4 h-4 text-slate-300" />{' '}
+                          {formatAuditTime(log)}
                         </td>
                         <td className="px-6 py-3 text-sm font-bold text-slate-700 whitespace-nowrap">
-                          {log.admin}
+                          <span>{log.admin || 'Quản trị viên'}</span>
+                          {log.username && (
+                            <span className="ml-1.5 text-xs font-mono font-normal text-slate-400">
+                              ({log.username})
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-3 text-sm whitespace-nowrap">
                           <span
-                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider ${log.action === 'THÊM MỚI' || log.action === 'XÁC NHẬN TT'
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider ${log.action === 'THÊM MỚI' ||
+                                log.action === 'XÁC NHẬN TT' ||
+                                log.action === 'MỞ KHÓA' ||
+                                log.action === 'MỞ DỊCH VỤ'
                                 ? 'bg-emerald-100 text-emerald-700'
                                 : log.action === 'TRUY CẬP' ||
                                   log.action === 'GIA HẠN' ||
-                                  log.action === 'THANH TOÁN'
+                                  log.action === 'THANH TOÁN' ||
+                                  log.action === 'LẬP KỲ CƯỚC'
                                   ? 'bg-sky-100 text-sky-700'
-                                  : log.action === 'ĐĂNG XUẤT'
+                                  : log.action === 'ĐĂNG XUẤT' ||
+                                    log.action === 'ĐỔI MẬT KHẨU'
                                     ? 'bg-slate-200 text-slate-600'
                                     : 'bg-rose-100 text-rose-700'
                               }`}

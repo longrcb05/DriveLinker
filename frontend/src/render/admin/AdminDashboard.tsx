@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
     Building2,
     TrendingUp,
@@ -16,8 +17,14 @@ import {
     ShieldCheck,
     RefreshCw,
     Wallet,
-    ArrowRight
+    ArrowRight,
+    Users,
+    History
 } from 'lucide-react';
+import { getAdminAccounts } from './adminAccounts';
+import type { AdminAccount, AdminRole } from './adminAccounts';
+import { readAdminAuditLogs, formatAuditTime } from './adminAudit';
+import type { AdminAuditLog } from './adminAudit';
 import type { TenantRecord, SubscriptionPlan } from './AdminTenantList';
 import type { BillingInvoice } from './AdminBillingManagement';
 
@@ -43,6 +50,12 @@ interface MonthlyStatPoint {
     totalTenants: number;
     totalVehicles: number;
 }
+
+const ROLE_LABELS: Record<AdminRole, string> = {
+    SUPER_ADMIN: 'Quản trị hệ thống',
+    SUPPORT_ADMIN: 'Hỗ trợ kỹ thuật',
+    BILLING_ADMIN: 'Quản lý thanh toán'
+};
 
 const PLAN_META: Record<
     SubscriptionPlan,
@@ -98,11 +111,17 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
     const [tenants, setTenants] = useState<TenantRecord[]>([]);
     const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
     const [vehicleCountMap, setVehicleCountMap] = useState<Record<string, number>>({});
+    const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>([]);
+    const [recentLogs, setRecentLogs] = useState<AdminAuditLog[]>([]);
 
     const [chartRange, setChartRange] = useState<6 | 12>(6);
     const [hoveredRevenueIdx, setHoveredRevenueIdx] = useState<number | null>(null);
     const [hoveredGrowthIdx, setHoveredGrowthIdx] = useState<number | null>(null);
     const [activeModal, setActiveModal] = useState<StatModalType>(null);
+
+    const currentRole = sessionStorage.getItem('sys_core_role') as AdminRole | null;
+    const currentRoleLabel =
+        currentRole && ROLE_LABELS[currentRole] ? ROLE_LABELS[currentRole] : 'System Admin';
 
     const loadDashboardData = () => {
         try {
@@ -124,6 +143,16 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
 
             const rawInvoices = JSON.parse(localStorage.getItem('sys_platform_billing') || '[]');
             setInvoices(Array.isArray(rawInvoices) ? rawInvoices : []);
+
+            // Đồng bộ danh sách tài khoản quản trị từ adminAccounts.ts
+            try {
+                setAdminAccounts(getAdminAccounts());
+            } catch {
+                setAdminAccounts([]);
+            }
+
+            // Đồng bộ nhật ký thao tác hệ thống từ adminAudit.ts
+            setRecentLogs(readAdminAuditLogs());
         } catch (err) {
             console.error('Lỗi tải dữ liệu thống kê nền tảng:', err);
         }
@@ -136,7 +165,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
         return () => window.removeEventListener('storage', onStorage);
     }, []);
 
-    // Tính toán 5 nhóm chỉ số KPI chính + phân tích cơ cấu
+    // Tính toán 5 nhóm chỉ số KPI chính + phân tích cơ cấu gói & đội ngũ Admin
     const stats = useMemo(() => {
         const todayStr = new Date().toISOString().split('T')[0];
         const thirtyDaysAgo = new Date();
@@ -148,12 +177,10 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
         const trialTenants = tenants.filter((t) => t.status === 'TRIAL');
         const suspendedTenants = tenants.filter((t) => t.status === 'SUSPENDED');
 
-        // Doanh nghiệp mới kích hoạt trong 30 ngày gần nhất
         const newTenantsList = tenants.filter(
             (t) => t.activatedAt && t.activatedAt >= thirtyDaysAgoStr
         );
 
-        // Tổng phương tiện đăng ký & tổng hạn mức toàn nền tảng
         const totalVehicles = tenants.reduce(
             (sum, t) => sum + (vehicleCountMap[t.id] || 0),
             0
@@ -167,12 +194,10 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                 ? Math.min(100, Math.round((totalVehicles / totalVehicleQuota) * 100))
                 : 0;
 
-        // Doanh thu định kỳ hàng tháng (MRR) từ các doanh nghiệp ACTIVE
         const mrr = activeTenants.reduce((sum, t) => sum + (t.monthlyFee || 0), 0);
         const arr = mrr * 12;
         const arpu = activeTenants.length > 0 ? Math.round(mrr / activeTenants.length) : 0;
 
-        // Công nợ quá hạn (OVERDUE) & tổng công nợ chưa thu
         const overdueInvoices = invoices.filter((inv) => {
             const remaining = Math.max(0, inv.totalAmount - inv.paidAmount);
             return remaining > 0 && inv.dueDate && inv.dueDate < todayStr;
@@ -183,7 +208,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
         );
         const totalCollected = invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
 
-        // Phân bổ theo gói dịch vụ
         const planBreakdown = (
             ['PRO', 'STARTER', 'ENTERPRISE', 'TRIAL_14D'] as SubscriptionPlan[]
         ).map((planKey) => {
@@ -199,6 +223,9 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                 mrr: planMrr
             };
         });
+
+        const activeAdmins = adminAccounts.filter((a) => a.status === 'ACTIVE').length;
+        const lockedAdmins = adminAccounts.filter((a) => a.status === 'LOCKED').length;
 
         return {
             totalTenants,
@@ -217,11 +244,13 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
             overdueInvoices,
             totalOverdueDebt,
             totalCollected,
-            planBreakdown
+            planBreakdown,
+            activeAdmins,
+            lockedAdmins
         };
-    }, [tenants, invoices, vehicleCountMap]);
+    }, [tenants, invoices, vehicleCountMap, adminAccounts]);
 
-    // Chuỗi dữ liệu biểu đồ 6 / 12 tháng (tháng cuối đồng bộ trực tiếp với số liệu thực tế trên máy)
+    // Chuỗi dữ liệu biểu đồ 6 / 12 tháng
     const monthlySeries = useMemo<MonthlyStatPoint[]>(() => {
         const now = new Date();
         const baseMrr = stats.mrr || 3480000;
@@ -282,7 +311,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                 <div>
                     <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-sky-600 mb-1">
                         <ShieldCheck className="w-3.5 h-3.5" />
-                        <span>SYSTEM ADMIN • BÁO CÁO ĐIỀU HÀNH TOÀN NỀN TẢNG</span>
+                        <span>{currentRoleLabel.toUpperCase()} • BÁO CÁO ĐIỀU HÀNH TOÀN NỀN TẢNG</span>
                     </div>
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
                         Dashboard Thống kê Nền tảng DriveLinker
@@ -292,7 +321,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2.5">
+                <div className="flex flex-wrap items-center gap-2.5">
                     <button
                         type="button"
                         onClick={loadDashboardData}
@@ -490,8 +519,8 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                     type="button"
                                     onClick={() => setChartRange(r)}
                                     className={`px-2.5 py-1 rounded-md text-xs font-bold cursor-pointer ${chartRange === r
-                                            ? 'bg-white text-slate-900 shadow-2xs'
-                                            : 'text-slate-500 hover:text-slate-800'
+                                        ? 'bg-white text-slate-900 shadow-2xs'
+                                        : 'text-slate-500 hover:text-slate-800'
                                         }`}
                                 >
                                     {r} tháng
@@ -500,7 +529,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                         </div>
                     </div>
 
-                    {/* Chú giải & Tooltip trực tiếp */}
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4 text-xs">
                         <div className="flex items-center gap-4">
                             <span className="inline-flex items-center gap-1.5 font-semibold text-slate-700">
@@ -528,7 +556,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                         )}
                     </div>
 
-                    {/* Khung vẽ biểu đồ cột đôi SVG */}
                     <div className="w-full overflow-x-auto">
                         <svg
                             viewBox="0 0 640 250"
@@ -536,7 +563,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                             role="img"
                             aria-label="Biểu đồ doanh thu MRR và thực thu"
                         >
-                            {/* Đường kẻ lưới ngang Y-axis */}
                             {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
                                 const y = 210 - ratio * 175;
                                 const val = Math.round(maxRevenueValue * ratio);
@@ -563,7 +589,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                 );
                             })}
 
-                            {/* Các cột dữ liệu theo tháng */}
                             {monthlySeries.map((pt, idx) => {
                                 const plotWidth = 560;
                                 const groupWidth = plotWidth / monthlySeries.length;
@@ -592,7 +617,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                             />
                                         )}
 
-                                        {/* Cột MRR */}
                                         <rect
                                             x={centerX - barW - 2}
                                             y={210 - mrrH}
@@ -602,7 +626,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                             fill={isHovered ? '#4338CA' : '#6366F1'}
                                         />
 
-                                        {/* Cột Thực thu */}
                                         <rect
                                             x={centerX + 2}
                                             y={210 - colH}
@@ -612,14 +635,13 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                             fill={isHovered ? '#059669' : '#10B981'}
                                         />
 
-                                        {/* Nhãn tháng X-axis */}
                                         <text
                                             x={centerX}
                                             y="230"
                                             textAnchor="middle"
                                             className={`text-[10px] font-mono ${idx === monthlySeries.length - 1
-                                                    ? 'fill-slate-900 font-bold'
-                                                    : 'fill-slate-500'
+                                                ? 'fill-slate-900 font-bold'
+                                                : 'fill-slate-500'
                                                 }`}
                                         >
                                             {pt.label}
@@ -631,7 +653,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                     </div>
                 </div>
 
-                {/* BIỂU ĐỒ 2 (5 CỘT): TĂNG TRƯỞNG DOANH NGHIỆP & QUY MÔ ĐỘI XE */}
+                {/* BIỂU ĐỒ 2 (5 CỘT): TĂNG TRƯỞNG DOANH NGHIỆP */}
                 <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
                     <div className="mb-4">
                         <div className="flex items-center justify-between gap-2">
@@ -670,7 +692,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                         )}
                     </div>
 
-                    {/* SVG Line + Bar Chart */}
                     <svg
                         viewBox="0 0 440 210"
                         className="w-full h-[210px] select-none"
@@ -702,7 +723,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                             );
                         })}
 
-                        {/* Cột doanh nghiệp mới */}
                         {monthlySeries.map((pt, idx) => {
                             const plotW = 385;
                             const step = plotW / monthlySeries.length;
@@ -736,7 +756,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                             );
                         })}
 
-                        {/* Đường tăng trưởng tổng doanh nghiệp */}
                         <polyline
                             fill="none"
                             stroke="#0284C7"
@@ -754,7 +773,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                 .join(' ')}
                         />
 
-                        {/* Các điểm nút trên đường tăng trưởng */}
                         {monthlySeries.map((pt, idx) => {
                             const plotW = 385;
                             const step = plotW / monthlySeries.length;
@@ -776,9 +794,8 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                 </div>
             </div>
 
-            {/* ================= HÀNG DƯỚI: CƠ CẤU GÓI DỊCH VỤ & CẢNH BÁO CÔNG NỢ ================= */}
+            {/* ================= HÀNG GIỮA: CƠ CẤU GÓI DỊCH VỤ & CÔNG NỢ QUÁ HẠN ================= */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Cơ cấu phân bổ gói dịch vụ */}
                 <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
                     <div className="flex items-center justify-between">
                         <div>
@@ -821,7 +838,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                     </div>
                 </div>
 
-                {/* Danh sách Công nợ Quá hạn & Cảnh báo cần xử lý */}
                 <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between space-y-4">
                     <div>
                         <div className="flex items-center justify-between mb-3">
@@ -888,6 +904,118 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                         </div>
                                     );
                                 })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* ================= HÀNG DƯỚI: ĐỘI NGŨ ADMIN & NHẬT KÝ GẦN ĐÂY (ĐỒNG BỘ adminAccounts & adminAudit) ================= */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Đội ngũ Quản trị Nền tảng */}
+                <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between space-y-4">
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Users className="w-4 h-4 text-rose-600" />
+                                    <span>Đội ngũ Quản trị Hệ thống</span>
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    {stats.activeAdmins} đang hoạt động • {stats.lockedAdmins} đã khóa
+                                </p>
+                            </div>
+
+                            <Link
+                                to="/overview/admin/accounts"
+                                className="text-xs font-bold text-rose-600 hover:text-rose-700"
+                            >
+                                Quản lý tài khoản →
+                            </Link>
+                        </div>
+
+                        <div className="space-y-2">
+                            {adminAccounts.map((acc) => (
+                                <div
+                                    key={acc.username}
+                                    className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3 text-xs"
+                                >
+                                    <div>
+                                        <div className="font-bold text-slate-900">
+                                            {acc.fullName}{' '}
+                                            <span className="font-mono font-normal text-slate-400">
+                                                ({acc.username})
+                                            </span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 mt-0.5">
+                                            {ROLE_LABELS[acc.role]} • Đăng nhập cuối:{' '}
+                                            {acc.lastLogin || 'Chưa đăng nhập'}
+                                        </div>
+                                    </div>
+                                    <span
+                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${acc.status === 'ACTIVE'
+                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                            : 'bg-slate-200 text-slate-600'
+                                            }`}
+                                    >
+                                        {acc.status === 'ACTIVE' ? 'Hoạt động' : 'Đã khóa'}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Nhật ký thao tác gần đây */}
+                <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between space-y-4">
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                                    <History className="w-4 h-4 text-sky-600" />
+                                    <span>Hoạt động Quản trị Gần đây</span>
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Đồng bộ thời gian thực từ khóa nhật ký hệ thống (sys_core_audit_logs)
+                                </p>
+                            </div>
+                            <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono text-[11px] font-bold">
+                                {recentLogs.length} bản ghi
+                            </span>
+                        </div>
+
+                        {recentLogs.length === 0 ? (
+                            <div className="p-8 text-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
+                                Chưa có bản ghi thao tác nào.
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {recentLogs.slice(0, 5).map((log) => (
+                                    <div
+                                        key={log.id}
+                                        className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 flex items-start justify-between gap-3 text-xs"
+                                    >
+                                        <div className="space-y-0.5">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-bold">
+                                                    {log.action || 'HỆ THỐNG'}
+                                                </span>
+                                                <span className="font-bold text-slate-800">
+                                                    {log.admin || 'Quản trị viên'}
+                                                </span>
+                                                {log.username && (
+                                                    <span className="font-mono text-[11px] text-slate-400">
+                                                        ({log.username})
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-slate-600">{log.details}</div>
+                                        </div>
+                                        <span className="font-mono text-[11px] text-slate-400 whitespace-nowrap shrink-0">
+                                            {formatAuditTime(log)}
+                                        </span>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>

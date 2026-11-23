@@ -25,6 +25,8 @@ import {
     Calculator
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { recordAdminAction } from './adminAudit';
+import type { AdminRole } from './adminAccounts';
 import type { TenantRecord, TenantStatus, SubscriptionPlan } from './AdminTenantList';
 
 export type PaymentStatus = 'PAID' | 'UNPAID' | 'OVERDUE';
@@ -71,14 +73,6 @@ export interface BillingInvoice {
     transactions: PaymentTransaction[];
 }
 
-interface CoreAuditLog {
-    id: number;
-    time: string;
-    admin: string;
-    action: string;
-    details: string;
-}
-
 interface PaidPackageSpec {
     key: PaidPlanKey;
     labelVi: string;
@@ -94,7 +88,12 @@ interface DurationOption {
     discountPercent: number;
 }
 
-const AUDIT_STORAGE_KEY = 'sys_core_audit_logs';
+const ROLE_LABELS: Record<AdminRole, string> = {
+    SUPER_ADMIN: 'Quản trị hệ thống',
+    SUPPORT_ADMIN: 'Hỗ trợ kỹ thuật',
+    BILLING_ADMIN: 'Quản lý thanh toán'
+};
+
 const OVERAGE_RATE_PER_VEHICLE = 120000; // 120.000đ / xe vượt hạn mức / tháng
 
 const PAID_PACKAGES: Record<PaidPlanKey, PaidPackageSpec> = {
@@ -128,7 +127,6 @@ const DURATION_OPTIONS: DurationOption[] = [
     { months: 12, labelVi: '12 tháng (Năm)', labelEn: '12 Months', discountPercent: 15 }
 ];
 
-// Biểu phí bậc thang theo quy mô đội xe thực tế (Pay-as-you-go)
 const getPerVehicleTierRate = (vehicleCount: number): { rate: number; tierLabel: string } => {
     if (vehicleCount <= 10) {
         return { rate: 150000, tierLabel: 'Bậc 1 (1–10 xe)' };
@@ -196,7 +194,7 @@ const buildSeedInvoices = (): BillingInvoice[] => {
                     voucherCode: 'UNC-2026-0812',
                     paidAt: addDaysISO(today, -3),
                     verifyStatus: 'CONFIRMED',
-                    verifiedBy: 'Nguyễn Nhật Long',
+                    verifiedBy: 'Nguyễn Nhật Minh',
                     verifiedAt: addDaysISO(today, -3),
                     note: 'Thanh toán đầy đủ gói Pro chu kỳ 1 tháng (18/50 xe)'
                 }
@@ -228,7 +226,7 @@ const buildSeedInvoices = (): BillingInvoice[] => {
                     voucherCode: 'BL-2026-0045',
                     paidAt: addDaysISO(today, -2),
                     verifyStatus: 'CONFIRMED',
-                    verifiedBy: 'Nguyễn Nhật Long',
+                    verifiedBy: 'Nguyễn Nhật Minh',
                     verifiedAt: addDaysISO(today, -2),
                     note: 'Tạm ứng tiền mặt đợt 1, còn nợ 1.000.000đ'
                 },
@@ -274,17 +272,24 @@ export default function AdminBillingManagement() {
     const { language } = useLanguage();
     const isVi = language === 'vi';
 
-    const adminName = sessionStorage.getItem('sys_core_admin_name') || 'Nguyễn Nhật Long';
+    // Đồng bộ phiên đăng nhập & phân quyền từ adminAccounts.ts
+    const adminName = sessionStorage.getItem('sys_core_admin_name') || 'Quản trị viên';
+    const adminUsername = sessionStorage.getItem('sys_core_username') || '';
+    const currentRole = sessionStorage.getItem('sys_core_role') as AdminRole | null;
+    const canManageBilling =
+        !currentRole || currentRole === 'SUPER_ADMIN' || currentRole === 'BILLING_ADMIN';
+    const roleLabel =
+        currentRole && ROLE_LABELS[currentRole] ? ROLE_LABELS[currentRole] : 'System Admin';
 
     const [tenants, setTenants] = useState<TenantRecord[]>([]);
     const [vehicleCountMap, setVehicleCountMap] = useState<Record<string, number>>({});
     const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
+    const [permissionNotice, setPermissionNotice] = useState('');
 
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'ALL' | PaymentStatus | 'PENDING_VERIFY'>('ALL');
     const [modeFilter, setModeFilter] = useState<'ALL' | BillingMode>('ALL');
 
-    // State Modal Lập kỳ cước mới (theo Gói thuê + Chu kỳ tháng hoặc Đầu xe bậc thang)
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [createError, setCreateError] = useState('');
     const [newInvoiceForm, setNewInvoiceForm] = useState<{
@@ -305,7 +310,6 @@ export default function AdminBillingManagement() {
         dueDate: addDaysISO(new Date().toISOString().split('T')[0], 10)
     });
 
-    // State Modal Ghi nhận giao dịch thanh toán
     const [payModalInvoice, setPayModalInvoice] = useState<BillingInvoice | null>(null);
     const [payError, setPayError] = useState('');
     const [txForm, setTxForm] = useState<{
@@ -330,23 +334,24 @@ export default function AdminBillingManagement() {
 
     const [detailInvoiceId, setDetailInvoiceId] = useState<string | null>(null);
 
+    // Ghi nhật ký qua hàm dùng chung recordAdminAction trong adminAudit.ts
     const logCoreAudit = (action: string, details: string) => {
-        try {
-            const newLog: CoreAuditLog = {
-                id: Date.now() + Math.floor(Math.random() * 1000),
-                time: new Date().toLocaleString('vi-VN'),
-                admin: adminName,
-                action,
-                details
-            };
-            const rawLogs = localStorage.getItem(AUDIT_STORAGE_KEY);
-            const currentLogs: CoreAuditLog[] = rawLogs ? JSON.parse(rawLogs) : [];
-            const updatedLogs = [newLog, ...(Array.isArray(currentLogs) ? currentLogs : [])];
-            localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(updatedLogs));
-            window.dispatchEvent(new Event('storage'));
-        } catch (err) {
-            console.error('Lỗi ghi nhật ký sys_core_audit_logs:', err);
-        }
+        recordAdminAction(
+            action,
+            details,
+            adminUsername ? { username: adminUsername, fullName: adminName } : undefined
+        );
+        window.dispatchEvent(new Event('storage'));
+    };
+
+    const guardBillingPermission = (): boolean => {
+        if (canManageBilling) return true;
+        setPermissionNotice(
+            isVi
+                ? `Tài khoản vai trò ${roleLabel} chỉ có quyền xem công nợ và chứng từ, không thể thực hiện thao tác tài chính.`
+                : `Role ${roleLabel} has read-only access to billing records.`
+        );
+        return false;
     };
 
     const loadData = () => {
@@ -402,6 +407,8 @@ export default function AdminBillingManagement() {
         targetStatus: TenantStatus,
         reason?: string
     ) => {
+        if (!guardBillingPermission()) return;
+
         const targetTenant = tenants.find((t) => t.id === tenantId);
         const updatedTenants = tenants.map((t) =>
             t.id === tenantId ? { ...t, status: targetStatus } : t
@@ -498,8 +505,9 @@ export default function AdminBillingManagement() {
         [invoices, detailInvoiceId]
     );
 
-    // Mở modal lập kỳ cước & tự đồng bộ gói + số xe thực tế của doanh nghiệp
     const openCreateInvoiceModal = () => {
+        if (!guardBillingPermission()) return;
+
         const firstTenant = tenants[0];
         const today = new Date().toISOString().split('T')[0];
         const actualVehicles = firstTenant ? vehicleCountMap[firstTenant.id] ?? 5 : 5;
@@ -533,7 +541,6 @@ export default function AdminBillingManagement() {
         }));
     };
 
-    // BÀI TOÁN TÍNH CƯỚC THỰC TẾ (Tự động tính chiết khấu chu kỳ, phụ trội vượt xe, và bậc thang đầu xe)
     const billingCalculation = useMemo(() => {
         const months = newInvoiceForm.durationMonths;
         const durationOpt =
@@ -594,6 +601,8 @@ export default function AdminBillingManagement() {
 
     const handleCreateInvoice = (e: React.FormEvent) => {
         e.preventDefault();
+        if (!guardBillingPermission()) return;
+
         const targetTenant = tenantMap[newInvoiceForm.tenantId];
         if (!targetTenant) {
             setCreateError(
@@ -684,6 +693,8 @@ export default function AdminBillingManagement() {
     };
 
     const openRecordPaymentModal = (invoice: BillingInvoice) => {
+        if (!guardBillingPermission()) return;
+
         const remaining = Math.max(0, invoice.totalAmount - invoice.paidAmount);
         const today = new Date().toISOString().split('T')[0];
         setPayModalInvoice(invoice);
@@ -714,7 +725,7 @@ export default function AdminBillingManagement() {
 
     const handleSavePaymentTransaction = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!payModalInvoice) return;
+        if (!payModalInvoice || !guardBillingPermission()) return;
 
         const amountNum = Number(txForm.amount) || 0;
         const remaining = Math.max(0, payModalInvoice.totalAmount - payModalInvoice.paidAmount);
@@ -810,6 +821,8 @@ export default function AdminBillingManagement() {
     };
 
     const handleConfirmPendingTransaction = (invoiceId: string, txId: string) => {
+        if (!guardBillingPermission()) return;
+
         const today = new Date().toISOString().split('T')[0];
         let unlockedTenantId: string | null = null;
         let unlockedInvoiceCode = '';
@@ -886,16 +899,15 @@ export default function AdminBillingManagement() {
     };
 
     return (
-        <div className="flex-1 overflow-auto bg-[#F8FAFC] p-6 space-y-6">
+        <div className="flex-1 max-w-[1520px] w-full mx-auto p-8 space-y-6">
             {/* HEADER TRANG */}
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-sky-600 mb-1">
                         <ShieldCheck className="w-3.5 h-3.5" />
                         <span>
-                            {isVi
-                                ? 'SYSTEM ADMIN • TÀI CHÍNH NỀN TẢNG'
-                                : 'SYSTEM ADMIN • PLATFORM BILLING'}
+                            {roleLabel.toUpperCase()} •{' '}
+                            {isVi ? 'TÀI CHÍNH NỀN TẢNG' : 'PLATFORM BILLING'}
                         </span>
                     </div>
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
@@ -910,15 +922,44 @@ export default function AdminBillingManagement() {
                     </p>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={openCreateInvoiceModal}
-                    className="px-4 py-2.5 bg-[#0EA5E9] hover:bg-sky-600 text-white text-sm font-bold rounded-xl shadow-sm flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                    <Plus className="w-4 h-4" />
-                    <span>{isVi ? 'Lập kỳ cước / Hóa đơn' : 'Create Billing Invoice'}</span>
-                </button>
+                <div className="flex items-center gap-2.5">
+                    {!canManageBilling && (
+                        <span className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
+                            {isVi ? 'Chế độ chỉ xem (Support Admin)' : 'Read-only Mode'}
+                        </span>
+                    )}
+
+                    {canManageBilling && (
+                        <button
+                            type="button"
+                            onClick={openCreateInvoiceModal}
+                            className="px-4 py-2.5 bg-[#0EA5E9] hover:bg-sky-600 text-white text-sm font-bold rounded-xl shadow-sm flex items-center gap-2 transition-colors cursor-pointer"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span>{isVi ? 'Lập kỳ cước / Hóa đơn' : 'Create Billing Invoice'}</span>
+                        </button>
+                    )}
+                </div>
             </div>
+
+            {permissionNotice && (
+                <div
+                    role="alert"
+                    className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center justify-between gap-3"
+                >
+                    <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>{permissionNotice}</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setPermissionNotice('')}
+                        className="text-amber-700 hover:text-amber-900 cursor-pointer"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
 
             {/* 4 THẺ KPI CÔNG NỢ & DOANH THU */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -1029,8 +1070,8 @@ export default function AdminBillingManagement() {
                                 type="button"
                                 onClick={() => setStatusFilter(tab.key)}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${active
-                                        ? 'bg-slate-900 text-white'
-                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                                    ? 'bg-slate-900 text-white'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
                                     }`}
                             >
                                 {tab.label}
@@ -1268,7 +1309,7 @@ export default function AdminBillingManagement() {
                                                                 {inv.transactions[0].transactionCode}
                                                             </span>
                                                         </div>
-                                                        {pendingTxs.length > 0 && (
+                                                        {pendingTxs.length > 0 && canManageBilling && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() =>
@@ -1291,7 +1332,7 @@ export default function AdminBillingManagement() {
                                             <td className="py-4 px-4 whitespace-nowrap text-right">
                                                 <div className="inline-flex flex-col items-end gap-1.5">
                                                     <div className="inline-flex items-center gap-1.5">
-                                                        {remainingDebt > 0 && (
+                                                        {remainingDebt > 0 && canManageBilling && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => openRecordPaymentModal(inv)}
@@ -1317,7 +1358,7 @@ export default function AdminBillingManagement() {
                                                         </button>
                                                     </div>
 
-                                                    {tenantInfo && (
+                                                    {tenantInfo && canManageBilling && (
                                                         <button
                                                             type="button"
                                                             onClick={() =>
@@ -1328,8 +1369,8 @@ export default function AdminBillingManagement() {
                                                                 )
                                                             }
                                                             className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border flex items-center gap-1 transition-colors cursor-pointer ${isServiceSuspended
-                                                                    ? 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'
-                                                                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                                                ? 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'
+                                                                : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
                                                                 }`}
                                                         >
                                                             {isServiceSuspended ? (
@@ -1360,7 +1401,7 @@ export default function AdminBillingManagement() {
                 </div>
             </div>
 
-            {/* MODAL 1: LẬP KỲ CƯỚC / HÓA ĐƠN MỚI (CHỌN GÓI THUÊ 1/3/6/12 THÁNG & TÍNH XE THỰC TẾ) */}
+            {/* MODAL 1: LẬP KỲ CƯỚC / HÓA ĐƠN MỚI */}
             {isCreateModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
@@ -1392,7 +1433,6 @@ export default function AdminBillingManagement() {
                                 </div>
                             )}
 
-                            {/* Doanh nghiệp + Kỳ bắt đầu + Hạn thanh toán */}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                 <div className="md:col-span-2">
                                     <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -1447,7 +1487,6 @@ export default function AdminBillingManagement() {
                                 </div>
                             </div>
 
-                            {/* Chọn Phương thức tính phí dịch vụ */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                                     {isVi ? 'Phương thức tính phí dịch vụ' : 'Billing Calculation Mode'}
@@ -1459,8 +1498,8 @@ export default function AdminBillingManagement() {
                                             setNewInvoiceForm((prev) => ({ ...prev, billingMode: 'PACKAGE' }))
                                         }
                                         className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${newInvoiceForm.billingMode === 'PACKAGE'
-                                                ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
-                                                : 'border-slate-200 hover:border-slate-300'
+                                            ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
+                                            : 'border-slate-200 hover:border-slate-300'
                                             }`}
                                     >
                                         <div className="text-xs font-bold text-slate-900">
@@ -1484,8 +1523,8 @@ export default function AdminBillingManagement() {
                                             }))
                                         }
                                         className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${newInvoiceForm.billingMode === 'PER_VEHICLE'
-                                                ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
-                                                : 'border-slate-200 hover:border-slate-300'
+                                            ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
+                                            : 'border-slate-200 hover:border-slate-300'
                                             }`}
                                     >
                                         <div className="text-xs font-bold text-slate-900">
@@ -1502,7 +1541,6 @@ export default function AdminBillingManagement() {
                                 </div>
                             </div>
 
-                            {/* CHỌN GÓI DỊCH VỤ (KHI Ở CHẾ ĐỘ PACKAGE) */}
                             {newInvoiceForm.billingMode === 'PACKAGE' && (
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -1522,8 +1560,8 @@ export default function AdminBillingManagement() {
                                                         }))
                                                     }
                                                     className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${active
-                                                            ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-500/20'
-                                                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                                                        ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-500/20'
+                                                        : 'border-slate-200 hover:border-slate-300 bg-white'
                                                         }`}
                                                 >
                                                     <div className="text-xs font-bold text-slate-900">
@@ -1544,7 +1582,6 @@ export default function AdminBillingManagement() {
                                 </div>
                             )}
 
-                            {/* CHỌN CHU KỲ THUÊ (1 THÁNG, 3 THÁNG, 6 THÁNG, 12 THÁNG) */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                                     {isVi
@@ -1565,8 +1602,8 @@ export default function AdminBillingManagement() {
                                                     }))
                                                 }
                                                 className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${selected
-                                                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                                                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                                                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                                                     }`}
                                             >
                                                 <div className="text-xs font-bold">
@@ -1574,10 +1611,10 @@ export default function AdminBillingManagement() {
                                                 </div>
                                                 <div
                                                     className={`text-[10px] font-bold mt-0.5 ${selected
-                                                            ? 'text-emerald-300'
-                                                            : opt.discountPercent > 0
-                                                                ? 'text-emerald-600'
-                                                                : 'text-slate-400'
+                                                        ? 'text-emerald-300'
+                                                        : opt.discountPercent > 0
+                                                            ? 'text-emerald-600'
+                                                            : 'text-slate-400'
                                                         }`}
                                                 >
                                                     {opt.discountPercent > 0
@@ -1590,7 +1627,6 @@ export default function AdminBillingManagement() {
                                 </div>
                             </div>
 
-                            {/* ĐỐI SOÁT SỐ LƯỢNG XE THỰC TẾ */}
                             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-4">
                                 <div>
                                     <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
@@ -1626,7 +1662,6 @@ export default function AdminBillingManagement() {
                                 </div>
                             </div>
 
-                            {/* BẢNG PHÂN TÍCH CÔNG THỨC TÍNH TIỀN MINH BẠCH */}
                             <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2 text-xs">
                                 <div className="flex items-center gap-1.5 text-sky-400 font-bold uppercase tracking-wider text-[11px]">
                                     <Calculator className="w-3.5 h-3.5" />
@@ -1786,8 +1821,8 @@ export default function AdminBillingManagement() {
                                             setTxForm((prev) => ({ ...prev, method: 'BANK_TRANSFER' }))
                                         }
                                         className={`p-3 rounded-xl border flex items-center gap-2.5 text-left cursor-pointer ${txForm.method === 'BANK_TRANSFER'
-                                                ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
-                                                : 'border-slate-200 hover:border-slate-300'
+                                            ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
+                                            : 'border-slate-200 hover:border-slate-300'
                                             }`}
                                     >
                                         <CreditCard className="w-4 h-4 text-sky-600 shrink-0" />
@@ -1805,8 +1840,8 @@ export default function AdminBillingManagement() {
                                         type="button"
                                         onClick={() => setTxForm((prev) => ({ ...prev, method: 'CASH' }))}
                                         className={`p-3 rounded-xl border flex items-center gap-2.5 text-left cursor-pointer ${txForm.method === 'CASH'
-                                                ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/20'
-                                                : 'border-slate-200 hover:border-slate-300'
+                                            ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/20'
+                                            : 'border-slate-200 hover:border-slate-300'
                                             }`}
                                     >
                                         <Banknote className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -2097,7 +2132,7 @@ export default function AdminBillingManagement() {
                                                             <CheckCircle2 className="w-3.5 h-3.5" />
                                                             {isVi ? 'Đã xác nhận' : 'Confirmed'}
                                                         </span>
-                                                    ) : (
+                                                    ) : canManageBilling ? (
                                                         <button
                                                             type="button"
                                                             onClick={() =>
@@ -2110,6 +2145,10 @@ export default function AdminBillingManagement() {
                                                                 {isVi ? 'Xác nhận thanh toán này' : 'Confirm This Payment'}
                                                             </span>
                                                         </button>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                                                            {isVi ? 'Chờ duyệt' : 'Pending'}
+                                                        </span>
                                                     )}
                                                 </div>
 
@@ -2166,7 +2205,8 @@ export default function AdminBillingManagement() {
                         </div>
 
                         <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-                            {Math.max(0, detailInvoice.totalAmount - detailInvoice.paidAmount) > 0 ? (
+                            {Math.max(0, detailInvoice.totalAmount - detailInvoice.paidAmount) > 0 &&
+                                canManageBilling ? (
                                 <button
                                     type="button"
                                     onClick={() => {
