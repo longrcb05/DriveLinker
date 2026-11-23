@@ -3,7 +3,8 @@ import type { FormEvent } from 'react';
 import { getAdminAccounts, saveAdminAccounts } from './adminAccounts';
 import { recordAdminAction } from './adminAudit';
 import type { AdminAccount, AdminRole } from './adminAccounts';
-import { Search, ShieldCheck, Users } from 'lucide-react';
+import { ArrowLeft, Search, ShieldCheck, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const roleNames: Record<AdminRole, string> = {
   SUPER_ADMIN: 'Quản trị hệ thống',
@@ -98,6 +99,9 @@ export default function AdminAccountList() {
   return (
     <main className="px-4 py-6 text-slate-800 sm:px-8 sm:py-8">
       <div className="mx-auto max-w-7xl">
+        <Link to="/overview/admin" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-600 hover:text-red-600 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-600">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Quay lại doanh nghiệp
+        </Link>
         <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Trang chủ / <span className="text-red-600">Quản lý tài khoản</span></p>
         <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
           <div>
