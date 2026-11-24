@@ -83,3 +83,11 @@ Các mục dưới đây được đối chiếu với mã nguồn và Git tại
 - Cập nhật biểu tượng các thẻ thống kê cho phù hợp với tổng thiết bị, tồn kho, đang lắp đặt, đang sử dụng và lỗi/bảo hành.
 - Khi đọc thiết bị đã lưu trong trình duyệt, chuyển các tên loại và trạng thái cũ sang cách hiển thị mới.
 - **Kiểm tra:** Build frontend thành công sau khi đổi tên loại và gộp trạng thái; ESLint cho trang thiết bị thành công sau khi cập nhật biểu tượng. Chưa chạy lại kiểm tra sau thay đổi nhãn **Tồn kho** và chưa kiểm thử trực quan trên trình duyệt.
+
+## Khôi phục chức năng lên main — 24/11/2026
+
+- Khôi phục bộ lọc và biểu đồ trang Phân tích, tìm biển số và kiểm tra số điện thoại tại Quản lý đội xe.
+- Kết nối giao diện quản trị và trang Camera & Định vị; kết hợp với trang doanh nghiệp và thanh toán hiện có.
+- Nối đăng nhập và nhật ký admin với dữ liệu tài khoản và lịch sử dùng chung trong trình duyệt.
+- Build frontend thành công; chưa kiểm thử đầy đủ từng thao tác trên trình duyệt.
+- Khôi phục nút mở rộng lịch sử theo tài khoản, thẻ tổng quan doanh nghiệp và hoạt động gần đây, cùng thông báo tài khoản admin bị khóa. Đăng xuất doanh nghiệp chỉ xóa thông tin phiên, giữ dữ liệu đã lưu trong trình duyệt.
