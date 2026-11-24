@@ -50,7 +50,7 @@ export const vi = {
     "deleteVehicle": "Xóa phương tiện",
     "confirmDelete": "Bạn có chắc chắn muốn xóa phương tiện này khỏi hệ thống? Thao tác này không thể hoàn tác.",
     "cannotDeleteRented": "Không thể xóa phương tiện đang trong hợp đồng thuê.",
-    "searchPlaceholder": "Tìm theo biển số...",
+    "searchPlaceholder": "Tìm theo biển số, hãng xe, đời xe, tài xế...",
     "filterAllStatus": "Tất cả trạng thái",
     "kpiTotal": "Tổng phương tiện",
     "kpiAvailable": "Sẵn sàng cho thuê",

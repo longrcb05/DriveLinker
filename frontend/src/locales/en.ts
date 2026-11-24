@@ -50,7 +50,7 @@ export const en = {
     "deleteVehicle": "Delete Vehicle",
     "confirmDelete": "Are you sure you want to delete this vehicle from the system? This action cannot be undone.",
     "cannotDeleteRented": "Cannot delete a vehicle currently under an active rental contract.",
-    "searchPlaceholder": "Search by plate...",
+    "searchPlaceholder": "Search by plate, brand, model, driver...",
     "filterAllStatus": "All Statuses",
     "kpiTotal": "Total Vehicles",
     "kpiAvailable": "Available for Rent",

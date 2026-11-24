@@ -23,7 +23,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLanguage } from '../context/LanguageContext';
-import { recordAdminAction } from './admin/adminAudit';
 import {
   Key,
   CheckCircle2,
@@ -460,14 +459,28 @@ export default function Settings() {
       setActivityLogs((prev) => [newLog, ...prev]);
 
       if (isAdminImpersonating) {
+        const adminName = sessionStorage.getItem('sys_core_admin_name') || 'Quản trị viên';
         const tenantName = localStorage.getItem('tenantName') || 'Doanh nghiệp';
+        const coreLogs = safeParse<any[]>('sys_core_audit_logs', []);
 
         let coreAction = 'THAY ĐỔI';
         if (action.includes('thiết bị')) coreAction = 'XÉT DUYỆT';
         else if (action.includes('dịch vụ')) coreAction = 'CẤU HÌNH';
         else if (action.includes('mã')) coreAction = 'BẢO MẬT';
 
-        recordAdminAction(coreAction, `${action}: ${target} (tại ${tenantName})`);
+        localStorage.setItem(
+          'sys_core_audit_logs',
+          JSON.stringify([
+            {
+              id: now + 1,
+              time: timeStr,
+              admin: adminName,
+              action: coreAction,
+              details: `${action}: ${target} (tại ${tenantName})`
+            },
+            ...coreLogs
+          ])
+        );
       }
     },
     [tenantId, currentUserEmail, isAdminImpersonating]

@@ -47,7 +47,7 @@ export default function DashboardLayout() {
       localStorage.removeItem('userRole');
       navigate('/overview/admin');
     } else {
-      ['token', 'userRole', 'username', 'tenantId', 'tenantCode', 'tenantName', 'organizationId', 'isAdminImpersonating'].forEach(key => localStorage.removeItem(key));
+      localStorage.clear();
       navigate('/portal/login');
     }
   };
