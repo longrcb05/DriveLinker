@@ -91,3 +91,14 @@ Các mục dưới đây được đối chiếu với mã nguồn và Git tại
 - Nối đăng nhập và nhật ký admin với dữ liệu tài khoản và lịch sử dùng chung trong trình duyệt.
 - Build frontend thành công; chưa kiểm thử đầy đủ từng thao tác trên trình duyệt.
 - Khôi phục nút mở rộng lịch sử theo tài khoản, thẻ tổng quan doanh nghiệp và hoạt động gần đây, cùng thông báo tài khoản admin bị khóa. Đăng xuất doanh nghiệp chỉ xóa thông tin phiên, giữ dữ liệu đã lưu trong trình duyệt.
+
+## Cập nhật ngày 24/11/2026
+
+- **Camera & Định vị:** Tách trạng thái **Lỗi** và **Bảo hành** trong bộ lọc và khi cập nhật thiết bị; giữ một thẻ thống kê chung **Lỗi/Bảo hành**. Thiết bị cũ chỉ có trạng thái gộp được giữ là **Lỗi/Bảo hành (chưa phân loại)** để tránh gán nhầm.
+- **Nhật ký kiểm toán:** Thêm bộ lọc theo admin, ngày và loại hoạt động; hỗ trợ lọc các bản ghi có định dạng ngày cũ, đồng thời giữ chức năng mở rộng lịch sử theo tài khoản.
+- **Đăng xuất:** Chỉ xóa thông tin phiên doanh nghiệp thay vì xóa toàn bộ `localStorage`, giúp giữ nhật ký và dữ liệu đã lưu trên trình duyệt.
+
+## Cập nhật ngày 25/11/2026
+
+- **Camera & Định vị:** Xếp hai nút **Chi tiết** và **Liên kết** theo chiều dọc trong cột thao tác.
+- **Giao diện Admin:** Điều chỉnh thanh menu sang màu xám rất nhạt `#F3F4F6` và nền nội dung sang màu xám gần trắng `#F9FAFB`; giữ chữ tối và nền đỏ nhạt cho mục menu đang chọn.

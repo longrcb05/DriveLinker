@@ -49,3 +49,15 @@ export function formatAuditTime(log: AdminAuditLog): string {
   if (timeFirst) return `${timeFirst[2]} ${timeFirst[1]}`;
   return value.replace(/,\s*/, ' ') || 'Không rõ thời gian';
 }
+
+// Ngày theo múi giờ trình duyệt, phù hợp cả bản ghi mới và dữ liệu cũ dạng Việt Nam.
+export function auditDate(log: AdminAuditLog): string {
+  if (log.timestamp !== undefined) {
+    const date = new Date(log.timestamp);
+    if (!Number.isNaN(date.getTime())) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+  }
+  const match = (log.time || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  return match ? `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}` : '';
+}
