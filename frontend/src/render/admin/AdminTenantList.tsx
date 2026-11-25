@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatAuditTime, readAdminAuditLogs, recordAdminAction } from './adminAudit';
+import { auditDate, formatAuditTime, readAdminAuditLogs, recordAdminAction } from './adminAudit';
+import type { AdminAuditLog } from './adminAudit';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2,
@@ -239,8 +240,15 @@ export default function AdminTenantList() {
   // State quản lý Modals
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
   const [expandedLog, setExpandedLog] = useState<string | number | null>(null);
+  const [auditAdmin, setAuditAdmin] = useState('');
+  const [auditDay, setAuditDay] = useState('');
+  const [auditAction, setAuditAction] = useState('');
+  const adminKey = (log: AdminAuditLog) => log.username ? `user:${log.username}` : `name:${log.admin || 'Không rõ'}`;
+  const adminOptions = Array.from(new Map(auditLogs.map(log => [adminKey(log), log.username ? `${log.admin || 'Không rõ'} (${log.username})` : log.admin || 'Không rõ'])).entries());
+  const actionOptions = Array.from(new Set(auditLogs.map(log => log.action).filter((action): action is string => Boolean(action)))).sort();
+  const filteredAuditLogs = auditLogs.filter(log => (!auditAdmin || adminKey(log) === auditAdmin) && (!auditDay || auditDate(log) === auditDay) && (!auditAction || log.action === auditAction));
 
   // Bộ lọc & Tìm kiếm
   const [searchQuery, setSearchQuery] = useState('');
@@ -1837,6 +1845,11 @@ export default function AdminTenantList() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+            <div className="grid gap-3 border-b border-slate-100 px-6 py-4 sm:grid-cols-3">
+              <label className="text-xs font-bold text-slate-600">Admin<select value={auditAdmin} onChange={e => { setAuditAdmin(e.target.value); setExpandedLog(null); }} className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal"><option value="">Tất cả admin</option>{adminOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <label className="text-xs font-bold text-slate-600">Ngày<input type="date" value={auditDay} onChange={e => { setAuditDay(e.target.value); setExpandedLog(null); }} className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal" /></label>
+              <label className="text-xs font-bold text-slate-600">Loại hoạt động<select value={auditAction} onChange={e => { setAuditAction(e.target.value); setExpandedLog(null); }} className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal"><option value="">Tất cả hoạt động</option>{actionOptions.map(action => <option key={action} value={action}>{action}</option>)}</select></label>
+            </div>
 
             <div className="flex-1 overflow-auto p-0">
               <table className="w-full text-left border-collapse">
@@ -1857,14 +1870,12 @@ export default function AdminTenantList() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {auditLogs.length === 0 ? (
+                  {filteredAuditLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-10 text-center text-slate-500">
-                        Chưa có bản ghi nhật ký nào.
-                      </td>
+                      <td colSpan={4} className="px-6 py-10 text-center text-slate-500">{auditLogs.length ? 'Không có bản ghi phù hợp với bộ lọc.' : 'Chưa có bản ghi nhật ký nào.'}</td>
                     </tr>
                   ) : (
-                    auditLogs.map((log) => (
+                    filteredAuditLogs.map((log) => (
                       <React.Fragment key={log.id}>
                       <tr className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-3 text-sm text-slate-500 whitespace-nowrap flex items-center gap-2">
@@ -1891,7 +1902,7 @@ export default function AdminTenantList() {
                         </td>
                         <td className="px-6 py-3 text-sm text-slate-600"><div className="flex items-center gap-2"><span>{log.details || 'Không có chi tiết'}</span><button type="button" onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)} aria-expanded={expandedLog === log.id} aria-label={`${expandedLog === log.id ? 'Ẩn' : 'Xem'} lịch sử của ${log.admin || 'tài khoản'}`} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-lg font-bold text-slate-700 hover:bg-slate-100">{expandedLog === log.id ? '−' : '+'}</button></div></td>
                       </tr>
-                      {expandedLog === log.id && <tr><td colSpan={4} className="bg-slate-50 px-6 py-4"><h3 className="mb-3 text-sm font-bold text-slate-800">Hoạt động của {log.admin || 'tài khoản không rõ'}{log.username ? ` (${log.username})` : ''}</h3><ul className="space-y-2">{auditLogs.filter(item => log.username && item.username ? item.username === log.username : Boolean(log.admin && item.admin === log.admin)).map(item => <li key={item.id} className="text-sm text-slate-700"><span className="text-slate-500">{formatAuditTime(item)}</span> · <strong>{item.action || 'Không rõ'}</strong> · {item.details || 'Không có chi tiết'}</li>)}</ul></td></tr>}
+                      {expandedLog === log.id && <tr><td colSpan={4} className="bg-slate-50 px-6 py-4"><h3 className="mb-3 text-sm font-bold text-slate-800">Hoạt động của {log.admin || 'tài khoản không rõ'}{log.username ? ` (${log.username})` : ''}</h3><ul className="space-y-2">{filteredAuditLogs.filter((item) => log.username && item.username ? item.username === log.username : Boolean(log.admin && item.admin === log.admin)).map((item) => <li key={item.id} className="text-sm text-slate-700"><span className="text-slate-500">{formatAuditTime(item)}</span> · <strong>{item.action || 'Không rõ'}</strong> · {item.details || 'Không có chi tiết'}</li>)}</ul></td></tr>}
                       </React.Fragment>
                     ))
                   )}
