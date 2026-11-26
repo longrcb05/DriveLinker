@@ -1,32 +1,63 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
-    Building2,
-    TrendingUp,
-    Car,
-    CreditCard,
-    AlertTriangle,
-    Sparkles,
     ArrowUpRight,
-    Calendar,
-    CheckCircle2,
-    Clock,
-    Ban,
     X,
-    BarChart3,
-    ShieldCheck,
     RefreshCw,
-    Wallet,
-    ArrowRight,
-    Users,
-    History
+    ArrowRight
 } from 'lucide-react';
-import { getAdminAccounts } from './adminAccounts';
-import type { AdminAccount, AdminRole } from './adminAccounts';
-import { readAdminAuditLogs, formatAuditTime } from './adminAudit';
-import type { AdminAuditLog } from './adminAudit';
+import type { AdminRole } from './adminAccounts';
 import type { TenantRecord, SubscriptionPlan } from './AdminTenantList';
-import type { BillingInvoice } from './AdminBillingManagement';
+import {
+    syncUnifiedPlatformData,
+    computeUnifiedPlatformMetrics,
+    getInvoicePaymentState,
+    getReceivableAmountForInvoice,
+    PLATFORM_SYNC_EVENT,
+    EXPIRING_SOON_DAYS
+} from './AdminBillingManagement';
+import type {
+    BillingInvoice,
+    TenantLifecycleStatus
+} from './AdminBillingManagement';
+import { vi } from '../../locales/vi';
+import { en } from '../../locales/en';
+
+export type AdminLang = 'vi' | 'en';
+export const ADMIN_LANG_STORAGE_KEY = 'sys_admin_lang_v1';
+export const ADMIN_LANG_CHANGE_EVENT = 'drivelinker:admin-lang-change';
+
+const readAdminLang = (): AdminLang => {
+    try {
+        return localStorage.getItem(ADMIN_LANG_STORAGE_KEY) === 'en' ? 'en' : 'vi';
+    } catch {
+        return 'vi';
+    }
+};
+
+const translateFromViEn = (
+    lang: AdminLang,
+    key: string,
+    params?: Record<string, string | number>
+): string => {
+    const dict: any = lang === 'en' ? en : vi;
+    const parts = key.split('.');
+    let cur = dict;
+    for (const p of parts) {
+        if (!cur || typeof cur !== 'object') {
+            cur = undefined;
+            break;
+        }
+        cur = cur[p];
+    }
+    let text = typeof cur === 'string' ? cur : key;
+    if (params) {
+        Object.entries(params).forEach(([k, v]) => {
+            text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+        });
+    }
+    return text;
+};
 
 export interface AdminDashboardProps {
     onNavigateSection?: (section: 'tenants' | 'billing') => void;
@@ -43,7 +74,7 @@ type StatModalType =
 interface MonthlyStatPoint {
     monthKey: string;
     label: string;
-    mrr: number;
+    committed: number;
     collected: number;
     overdue: number;
     newTenants: number;
@@ -51,40 +82,62 @@ interface MonthlyStatPoint {
     totalVehicles: number;
 }
 
-const ROLE_LABELS: Record<AdminRole, string> = {
+interface InventoryDeviceItem {
+    id: string;
+    imei: string;
+    serial: string;
+    type: string;
+    received: string;
+    status: string;
+    tenantId: string;
+    vehicle: string;
+}
+
+const INVENTORY_STORAGE_KEY = 'sys_admin_inventory_demo_v1';
+
+const FALLBACK_DEVICES: InventoryDeviceItem[] = [
+    {
+        id: 'demo-1',
+        imei: '356938035643809',
+        serial: 'CAM-DL-001',
+        type: 'Camera',
+        received: '2026-10-15',
+        status: 'Đang sử dụng',
+        tenantId: 'COMPANY_A',
+        vehicle: '29A-111.11'
+    },
+    {
+        id: 'demo-2',
+        imei: '356938035643817',
+        serial: 'GPS-DL-002',
+        type: 'Định vị GPS',
+        received: '2026-11-01',
+        status: 'Tồn kho',
+        tenantId: '',
+        vehicle: ''
+    },
+    {
+        id: 'demo-3',
+        imei: '356938035643825',
+        serial: 'CAM-DL-003',
+        type: 'Camera',
+        received: '2026-11-05',
+        status: 'Bảo hành',
+        tenantId: 'COMPANY_B',
+        vehicle: '43A-112.22'
+    }
+];
+
+const ROLE_LABELS_VI: Record<AdminRole, string> = {
     SUPER_ADMIN: 'Quản trị hệ thống',
     SUPPORT_ADMIN: 'Hỗ trợ kỹ thuật',
     BILLING_ADMIN: 'Quản lý thanh toán'
 };
 
-const PLAN_META: Record<
-    SubscriptionPlan,
-    { label: string; color: string; barClass: string; badgeClass: string }
-> = {
-    TRIAL_14D: {
-        label: 'Dùng thử (14 ngày)',
-        color: '#0EA5E9',
-        barClass: 'bg-sky-500',
-        badgeClass: 'bg-sky-50 text-sky-700 border-sky-200'
-    },
-    STARTER: {
-        label: 'Starter (Cơ bản)',
-        color: '#64748B',
-        barClass: 'bg-slate-600',
-        badgeClass: 'bg-slate-100 text-slate-700 border-slate-200'
-    },
-    PRO: {
-        label: 'Professional (Chuyên nghiệp)',
-        color: '#4F46E5',
-        barClass: 'bg-indigo-600',
-        badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200'
-    },
-    ENTERPRISE: {
-        label: 'Enterprise (Doanh nghiệp lớn)',
-        color: '#D97706',
-        barClass: 'bg-amber-500',
-        badgeClass: 'bg-amber-50 text-amber-800 border-amber-200'
-    }
+const ROLE_LABELS_EN: Record<AdminRole, string> = {
+    SUPER_ADMIN: 'System Admin',
+    SUPPORT_ADMIN: 'Support Admin',
+    BILLING_ADMIN: 'Billing Admin'
 };
 
 const formatDateVN = (isoDate?: string): string => {
@@ -92,6 +145,45 @@ const formatDateVN = (isoDate?: string): string => {
     const parts = isoDate.split('-');
     if (parts.length !== 3) return isoDate;
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
+
+const getRemainingDaysISO = (targetDateStr?: string): number => {
+    if (!targetDateStr) return 999;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(targetDateStr);
+    target.setHours(0, 0, 0, 0);
+    if (Number.isNaN(target.getTime())) return 999;
+    return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+};
+
+const getOverdueDays = (dueDate?: string): number => {
+    if (!dueDate) return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)));
+};
+
+const getTenantLifecycle = (tenant: TenantRecord): TenantLifecycleStatus => {
+    if (tenant.status === 'SUSPENDED') return 'SUSPENDED';
+    if (tenant.lifecycleStatus) return tenant.lifecycleStatus;
+    const rem = tenant.remainingAmount ?? 0;
+    if (!tenant.advanceNextCycleAmount && (tenant.paidAmount ?? 0) > 0 && rem > 0) {
+        return 'PARTIAL_PAID';
+    }
+    const days = getRemainingDaysISO(tenant.expiresAt);
+    if (days < 0) return 'SUSPENDED';
+    if (days <= EXPIRING_SOON_DAYS) return 'EXPIRING_SOON';
+    return 'ACTIVE';
+};
+
+const getDefaultVehicleCountForTenant = (tenantId: string): number => {
+    if (tenantId === 'COMPANY_A') return 5;
+    if (tenantId === 'COMPANY_B') return 2;
+    if (tenantId === 'COMPANY_C') return 1;
+    return 0;
 };
 
 const formatCompactVND = (amount: number): string => {
@@ -107,52 +199,103 @@ const formatCompactVND = (amount: number): string => {
     return `${amount}`;
 };
 
+const buildSmoothLinePath = (pts: { x: number; y: number }[]): string => {
+    if (pts.length === 0) return '';
+    if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+    let path = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i];
+        const p1 = pts[i + 1];
+        const midX = (p0.x + p1.x) / 2;
+        path += ` C ${midX.toFixed(1)} ${p0.y.toFixed(1)}, ${midX.toFixed(1)} ${p1.y.toFixed(1)}, ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
+    }
+    return path;
+};
+
 export default function AdminDashboard({ onNavigateSection }: AdminDashboardProps) {
+    const navigate = useNavigate();
+
+    const [adminLang, setAdminLang] = useState<AdminLang>(() => readAdminLang());
+    const tr = (key: string, params?: Record<string, string | number>) =>
+        translateFromViEn(adminLang, key, params);
+
+    useEffect(() => {
+        const onLang = () => setAdminLang(readAdminLang());
+        window.addEventListener(ADMIN_LANG_CHANGE_EVENT, onLang);
+        window.addEventListener('storage', onLang);
+        return () => {
+            window.removeEventListener(ADMIN_LANG_CHANGE_EVENT, onLang);
+            window.removeEventListener('storage', onLang);
+        };
+    }, []);
+
     const [tenants, setTenants] = useState<TenantRecord[]>([]);
     const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
     const [vehicleCountMap, setVehicleCountMap] = useState<Record<string, number>>({});
-    const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>([]);
-    const [recentLogs, setRecentLogs] = useState<AdminAuditLog[]>([]);
+    const [devices, setDevices] = useState<InventoryDeviceItem[]>([]);
 
     const [chartRange, setChartRange] = useState<6 | 12>(6);
-    const [hoveredRevenueIdx, setHoveredRevenueIdx] = useState<number | null>(null);
-    const [hoveredGrowthIdx, setHoveredGrowthIdx] = useState<number | null>(null);
+    const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+    const [visibleSeries, setVisibleSeries] = useState({
+        committed: true,
+        collected: true,
+        tenants: true
+    });
     const [activeModal, setActiveModal] = useState<StatModalType>(null);
 
     const currentRole = sessionStorage.getItem('sys_core_role') as AdminRole | null;
+    const roleMap = adminLang === 'en' ? ROLE_LABELS_EN : ROLE_LABELS_VI;
     const currentRoleLabel =
-        currentRole && ROLE_LABELS[currentRole] ? ROLE_LABELS[currentRole] : 'System Admin';
+        currentRole && roleMap[currentRole] ? roleMap[currentRole] : roleMap.SUPER_ADMIN;
+
+    const revenueLabel = adminLang === 'en' ? 'Revenue' : 'Doanh thu';
+
+    const handleGoToSection = (section: 'tenants' | 'billing') => {
+        if (onNavigateSection) {
+            onNavigateSection(section);
+        } else {
+            navigate('/overview/admin');
+        }
+    };
 
     const loadDashboardData = () => {
         try {
-            const rawTenants = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
-            const tenantList: TenantRecord[] = Array.isArray(rawTenants) ? rawTenants : [];
-            setTenants(tenantList);
+            const synced = syncUnifiedPlatformData();
+            setTenants(synced.tenants);
+            setInvoices(synced.invoices);
 
             const counts: Record<string, number> = {};
-            tenantList.forEach((t, idx) => {
+            synced.tenants.forEach((t) => {
                 const rawV = localStorage.getItem(`sys_vehicles_${t.id}`);
                 if (rawV) {
                     const parsedV = JSON.parse(rawV);
                     counts[t.id] = Array.isArray(parsedV) ? parsedV.length : 0;
                 } else {
-                    counts[t.id] = idx === 0 ? 18 : idx === 1 ? 4 : 9;
+                    counts[t.id] = getDefaultVehicleCountForTenant(t.id);
                 }
             });
             setVehicleCountMap(counts);
 
-            const rawInvoices = JSON.parse(localStorage.getItem('sys_platform_billing') || '[]');
-            setInvoices(Array.isArray(rawInvoices) ? rawInvoices : []);
-
-            // Đồng bộ danh sách tài khoản quản trị từ adminAccounts.ts
-            try {
-                setAdminAccounts(getAdminAccounts());
-            } catch {
-                setAdminAccounts([]);
+            const rawDevices = localStorage.getItem(INVENTORY_STORAGE_KEY);
+            if (!rawDevices) {
+                setDevices(FALLBACK_DEVICES);
+            } else {
+                const parsedDevices: unknown = JSON.parse(rawDevices);
+                setDevices(
+                    Array.isArray(parsedDevices)
+                        ? parsedDevices.map((d: any) => ({
+                            ...d,
+                            type:
+                                d.type === 'AI Camera'
+                                    ? 'Camera'
+                                    : d.type === 'GPS Tracker' || d.type === 'DL GPS'
+                                        ? 'Định vị GPS'
+                                        : d.type,
+                            status: d.status === 'Trong kho' ? 'Tồn kho' : d.status
+                        }))
+                        : []
+                );
             }
-
-            // Đồng bộ nhật ký thao tác hệ thống từ adminAudit.ts
-            setRecentLogs(readAdminAuditLogs());
         } catch (err) {
             console.error('Lỗi tải dữ liệu thống kê nền tảng:', err);
         }
@@ -160,106 +303,137 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
 
     useEffect(() => {
         loadDashboardData();
-        const onStorage = () => loadDashboardData();
-        window.addEventListener('storage', onStorage);
-        return () => window.removeEventListener('storage', onStorage);
+        const onSync = () => loadDashboardData();
+        window.addEventListener(PLATFORM_SYNC_EVENT, onSync);
+        window.addEventListener('storage', onSync);
+        return () => {
+            window.removeEventListener(PLATFORM_SYNC_EVENT, onSync);
+            window.removeEventListener('storage', onSync);
+        };
     }, []);
 
-    // Tính toán 5 nhóm chỉ số KPI chính + phân tích cơ cấu gói & đội ngũ Admin
+    const committedPackageTotal = useMemo(
+        () => invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0),
+        [invoices]
+    );
+
+    const collectedByTenantId = useMemo(() => {
+        const map: Record<string, number> = {};
+        invoices.forEach((inv) => {
+            const key = inv.tenantId;
+            map[key] = (map[key] || 0) + Math.max(0, inv.paidAmount || 0);
+        });
+        return map;
+    }, [invoices]);
+
     const stats = useMemo(() => {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
-
-        const totalTenants = tenants.length;
-        const activeTenants = tenants.filter((t) => t.status === 'ACTIVE');
-        const trialTenants = tenants.filter((t) => t.status === 'TRIAL');
-        const suspendedTenants = tenants.filter((t) => t.status === 'SUSPENDED');
-
-        const newTenantsList = tenants.filter(
-            (t) => t.activatedAt && t.activatedAt >= thirtyDaysAgoStr
+        const base = computeUnifiedPlatformMetrics(
+            tenants,
+            invoices,
+            vehicleCountMap,
+            devices
         );
+        const planMeta: Record<
+            SubscriptionPlan,
+            { label: string; dotClass: string; segmentClass: string }
+        > = {
+            PKG_12M: {
+                label: tr('admin.pkg12m'),
+                dotClass: 'bg-[#0B1324]',
+                segmentClass: 'bg-[#0B1324]'
+            },
+            PKG_6M: {
+                label: tr('admin.pkg6m'),
+                dotClass: 'bg-rose-600',
+                segmentClass: 'bg-rose-600'
+            }
+        };
 
-        const totalVehicles = tenants.reduce(
-            (sum, t) => sum + (vehicleCountMap[t.id] || 0),
-            0
+        const planBreakdown = (['PKG_12M', 'PKG_6M'] as SubscriptionPlan[]).map(
+            (planKey) => {
+                const matched = tenants.filter((t) => t.plan === planKey);
+                const planTotal = matched
+                    .filter((t) => t.status === 'ACTIVE')
+                    .reduce((s, t) => s + (t.packagePrice || 0), 0);
+                return {
+                    planKey,
+                    meta: planMeta[planKey],
+                    count: matched.length,
+                    percent:
+                        base.totalTenants > 0
+                            ? Math.round((matched.length / base.totalTenants) * 100)
+                            : 0,
+                    totalValue: planTotal
+                };
+            }
         );
-        const totalVehicleQuota = tenants.reduce(
-            (sum, t) => sum + (t.maxVehicles || 0),
-            0
-        );
-        const fleetUtilization =
-            totalVehicleQuota > 0
-                ? Math.min(100, Math.round((totalVehicles / totalVehicleQuota) * 100))
-                : 0;
-
-        const mrr = activeTenants.reduce((sum, t) => sum + (t.monthlyFee || 0), 0);
-        const arr = mrr * 12;
-        const arpu = activeTenants.length > 0 ? Math.round(mrr / activeTenants.length) : 0;
-
-        const overdueInvoices = invoices.filter((inv) => {
-            const remaining = Math.max(0, inv.totalAmount - inv.paidAmount);
-            return remaining > 0 && inv.dueDate && inv.dueDate < todayStr;
-        });
-        const totalOverdueDebt = overdueInvoices.reduce(
-            (sum, inv) => sum + Math.max(0, inv.totalAmount - inv.paidAmount),
-            0
-        );
-        const totalCollected = invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
-
-        const planBreakdown = (
-            ['PRO', 'STARTER', 'ENTERPRISE', 'TRIAL_14D'] as SubscriptionPlan[]
-        ).map((planKey) => {
-            const matched = tenants.filter((t) => t.plan === planKey);
-            const planMrr = matched
-                .filter((t) => t.status === 'ACTIVE')
-                .reduce((s, t) => s + (t.monthlyFee || 0), 0);
-            return {
-                planKey,
-                meta: PLAN_META[planKey],
-                count: matched.length,
-                percent: totalTenants > 0 ? Math.round((matched.length / totalTenants) * 100) : 0,
-                mrr: planMrr
-            };
-        });
-
-        const activeAdmins = adminAccounts.filter((a) => a.status === 'ACTIVE').length;
-        const lockedAdmins = adminAccounts.filter((a) => a.status === 'LOCKED').length;
 
         return {
-            totalTenants,
-            activeCount: activeTenants.length,
-            trialCount: trialTenants.length,
-            suspendedCount: suspendedTenants.length,
-            newTenantsList,
-            newTenantsCount: newTenantsList.length,
-            totalVehicles,
-            totalVehicleQuota,
-            fleetUtilization,
-            mrr,
-            arr,
-            arpu,
-            activeTenants,
-            overdueInvoices,
-            totalOverdueDebt,
-            totalCollected,
-            planBreakdown,
-            activeAdmins,
-            lockedAdmins
+            ...base,
+            committedPackageTotal,
+            planBreakdown
         };
-    }, [tenants, invoices, vehicleCountMap, adminAccounts]);
+    }, [tenants, invoices, vehicleCountMap, devices, committedPackageTotal, adminLang]);
 
-    // Chuỗi dữ liệu biểu đồ 6 / 12 tháng
+    const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+    const debtRows = useMemo(() => {
+        const rows: {
+            id: string;
+            tenantName: string;
+            tenantCode: string;
+            statusLabel: string;
+            planLabel: string;
+            amount: number;
+        }[] = [];
+
+        invoices.forEach((inv) => {
+            if (inv.isAdvanceForNextCycle) return;
+            const state = getInvoicePaymentState(inv, todayStr);
+            const amount = getReceivableAmountForInvoice(inv, todayStr);
+            const isDebtOrOverdue = state === 'OVERDUE' || state === 'PARTIAL' || amount > 0;
+            if (!isDebtOrOverdue) return;
+
+            const tierName =
+                inv.tier === 'BASIC'
+                    ? tr('admin.tierBasic')
+                    : inv.tier === 'ENTERPRISE'
+                        ? tr('admin.tierEnterprise')
+                        : tr('admin.tierPro');
+            const pkgLabel = inv.duration === 12 ? tr('admin.pkg12m') : tr('admin.pkg6m');
+
+            rows.push({
+                id: inv.id,
+                tenantName: inv.tenantName,
+                tenantCode: inv.tenantCode,
+                statusLabel:
+                    state === 'OVERDUE'
+                        ? adminLang === 'en'
+                            ? 'Overdue'
+                            : 'Quá hạn'
+                        : tr('admin.statusPartial'),
+                planLabel: `${tierName} · ${pkgLabel}`,
+                amount
+            });
+        });
+
+        return rows;
+    }, [invoices, todayStr, adminLang]);
+
+    const totalReceivableForDebtModal = useMemo(
+        () => debtRows.reduce((sum, r) => sum + r.amount, 0),
+        [debtRows]
+    );
+
     const monthlySeries = useMemo<MonthlyStatPoint[]>(() => {
         const now = new Date();
-        const baseMrr = stats.mrr || 3480000;
-        const baseCollected = stats.totalCollected || 2990000;
+        const baseCommitted = Math.max(committedPackageTotal, 15000000);
+        const baseCollected = stats.totalCollected;
         const baseTenants = Math.max(1, stats.totalTenants);
         const baseVehicles = Math.max(1, stats.totalVehicles);
 
-        const mrrFactors = [0.52, 0.58, 0.64, 0.72, 0.81, 0.86, 0.68, 0.74, 0.82, 0.89, 0.94, 1];
-        const collectFactors = [0.5, 0.56, 0.6, 0.7, 0.78, 0.84, 0.65, 0.72, 0.8, 0.85, 0.91, 1];
+        const commitFactors = [0.45, 0.55, 0.65, 0.72, 0.85, 0.92, 0.6, 0.68, 0.75, 0.82, 0.9, 1];
+        const collectFactors = [0.45, 0.5, 0.65, 0.7, 0.8, 0.9, 0.55, 0.65, 0.7, 0.8, 0.88, 1];
         const tenantOffsets = [-3, -3, -2, -2, -2, -2, -2, -1, -1, -1, -1, 0];
         const newPerMonthHistory = [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, stats.newTenantsCount];
         const vehicleFactors = [0.45, 0.5, 0.55, 0.62, 0.68, 0.74, 0.62, 0.7, 0.78, 0.86, 0.93, 1];
@@ -272,14 +446,25 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
             const idx = 11 - i;
             const isCurrentMonth = i === 0;
 
+            const committedVal = isCurrentMonth
+                ? baseCommitted
+                : Math.round((baseCommitted * commitFactors[idx]) / 100000) * 100000;
+            const collectedVal = isCurrentMonth
+                ? baseCollected
+                : Math.min(
+                    committedVal,
+                    Math.round((baseCollected * collectFactors[idx]) / 100000) * 100000
+                );
+
             points.push({
                 monthKey: `${monthNum}/${d.getFullYear()}`,
-                label: `T${d.getMonth() + 1}/${yearShort}`,
-                mrr: isCurrentMonth ? stats.mrr : Math.round((baseMrr * mrrFactors[idx]) / 10000) * 10000,
-                collected: isCurrentMonth
-                    ? stats.totalCollected
-                    : Math.round((baseCollected * collectFactors[idx]) / 10000) * 10000,
-                overdue: isCurrentMonth ? stats.totalOverdueDebt : idx % 3 === 1 ? 990000 : 0,
+                label:
+                    adminLang === 'en'
+                        ? `M${d.getMonth() + 1}/${yearShort}`
+                        : `T${d.getMonth() + 1}/${yearShort}`,
+                committed: committedVal,
+                collected: collectedVal,
+                overdue: isCurrentMonth ? stats.totalOverdueDebt : 0,
                 newTenants: isCurrentMonth ? stats.newTenantsCount : newPerMonthHistory[idx],
                 totalTenants: isCurrentMonth
                     ? stats.totalTenants
@@ -290,465 +475,546 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
             });
         }
         return points;
-    }, [chartRange, stats]);
+    }, [chartRange, committedPackageTotal, stats, adminLang]);
 
     const maxRevenueValue = useMemo(() => {
         const rawMax = Math.max(
-            1_000_000,
-            ...monthlySeries.map((p) => Math.max(p.mrr, p.collected))
+            15_000_000,
+            ...monthlySeries.map((p) => Math.max(p.committed, p.collected))
         );
-        return Math.ceil(rawMax / 1_000_000) * 1_000_000;
+        return Math.ceil(rawMax / 10_000_000) * 10_000_000;
     }, [monthlySeries]);
 
     const maxTenantValue = useMemo(() => {
-        return Math.max(5, ...monthlySeries.map((p) => p.totalTenants + 1));
+        const rawMax = Math.max(4, ...monthlySeries.map((p) => p.totalTenants + 1));
+        return Math.ceil(rawMax / 2) * 2;
     }, [monthlySeries]);
 
+    const toggleSeries = (key: 'committed' | 'collected' | 'tenants') => {
+        setVisibleSeries((prev) => {
+            const next = { ...prev, [key]: !prev[key] };
+            if (!next.committed && !next.collected && !next.tenants) return prev;
+            return next;
+        });
+    };
+
+    const activePointIndex =
+        hoveredIdx !== null ? hoveredIdx : Math.max(0, monthlySeries.length - 1);
+    const activePoint = monthlySeries[activePointIndex];
+
+    const chartGeometry = useMemo(() => {
+        const plotLeft = 62;
+        const plotRight = 902;
+        const plotTop = 24;
+        const plotBottom = 228;
+        const plotWidth = plotRight - plotLeft;
+        const plotHeight = plotBottom - plotTop;
+        const count = Math.max(1, monthlySeries.length);
+        const groupWidth = plotWidth / count;
+
+        const tenantCoords = monthlySeries.map((pt, idx) => {
+            const x = plotLeft + idx * groupWidth + groupWidth / 2;
+            const y = plotBottom - (pt.totalTenants / maxTenantValue) * plotHeight;
+            return { x, y };
+        });
+
+        const linePath = buildSmoothLinePath(tenantCoords);
+        const areaPath =
+            tenantCoords.length > 0
+                ? `${linePath} L ${tenantCoords[tenantCoords.length - 1].x.toFixed(1)} ${plotBottom} L ${tenantCoords[0].x.toFixed(1)} ${plotBottom} Z`
+                : '';
+
+        return {
+            plotLeft,
+            plotRight,
+            plotTop,
+            plotBottom,
+            plotWidth,
+            plotHeight,
+            groupWidth,
+            tenantCoords,
+            linePath,
+            areaPath
+        };
+    }, [monthlySeries, maxTenantValue]);
+
+    const collectionRate = useMemo(() => {
+        if (!activePoint || activePoint.committed <= 0) return 0;
+        return Math.min(100, Math.round((activePoint.collected / activePoint.committed) * 100));
+    }, [activePoint]);
+
+    const getTierName = (tier: string) => {
+        if (tier === 'BASIC') return tr('admin.tierBasic');
+        if (tier === 'ENTERPRISE') return tr('admin.tierEnterprise');
+        return tr('admin.tierPro');
+    };
+
+    const modalTenants = useMemo(() => {
+        if (activeModal === 'NEW_TENANTS') {
+            return stats.newTenantsList;
+        }
+        return tenants;
+    }, [activeModal, stats.newTenantsList, tenants]);
+
+    const isTenantsOnlyModal =
+        activeModal === 'TOTAL_TENANTS' || activeModal === 'NEW_TENANTS';
+    const isVehiclesOnlyModal = activeModal === 'TOTAL_VEHICLES';
+    const isDebtModal = activeModal === 'OVERDUE_DEBT';
+
     return (
-        <div className="flex-1 max-w-[1520px] w-full mx-auto p-8 space-y-6">
-            {/* HEADER DASHBOARD THỐNG KÊ */}
-            <div className="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-sky-600 mb-1">
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        <span>{currentRoleLabel.toUpperCase()} • BÁO CÁO ĐIỀU HÀNH TOÀN NỀN TẢNG</span>
+        <main className="flex-1 max-w-[1440px] w-full mx-auto px-6 lg:px-8 py-6 space-y-6 font-sans">
+            {!onNavigateSection && (
+                <div className="bg-white/95 rounded-xl border border-slate-200/90 px-5 py-3 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+                    <span className="text-xs font-semibold text-[#0B1324]">
+                        {tr('admin.title')} · {currentRoleLabel}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                            to="/overview/admin"
+                            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-medium transition-colors"
+                        >
+                            {tr('admin.tabTenants')}
+                        </Link>
+                        <Link
+                            to="/overview/admin/devices"
+                            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-medium transition-colors"
+                        >
+                            {tr('admin.devicesMenu')}
+                        </Link>
+                        <Link
+                            to="/overview/admin/accounts"
+                            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-medium transition-colors"
+                        >
+                            {tr('admin.accountsMenu')}
+                        </Link>
                     </div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                        Dashboard Thống kê Nền tảng DriveLinker
+                </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <span className="font-semibold text-[#0B1324]">{tr('admin.tabDashboard')}</span>
+                        <span className="text-slate-300">/</span>
+                        <span>{currentRoleLabel}</span>
+                    </div>
+                    <h1 className="text-xl font-bold tracking-tight text-slate-900 mt-0.5">
+                        {adminLang === 'en'
+                            ? 'Operations & Growth Overview'
+                            : 'Tổng quan vận hành & tăng trưởng'}
                     </h1>
-                    <p className="text-xs text-slate-500 mt-1">
-                        Tổng hợp chỉ số doanh nghiệp, tăng trưởng khách hàng mới, quy mô phương tiện, doanh thu định kỳ (MRR) và cảnh báo công nợ quá hạn.
-                    </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5">
+                <div className="flex items-center gap-2">
                     <button
                         type="button"
                         onClick={loadDashboardData}
-                        className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                        className="h-9 px-3.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
                     >
-                        <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Làm mới số liệu</span>
+                        <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{tr('common.refresh')}</span>
                     </button>
 
-                    {onNavigateSection && (
-                        <button
-                            type="button"
-                            onClick={() => onNavigateSection('billing')}
-                            className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                        >
-                            <span>Đối soát công nợ</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        onClick={() => handleGoToSection('billing')}
+                        className="h-9 px-4 rounded-lg bg-[#0B1324] hover:bg-slate-800 text-white text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    >
+                        <span>{tr('admin.tabBilling')}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                 </div>
             </div>
 
-            {/* ================= 5 THẺ KPI THỐNG KÊ NỀN TẢNG ================= */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                {/* KPI 1: Tổng số doanh nghiệp */}
-                <div
+            <section
+                aria-label={tr('admin.sectionOverview')}
+                className="bg-white rounded-xl border border-slate-200/90 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/80 overflow-hidden shadow-2xs"
+            >
+                <button
+                    type="button"
                     onClick={() => setActiveModal('TOTAL_TENANTS')}
-                    className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition-all cursor-pointer group"
+                    className="p-5 text-left hover:bg-slate-50/70 transition-colors cursor-pointer group"
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                            Tổng số doanh nghiệp
+                    <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                        <span>{tr('admin.cardTotalTenants')}</span>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors" />
+                    </div>
+                    <div className="text-[26px] font-bold tracking-tight text-slate-900 mt-2 tabular-nums leading-none">
+                        {stats.totalTenants}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-2.5 flex items-center gap-1.5 flex-wrap">
+                        <span className="inline-flex items-center gap-1 text-slate-700 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            {stats.activeCount} {tr('admin.statusActive').toLowerCase()}
                         </span>
-                        <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center group-hover:bg-sky-600 group-hover:text-white transition-colors">
-                            <Building2 className="w-4 h-4" />
-                        </div>
+                        {stats.expiringSoonCount > 0 && (
+                            <>
+                                <span className="text-slate-300">·</span>
+                                <span className="text-sky-700 font-medium">
+                                    {stats.expiringSoonCount} {tr('admin.statusExpiring').toLowerCase()}
+                                </span>
+                            </>
+                        )}
+                        {stats.partialCount > 0 && (
+                            <>
+                                <span className="text-slate-300">·</span>
+                                <span className="text-amber-700 font-medium">
+                                    {stats.partialCount} {tr('admin.statusPartial').toLowerCase()}
+                                </span>
+                            </>
+                        )}
+                        {stats.suspendedCount > 0 && (
+                            <>
+                                <span className="text-slate-300">·</span>
+                                <span className="text-rose-600 font-medium">
+                                    {stats.suspendedCount} {tr('admin.statusSuspended').toLowerCase()}
+                                </span>
+                            </>
+                        )}
                     </div>
-                    <div className="flex items-baseline justify-between">
-                        <div className="text-2xl font-bold text-slate-900 font-mono">
-                            {stats.totalTenants}
-                        </div>
-                        <span className="text-[11px] font-semibold text-sky-600 flex items-center gap-0.5">
-                            Chi tiết <ArrowUpRight className="w-3 h-3" />
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-2.5 text-[11px] font-semibold flex-wrap">
-                        <span className="text-emerald-600">{stats.activeCount} Active</span>
-                        <span className="text-slate-300">•</span>
-                        <span className="text-sky-600">{stats.trialCount} Trial</span>
-                        <span className="text-slate-300">•</span>
-                        <span className="text-rose-600">{stats.suspendedCount} Khóa</span>
-                    </div>
-                </div>
+                </button>
 
-                {/* KPI 2: Số doanh nghiệp mới */}
-                <div
+                <button
+                    type="button"
                     onClick={() => setActiveModal('NEW_TENANTS')}
-                    className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
+                    className="p-5 text-left hover:bg-slate-50/70 transition-colors cursor-pointer group"
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                            Số doanh nghiệp mới
-                        </span>
-                        <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                            <TrendingUp className="w-4 h-4" />
-                        </div>
+                    <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                        <span>{adminLang === 'en' ? 'New Enterprises' : 'Doanh nghiệp mới'}</span>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors" />
                     </div>
-                    <div className="flex items-baseline justify-between">
-                        <div className="text-2xl font-bold text-indigo-700 font-mono">
-                            +{stats.newTenantsCount}
-                        </div>
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-                            30 ngày qua
-                        </span>
+                    <div className="text-[26px] font-bold tracking-tight text-slate-900 mt-2 tabular-nums leading-none">
+                        +{stats.newTenantsCount}
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-2.5">
-                        Chiếm{' '}
-                        <strong className="text-slate-700">
+                    <div className="text-xs text-slate-500 mt-2.5 tabular-nums">
+                        {adminLang === 'en' ? 'Last 30 days' : 'Trong 30 ngày qua'} ·{' '}
+                        <span className="font-medium text-slate-700">
                             {stats.totalTenants > 0
                                 ? Math.round((stats.newTenantsCount / stats.totalTenants) * 100)
                                 : 0}
                             %
-                        </strong>{' '}
-                        tổng số đối tác toàn sàn
-                    </p>
-                </div>
+                        </span>
+                    </div>
+                </button>
 
-                {/* KPI 3: Tổng số phương tiện toàn nền tảng */}
-                <div
+                <button
+                    type="button"
                     onClick={() => setActiveModal('TOTAL_VEHICLES')}
-                    className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-cyan-300 hover:shadow-md transition-all cursor-pointer group"
+                    className="p-5 text-left hover:bg-slate-50/70 transition-colors cursor-pointer group"
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                            Tổng phương tiện nền tảng
-                        </span>
-                        <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center group-hover:bg-cyan-600 group-hover:text-white transition-colors">
-                            <Car className="w-4 h-4" />
-                        </div>
+                    <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                        <span>{tr('fleet.kpiTotal')}</span>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors" />
                     </div>
-                    <div className="flex items-baseline justify-between">
-                        <div className="text-2xl font-bold text-slate-900 font-mono">
-                            {stats.totalVehicles}{' '}
-                            <span className="text-xs font-normal text-slate-400">
-                                / {stats.totalVehicleQuota} xe
-                            </span>
-                        </div>
-                        <span className="text-[11px] font-mono font-bold text-cyan-700">
-                            {stats.fleetUtilization}%
+                    <div className="text-[26px] font-bold tracking-tight text-slate-900 mt-2 tabular-nums leading-none">
+                        {stats.totalVehicles}
+                        <span className="text-sm font-normal text-slate-400 ml-1">
+                            {adminLang === 'en' ? 'veh' : 'xe'}
                         </span>
                     </div>
-                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mt-3">
-                        <div
-                            className="h-full bg-cyan-600 rounded-full transition-all"
-                            style={{ width: `${stats.fleetUtilization}%` }}
-                        />
+                    <div className="text-xs text-slate-500 mt-2.5 tabular-nums">
+                        {stats.inUseDevices}{' '}
+                        {adminLang === 'en' ? 'active linked devices' : 'thiết bị đang gắn hoạt động'}
                     </div>
-                </div>
+                </button>
 
-                {/* KPI 4: Doanh thu định kỳ hàng tháng (MRR) */}
-                <div
+                <button
+                    type="button"
                     onClick={() => setActiveModal('MRR_REVENUE')}
-                    className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer group"
+                    className="p-5 text-left hover:bg-slate-50/70 transition-colors cursor-pointer group"
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                            Doanh thu định kỳ (MRR)
-                        </span>
-                        <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                            <CreditCard className="w-4 h-4" />
-                        </div>
+                    <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                        <span>{revenueLabel}</span>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors" />
                     </div>
-                    <div className="text-2xl font-bold text-emerald-700 font-mono">
-                        {stats.mrr.toLocaleString('vi-VN')} ₫
+                    <div className="text-[26px] font-bold tracking-tight text-emerald-600 mt-2 tabular-nums leading-none">
+                        {stats.totalCollected.toLocaleString('vi-VN')} ₫
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-2.5">
-                        ARR dự kiến:{' '}
-                        <strong className="font-mono text-slate-700">
-                            {formatCompactVND(stats.arr)}/năm
-                        </strong>
-                    </p>
-                </div>
+                    <div className="text-xs text-slate-500 mt-2.5 tabular-nums">
+                        {adminLang === 'en' ? 'Total plan value' : 'Tổng gói'}:{' '}
+                        {committedPackageTotal.toLocaleString('vi-VN')} ₫
+                    </div>
+                </button>
 
-                {/* KPI 5: Tổng công nợ quá hạn */}
-                <div
+                <button
+                    type="button"
                     onClick={() => setActiveModal('OVERDUE_DEBT')}
-                    className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-rose-300 hover:shadow-md transition-all cursor-pointer group"
+                    className="p-5 text-left hover:bg-slate-50/70 transition-colors cursor-pointer group"
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                            Tổng công nợ quá hạn
+                    <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                        <span>
+                            {adminLang === 'en' ? 'Active Plan Debt' : 'Nợ gói đang dùng'}
                         </span>
-                        <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition-colors">
-                            <AlertTriangle className="w-4 h-4" />
-                        </div>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors" />
                     </div>
-                    <div className="text-2xl font-bold text-rose-600 font-mono">
-                        {stats.totalOverdueDebt.toLocaleString('vi-VN')} ₫
+                    <div
+                        className={`text-[26px] font-bold tracking-tight mt-2 tabular-nums leading-none ${totalReceivableForDebtModal > 0 ? 'text-rose-600' : 'text-slate-900'
+                            }`}
+                    >
+                        {totalReceivableForDebtModal.toLocaleString('vi-VN')} ₫
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-2.5">
-                        {stats.overdueInvoices.length > 0 ? (
-                            <span className="text-rose-600 font-semibold">
-                                {stats.overdueInvoices.length} hóa đơn quá hạn cần thu hồi
-                            </span>
-                        ) : (
-                            <span className="text-emerald-600 font-semibold">
-                                Không có hóa đơn quá hạn
-                            </span>
-                        )}
-                    </p>
-                </div>
-            </div>
-
-            {/* ================= KHU VỰC BIỂU ĐỒ DOANH THU & TĂNG TRƯỞNG ================= */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* BIỂU ĐỒ 1 (7 CỘT): DOANH THU ĐỊNH KỲ (MRR) & THỰC THU THEO THÁNG */}
-                <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
-                    <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <BarChart3 className="w-4 h-4 text-emerald-600" />
-                                <h2 className="text-base font-bold text-slate-900">
-                                    Biểu đồ Doanh thu MRR & Thực thu Nền tảng
-                                </h2>
+                    <div className="text-xs text-slate-500 mt-2.5 space-y-0.5 tabular-nums">
+                        {debtRows.length > 0 ? (
+                            <div className="text-rose-600 font-medium">
+                                {debtRows.length}{' '}
+                                {adminLang === 'en' ? 'enterprise(s) with balance due' : 'doanh nghiệp có khoản cần thu'}
                             </div>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                                So sánh doanh thu gói định kỳ (MRR) và số tiền đã xác nhận thu theo từng tháng
-                            </p>
+                        ) : (
+                            <div className="text-emerald-700 font-medium">
+                                {adminLang === 'en' ? 'No balance due' : 'Không có khoản cần thu'}
+                            </div>
+                        )}
+                    </div>
+                </button>
+            </section>
+
+            <section className="bg-white rounded-xl border border-slate-200/90 overflow-hidden shadow-2xs">
+                <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <h2 className="text-sm font-semibold text-slate-900">
+                            {adminLang === 'en'
+                                ? `${revenueLabel} & Enterprise Growth`
+                                : `${revenueLabel} gói thuê & tăng trưởng doanh nghiệp`}
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                            {adminLang === 'en' ? 'Average per enterprise' : 'Trung bình'}:{' '}
+                            <span className="font-medium text-slate-700 tabular-nums">
+                                {formatCompactVND(stats.arpu)}/{adminLang === 'en' ? 'unit' : 'đơn vị'}
+                            </span>
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                            <button
+                                type="button"
+                                onClick={() => toggleSeries('committed')}
+                                className={`h-7 px-2.5 rounded-md border inline-flex items-center gap-1.5 font-medium transition-opacity cursor-pointer ${visibleSeries.committed
+                                        ? 'border-slate-200 bg-white text-slate-700'
+                                        : 'border-slate-100 bg-slate-50 text-slate-400 opacity-55'
+                                    }`}
+                            >
+                                <span className="w-2 h-2 rounded-xs bg-[#0B1324] inline-block" />
+                                <span>{adminLang === 'en' ? 'Committed Value' : 'Giá trị gói đăng ký'}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => toggleSeries('collected')}
+                                className={`h-7 px-2.5 rounded-md border inline-flex items-center gap-1.5 font-medium transition-opacity cursor-pointer ${visibleSeries.collected
+                                        ? 'border-slate-200 bg-white text-slate-700'
+                                        : 'border-slate-100 bg-slate-50 text-slate-400 opacity-55'
+                                    }`}
+                            >
+                                <span className="w-2 h-2 rounded-xs bg-sky-500 inline-block" />
+                                <span>{adminLang === 'en' ? 'Collected' : 'Đã thực thu'}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => toggleSeries('tenants')}
+                                className={`h-7 px-2.5 rounded-md border inline-flex items-center gap-1.5 font-medium transition-opacity cursor-pointer ${visibleSeries.tenants
+                                        ? 'border-slate-200 bg-white text-slate-700'
+                                        : 'border-slate-100 bg-slate-50 text-slate-400 opacity-55'
+                                    }`}
+                            >
+                                <span className="w-2 h-2 rounded-full border-2 border-rose-600 bg-white inline-block" />
+                                <span>{adminLang === 'en' ? 'Enterprises' : 'Doanh nghiệp'}</span>
+                            </button>
                         </div>
 
-                        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+                        <div className="inline-flex h-7 rounded-md bg-slate-100 p-0.5 text-xs">
                             {([6, 12] as const).map((r) => (
                                 <button
                                     key={r}
                                     type="button"
                                     onClick={() => setChartRange(r)}
-                                    className={`px-2.5 py-1 rounded-md text-xs font-bold cursor-pointer ${chartRange === r
-                                        ? 'bg-white text-slate-900 shadow-2xs'
-                                        : 'text-slate-500 hover:text-slate-800'
+                                    className={`px-2.5 rounded-sm font-medium transition-all cursor-pointer ${chartRange === r
+                                            ? 'bg-white text-slate-900 shadow-2xs'
+                                            : 'text-slate-500 hover:text-slate-800'
                                         }`}
                                 >
-                                    {r} tháng
+                                    {r} {adminLang === 'en' ? 'mo' : 'tháng'}
                                 </button>
                             ))}
                         </div>
                     </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4 text-xs">
-                        <div className="flex items-center gap-4">
-                            <span className="inline-flex items-center gap-1.5 font-semibold text-slate-700">
-                                <span className="w-3 h-3 rounded-xs bg-indigo-500 inline-block" />
-                                Doanh thu định kỳ (MRR)
-                            </span>
-                            <span className="inline-flex items-center gap-1.5 font-semibold text-slate-700">
-                                <span className="w-3 h-3 rounded-xs bg-emerald-500 inline-block" />
-                                Đã xác nhận thu
-                            </span>
-                        </div>
-
-                        {hoveredRevenueIdx !== null && monthlySeries[hoveredRevenueIdx] && (
-                            <div className="px-3 py-1 rounded-lg bg-slate-900 text-white font-mono text-[11px] flex items-center gap-3">
-                                <span className="text-sky-300 font-bold">
-                                    {monthlySeries[hoveredRevenueIdx].monthKey}
-                                </span>
-                                <span>
-                                    MRR: {monthlySeries[hoveredRevenueIdx].mrr.toLocaleString('vi-VN')}₫
-                                </span>
-                                <span className="text-emerald-400">
-                                    Thu: {monthlySeries[hoveredRevenueIdx].collected.toLocaleString('vi-VN')}₫
-                                </span>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="w-full overflow-x-auto">
-                        <svg
-                            viewBox="0 0 640 250"
-                            className="w-full h-[250px] select-none"
-                            role="img"
-                            aria-label="Biểu đồ doanh thu MRR và thực thu"
-                        >
-                            {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
-                                const y = 210 - ratio * 175;
-                                const val = Math.round(maxRevenueValue * ratio);
-                                return (
-                                    <g key={idx}>
-                                        <line
-                                            x1="58"
-                                            y1={y}
-                                            x2="625"
-                                            y2={y}
-                                            stroke="#E2E8F0"
-                                            strokeDasharray={ratio === 0 ? undefined : '4 4'}
-                                            strokeWidth="1"
-                                        />
-                                        <text
-                                            x="50"
-                                            y={y + 4}
-                                            textAnchor="end"
-                                            className="fill-slate-400 text-[10px] font-mono"
-                                        >
-                                            {formatCompactVND(val)}
-                                        </text>
-                                    </g>
-                                );
-                            })}
-
-                            {monthlySeries.map((pt, idx) => {
-                                const plotWidth = 560;
-                                const groupWidth = plotWidth / monthlySeries.length;
-                                const centerX = 62 + idx * groupWidth + groupWidth / 2;
-                                const barW = Math.min(20, groupWidth * 0.34);
-
-                                const mrrH = Math.max(4, (pt.mrr / maxRevenueValue) * 175);
-                                const colH = Math.max(4, (pt.collected / maxRevenueValue) * 175);
-                                const isHovered = hoveredRevenueIdx === idx;
-
-                                return (
-                                    <g
-                                        key={pt.monthKey}
-                                        onMouseEnter={() => setHoveredRevenueIdx(idx)}
-                                        onMouseLeave={() => setHoveredRevenueIdx(null)}
-                                        className="cursor-pointer"
-                                    >
-                                        {isHovered && (
-                                            <rect
-                                                x={centerX - groupWidth * 0.44}
-                                                y="26"
-                                                width={groupWidth * 0.88}
-                                                height="184"
-                                                rx="8"
-                                                fill="#F1F5F9"
-                                            />
-                                        )}
-
-                                        <rect
-                                            x={centerX - barW - 2}
-                                            y={210 - mrrH}
-                                            width={barW}
-                                            height={mrrH}
-                                            rx="4"
-                                            fill={isHovered ? '#4338CA' : '#6366F1'}
-                                        />
-
-                                        <rect
-                                            x={centerX + 2}
-                                            y={210 - colH}
-                                            width={barW}
-                                            height={colH}
-                                            rx="4"
-                                            fill={isHovered ? '#059669' : '#10B981'}
-                                        />
-
-                                        <text
-                                            x={centerX}
-                                            y="230"
-                                            textAnchor="middle"
-                                            className={`text-[10px] font-mono ${idx === monthlySeries.length - 1
-                                                ? 'fill-slate-900 font-bold'
-                                                : 'fill-slate-500'
-                                                }`}
-                                        >
-                                            {pt.label}
-                                        </text>
-                                    </g>
-                                );
-                            })}
-                        </svg>
-                    </div>
                 </div>
 
-                {/* BIỂU ĐỒ 2 (5 CỘT): TĂNG TRƯỞNG DOANH NGHIỆP */}
-                <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
-                    <div className="mb-4">
-                        <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                                <TrendingUp className="w-4 h-4 text-sky-600" />
-                                <h2 className="text-base font-bold text-slate-900">
-                                    Biểu đồ Tăng trưởng Doanh nghiệp
-                                </h2>
-                            </div>
-                            <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-700 font-mono text-[11px] font-bold">
-                                ARPU: {formatCompactVND(stats.arpu)}/DN
+                {activePoint && (
+                    <div className="px-6 py-3 bg-slate-50/60 border-b border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div>
+                            <span className="text-[11px] text-slate-500 block">
+                                {adminLang === 'en' ? 'Period' : 'Kỳ đối soát'}
+                            </span>
+                            <span className="text-sm font-semibold text-slate-900 tabular-nums">
+                                {activePoint.monthKey}
                             </span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                            Tổng doanh nghiệp lũy kế (đường) và doanh nghiệp mới theo tháng (cột)
-                        </p>
-                    </div>
 
-                    <div className="flex items-center justify-between text-xs mb-3">
-                        <div className="flex items-center gap-3">
-                            <span className="inline-flex items-center gap-1.5 font-semibold text-slate-700">
-                                <span className="w-3 h-0.5 bg-sky-600 inline-block" />
-                                Tổng doanh nghiệp
+                        <div>
+                            <span className="text-[11px] text-slate-500 block">
+                                {adminLang === 'en' ? 'Committed Value' : 'Giá trị gói đăng ký'}
                             </span>
-                            <span className="inline-flex items-center gap-1.5 font-semibold text-slate-700">
-                                <span className="w-2.5 h-2.5 rounded-xs bg-amber-400 inline-block" />
-                                DN mới
+                            <span className="text-sm font-semibold text-slate-900 tabular-nums">
+                                {activePoint.committed.toLocaleString('vi-VN')} ₫
                             </span>
                         </div>
-                        {hoveredGrowthIdx !== null && monthlySeries[hoveredGrowthIdx] && (
-                            <span className="font-mono text-[11px] font-bold text-slate-800">
-                                {monthlySeries[hoveredGrowthIdx].monthKey}:{' '}
-                                {monthlySeries[hoveredGrowthIdx].totalTenants} DN (+
-                                {monthlySeries[hoveredGrowthIdx].newTenants} mới)
-                            </span>
-                        )}
-                    </div>
 
+                        <div>
+                            <span className="text-[11px] text-slate-500 block">
+                                {adminLang === 'en' ? 'Collected' : 'Đã thực thu'} • {collectionRate}%
+                            </span>
+                            <span className="text-sm font-semibold text-sky-700 tabular-nums">
+                                {activePoint.collected.toLocaleString('vi-VN')} ₫
+                            </span>
+                        </div>
+
+                        <div>
+                            <span className="text-[11px] text-slate-500 block">
+                                {adminLang === 'en' ? 'Enterprises' : 'Quy mô doanh nghiệp'}
+                            </span>
+                            <span className="text-sm font-semibold text-slate-900 tabular-nums">
+                                {activePoint.totalTenants} {adminLang === 'en' ? 'units' : 'đơn vị'}
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                <div className="px-5 py-5 w-full overflow-x-auto">
                     <svg
-                        viewBox="0 0 440 210"
-                        className="w-full h-[210px] select-none"
+                        viewBox="0 0 960 264"
+                        className="w-full min-w-[700px] h-[264px] select-none"
                         role="img"
-                        aria-label="Biểu đồ tăng trưởng doanh nghiệp"
                     >
-                        {[0, 0.5, 1].map((ratio, idx) => {
-                            const y = 175 - ratio * 140;
-                            const val = Math.round(maxTenantValue * ratio);
+                        <defs>
+                            <linearGradient id="dlTenantAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#E11D48" stopOpacity="0.11" />
+                                <stop offset="100%" stopColor="#E11D48" stopOpacity="0.0" />
+                            </linearGradient>
+                        </defs>
+
+                        {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+                            const y =
+                                chartGeometry.plotBottom - ratio * chartGeometry.plotHeight;
+                            const revVal = Math.round(maxRevenueValue * ratio);
+                            const tenantVal = Math.round(maxTenantValue * ratio);
                             return (
                                 <g key={idx}>
                                     <line
-                                        x1="34"
+                                        x1={chartGeometry.plotLeft}
                                         y1={y}
-                                        x2="425"
+                                        x2={chartGeometry.plotRight}
                                         y2={y}
-                                        stroke="#E2E8F0"
-                                        strokeDasharray={ratio === 0 ? undefined : '4 4'}
+                                        stroke={ratio === 0 ? '#E2E8F0' : '#F1F5F9'}
+                                        strokeDasharray={ratio === 0 ? undefined : '3 3'}
+                                        strokeWidth="1"
                                     />
                                     <text
-                                        x="28"
+                                        x={chartGeometry.plotLeft - 10}
                                         y={y + 4}
                                         textAnchor="end"
-                                        className="fill-slate-400 text-[10px] font-mono"
+                                        className="fill-slate-400 text-[11px] tabular-nums"
                                     >
-                                        {val}
+                                        {formatCompactVND(revVal)}
+                                    </text>
+                                    <text
+                                        x={chartGeometry.plotRight + 10}
+                                        y={y + 4}
+                                        textAnchor="start"
+                                        className="fill-slate-400 text-[11px] tabular-nums"
+                                    >
+                                        {tenantVal} {adminLang === 'en' ? 'units' : 'đơn vị'}
                                     </text>
                                 </g>
                             );
                         })}
 
                         {monthlySeries.map((pt, idx) => {
-                            const plotW = 385;
-                            const step = plotW / monthlySeries.length;
-                            const cx = 38 + idx * step + step / 2;
-                            const barH = Math.max(3, (pt.newTenants / maxTenantValue) * 140);
+                            const centerX =
+                                chartGeometry.plotLeft +
+                                idx * chartGeometry.groupWidth +
+                                chartGeometry.groupWidth / 2;
+                            const isSelected = activePointIndex === idx;
+                            if (!isSelected) return null;
+
+                            return (
+                                <g key={`guide-${pt.monthKey}`}>
+                                    <rect
+                                        x={centerX - chartGeometry.groupWidth * 0.4}
+                                        y={chartGeometry.plotTop - 4}
+                                        width={chartGeometry.groupWidth * 0.8}
+                                        height={chartGeometry.plotHeight + 4}
+                                        rx="6"
+                                        fill="#F8FAFC"
+                                    />
+                                    <line
+                                        x1={centerX}
+                                        y1={chartGeometry.plotTop - 2}
+                                        x2={centerX}
+                                        y2={chartGeometry.plotBottom}
+                                        stroke="#CBD5E1"
+                                        strokeDasharray="3 3"
+                                        strokeWidth="1"
+                                    />
+                                </g>
+                            );
+                        })}
+
+                        {monthlySeries.map((pt, idx) => {
+                            const centerX =
+                                chartGeometry.plotLeft +
+                                idx * chartGeometry.groupWidth +
+                                chartGeometry.groupWidth / 2;
+                            const barW = Math.min(18, chartGeometry.groupWidth * 0.24);
+                            const isSelected = activePointIndex === idx;
+                            const isDimmed = hoveredIdx !== null && !isSelected;
+
+                            const commitH = Math.max(
+                                3,
+                                (pt.committed / maxRevenueValue) * chartGeometry.plotHeight
+                            );
+                            const colH = Math.max(
+                                3,
+                                (pt.collected / maxRevenueValue) * chartGeometry.plotHeight
+                            );
+
+                            const showBoth = visibleSeries.committed && visibleSeries.collected;
+                            const commitX = showBoth ? centerX - barW - 2 : centerX - barW / 2;
+                            const colX = showBoth ? centerX + 2 : centerX - barW / 2;
+
                             return (
                                 <g
-                                    key={pt.monthKey}
-                                    onMouseEnter={() => setHoveredGrowthIdx(idx)}
-                                    onMouseLeave={() => setHoveredGrowthIdx(null)}
-                                    className="cursor-pointer"
+                                    key={`bars-${pt.monthKey}`}
+                                    style={{ transition: 'opacity 150ms ease' }}
+                                    opacity={isDimmed ? 0.45 : 1}
                                 >
-                                    <rect
-                                        x={cx - 8}
-                                        y={175 - barH}
-                                        width="16"
-                                        height={barH}
-                                        rx="3"
-                                        fill="#FBBF24"
-                                        opacity="0.85"
-                                    />
+                                    {visibleSeries.committed && (
+                                        <rect
+                                            x={commitX}
+                                            y={chartGeometry.plotBottom - commitH}
+                                            width={barW}
+                                            height={commitH}
+                                            rx="3"
+                                            fill="#0B1324"
+                                        />
+                                    )}
+                                    {visibleSeries.collected && (
+                                        <rect
+                                            x={colX}
+                                            y={chartGeometry.plotBottom - colH}
+                                            width={barW}
+                                            height={colH}
+                                            rx="3"
+                                            fill="#0EA5E9"
+                                        />
+                                    )}
                                     <text
-                                        x={cx}
-                                        y="194"
+                                        x={centerX}
+                                        y={chartGeometry.plotBottom + 22}
                                         textAnchor="middle"
-                                        className="fill-slate-500 text-[9px] font-mono"
+                                        className={`text-[11px] tabular-nums ${isSelected ? 'fill-slate-900 font-semibold' : 'fill-slate-500'
+                                            }`}
                                     >
                                         {pt.label}
                                     </text>
@@ -756,150 +1022,136 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                             );
                         })}
 
-                        <polyline
-                            fill="none"
-                            stroke="#0284C7"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            points={monthlySeries
-                                .map((pt, idx) => {
-                                    const plotW = 385;
-                                    const step = plotW / monthlySeries.length;
-                                    const cx = 38 + idx * step + step / 2;
-                                    const cy = 175 - (pt.totalTenants / maxTenantValue) * 140;
-                                    return `${cx},${cy}`;
-                                })
-                                .join(' ')}
-                        />
+                        {visibleSeries.tenants && chartGeometry.tenantCoords.length > 0 && (
+                            <>
+                                <path d={chartGeometry.areaPath} fill="url(#dlTenantAreaGrad)" />
+                                <path
+                                    d={chartGeometry.linePath}
+                                    fill="none"
+                                    stroke="#E11D48"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                />
+                                {chartGeometry.tenantCoords.map((coord, idx) => (
+                                    <circle
+                                        key={`pt-${monthlySeries[idx].monthKey}`}
+                                        cx={coord.x}
+                                        cy={coord.y}
+                                        r={activePointIndex === idx ? 4.5 : 3}
+                                        fill="#E11D48"
+                                        stroke="#FFFFFF"
+                                        strokeWidth="1.8"
+                                    />
+                                ))}
+                            </>
+                        )}
 
                         {monthlySeries.map((pt, idx) => {
-                            const plotW = 385;
-                            const step = plotW / monthlySeries.length;
-                            const cx = 38 + idx * step + step / 2;
-                            const cy = 175 - (pt.totalTenants / maxTenantValue) * 140;
+                            const x = chartGeometry.plotLeft + idx * chartGeometry.groupWidth;
                             return (
-                                <circle
-                                    key={pt.monthKey}
-                                    cx={cx}
-                                    cy={cy}
-                                    r={hoveredGrowthIdx === idx ? 5 : 3.5}
-                                    fill="#FFFFFF"
-                                    stroke="#0284C7"
-                                    strokeWidth="2.5"
+                                <rect
+                                    key={`hit-${pt.monthKey}`}
+                                    x={x}
+                                    y={chartGeometry.plotTop - 4}
+                                    width={chartGeometry.groupWidth}
+                                    height={chartGeometry.plotHeight + 34}
+                                    fill="transparent"
+                                    className="cursor-pointer"
+                                    onMouseEnter={() => setHoveredIdx(idx)}
+                                    onMouseLeave={() => setHoveredIdx(null)}
                                 />
                             );
                         })}
                     </svg>
                 </div>
-            </div>
+            </section>
 
-            {/* ================= HÀNG GIỮA: CƠ CẤU GÓI DỊCH VỤ & CÔNG NỢ QUÁ HẠN ================= */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                    <div className="flex items-center justify-between">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <section className="bg-white rounded-xl border border-slate-200/90 p-6 flex flex-col justify-between space-y-5 shadow-2xs">
+                    <div className="space-y-4">
                         <div>
-                            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                                Phân bổ Doanh nghiệp theo Gói Dịch vụ
+                            <h3 className="text-sm font-semibold text-slate-900">
+                                {adminLang === 'en' ? 'Plan Breakdown' : 'Phân bổ gói thuê trọn gói'}
                             </h3>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                                Tỷ trọng khách hàng và đóng góp MRR từng phân khúc gói cước
-                            </p>
                         </div>
-                        <Sparkles className="w-4 h-4 text-indigo-500" />
-                    </div>
 
-                    <div className="space-y-3.5 pt-1">
-                        {stats.planBreakdown.map((item) => (
-                            <div key={item.planKey} className="space-y-1.5">
-                                <div className="flex items-center justify-between text-xs">
-                                    <div className="flex items-center gap-2">
-                                        <span
-                                            className={`px-2 py-0.5 rounded border text-[11px] font-bold ${item.meta.badgeClass}`}
-                                        >
+                        <div className="divide-y divide-slate-100">
+                            {stats.planBreakdown.map((item) => (
+                                <div
+                                    key={item.planKey}
+                                    className="py-2.5 flex items-center justify-between gap-2 text-xs"
+                                >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <span className={`w-2 h-2 rounded-full shrink-0 ${item.meta.dotClass}`} />
+                                        <span className="font-medium text-slate-800 truncate">
                                             {item.meta.label}
                                         </span>
-                                        <span className="font-bold text-slate-700">
-                                            {item.count} doanh nghiệp ({item.percent}%)
+                                        <span className="text-slate-400 tabular-nums shrink-0">
+                                            {item.count} • {item.percent}%
                                         </span>
                                     </div>
-                                    <span className="font-mono font-bold text-emerald-700">
-                                        {item.mrr.toLocaleString('vi-VN')} ₫/tháng
+                                    <span className="font-semibold text-slate-900 tabular-nums shrink-0">
+                                        {item.totalValue.toLocaleString('vi-VN')} ₫
                                     </span>
                                 </div>
-                                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div
-                                        className={`h-full rounded-full ${item.meta.barClass}`}
-                                        style={{ width: `${item.percent}%` }}
-                                    />
-                                </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
-                </div>
 
-                <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between space-y-4">
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span>{revenueLabel}</span>
+                        <strong className="font-semibold text-emerald-700 tabular-nums">
+                            {stats.totalCollected.toLocaleString('vi-VN')} ₫
+                        </strong>
+                    </div>
+                </section>
+
+                <section className="bg-white rounded-xl border border-slate-200/90 p-6 flex flex-col justify-between space-y-5 shadow-2xs">
                     <div>
-                        <div className="flex items-center justify-between mb-3">
-                            <div>
-                                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                                    Danh sách Công nợ Quá hạn (OVERDUE)
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    Các kỳ cước đã quá hạn thanh toán cần đôn đốc hoặc tạm khóa dịch vụ
-                                </p>
-                            </div>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-semibold text-slate-900">
+                                {adminLang === 'en'
+                                    ? 'Active Debt & Next-Cycle Prepayment'
+                                    : 'Nợ gói đang dùng & Trả trước kỳ mới'}
+                            </h3>
                             <button
                                 type="button"
                                 onClick={() => setActiveModal('OVERDUE_DEBT')}
-                                className="text-xs font-bold text-rose-600 hover:text-rose-700 cursor-pointer"
+                                className="text-xs font-medium text-[#0B1324] hover:text-rose-600 cursor-pointer"
                             >
-                                Xem tất cả →
+                                {tr('common.details')}
                             </button>
                         </div>
 
-                        {stats.overdueInvoices.length === 0 ? (
-                            <div className="p-8 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 text-center text-xs text-emerald-700 font-semibold">
-                                Tất cả kỳ cước đều đúng hạn thanh toán.
+                        {stats.currentCycleDebtInvoices.length === 0 &&
+                            stats.advanceNextCycleInvoices.length === 0 ? (
+                            <div className="py-10 px-4 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-500">
+                                {tr('common.noData')}
                             </div>
                         ) : (
-                            <div className="space-y-2.5">
-                                {stats.overdueInvoices.slice(0, 3).map((inv) => {
-                                    const debt = Math.max(0, inv.totalAmount - inv.paidAmount);
+                            <div className="divide-y divide-slate-100">
+                                {stats.currentCycleDebtInvoices.slice(0, 2).map((inv) => {
+                                    const debt = getReceivableAmountForInvoice(inv, todayStr);
+                                    const daysLate = getOverdueDays(inv.remainingDueDate || inv.dueDate);
                                     return (
                                         <div
                                             key={inv.id}
-                                            className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/40 flex items-center justify-between gap-3 text-xs"
+                                            className="py-3 first:pt-0 flex items-center justify-between gap-3 text-xs"
                                         >
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-mono font-bold text-rose-700">
-                                                        {inv.invoiceCode}
-                                                    </span>
-                                                    <span className="font-bold text-slate-900">{inv.tenantName}</span>
-                                                    <span className="px-1.5 py-0.2 rounded bg-white border border-slate-200 font-mono text-[10px]">
-                                                        {inv.tenantCode}
-                                                    </span>
-                                                </div>
-                                                <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2">
-                                                    <Calendar className="w-3 h-3 text-rose-500" />
-                                                    <span>Hạn thanh toán: {formatDateVN(inv.dueDate)}</span>
-                                                </div>
+                                            <div className="min-w-0">
+                                                <span className="font-semibold text-slate-900 truncate block">
+                                                    {inv.tenantName}
+                                                </span>
+                                                <span className="text-slate-500 tabular-nums">
+                                                    {inv.invoiceCode}
+                                                    {daysLate > 0
+                                                        ? ` · ${tr('admin.overdueDays', { days: daysLate })}`
+                                                        : ''}
+                                                </span>
                                             </div>
-
-                                            <div className="text-right">
-                                                <div className="font-mono font-bold text-rose-600 text-sm">
-                                                    {debt.toLocaleString('vi-VN')} ₫
-                                                </div>
-                                                {onNavigateSection && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onNavigateSection('billing')}
-                                                        className="mt-1 text-[11px] font-bold text-sky-700 hover:underline cursor-pointer"
-                                                    >
-                                                        Thu tiền / Khóa DV →
-                                                    </button>
-                                                )}
+                                            <div className="text-right font-semibold text-rose-600 tabular-nums">
+                                                {debt.toLocaleString('vi-VN')} ₫
                                             </div>
                                         </div>
                                     );
@@ -907,291 +1159,220 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                             </div>
                         )}
                     </div>
-                </div>
-            </div>
 
-            {/* ================= HÀNG DƯỚI: ĐỘI NGŨ ADMIN & NHẬT KÝ GẦN ĐÂY (ĐỒNG BỘ adminAccounts & adminAudit) ================= */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Đội ngũ Quản trị Nền tảng */}
-                <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between space-y-4">
-                    <div>
-                        <div className="flex items-center justify-between mb-3">
-                            <div>
-                                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                                    <Users className="w-4 h-4 text-rose-600" />
-                                    <span>Đội ngũ Quản trị Hệ thống</span>
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    {stats.activeAdmins} đang hoạt động • {stats.lockedAdmins} đã khóa
-                                </p>
-                            </div>
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 tabular-nums">
+                        <span>
+                            {adminLang === 'en' ? 'Amount payable' : 'Số tiền cần phải thanh toán'}
+                        </span>
+                        <strong className="font-semibold text-rose-600">
+                            {totalReceivableForDebtModal.toLocaleString('vi-VN')} ₫
+                        </strong>
+                    </div>
+                </section>
 
+                <section className="bg-white rounded-xl border border-slate-200/90 p-6 flex flex-col justify-between space-y-5 shadow-2xs">
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-slate-900">
+                                {tr('admin.devicesMenu')}
+                            </h3>
                             <Link
-                                to="/overview/admin/accounts"
-                                className="text-xs font-bold text-rose-600 hover:text-rose-700"
+                                to="/overview/admin/devices"
+                                className="text-xs font-medium text-[#0B1324] hover:text-rose-600"
                             >
-                                Quản lý tài khoản →
+                                {tr('common.details')}
                             </Link>
                         </div>
 
-                        <div className="space-y-2">
-                            {adminAccounts.map((acc) => (
-                                <div
-                                    key={acc.username}
-                                    className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3 text-xs"
-                                >
-                                    <div>
-                                        <div className="font-bold text-slate-900">
-                                            {acc.fullName}{' '}
-                                            <span className="font-mono font-normal text-slate-400">
-                                                ({acc.username})
-                                            </span>
-                                        </div>
-                                        <div className="text-[11px] text-slate-500 mt-0.5">
-                                            {ROLE_LABELS[acc.role]} • Đăng nhập cuối:{' '}
-                                            {acc.lastLogin || 'Chưa đăng nhập'}
-                                        </div>
-                                    </div>
-                                    <span
-                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${acc.status === 'ACTIVE'
-                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                            : 'bg-slate-200 text-slate-600'
-                                            }`}
-                                    >
-                                        {acc.status === 'ACTIVE' ? 'Hoạt động' : 'Đã khóa'}
-                                    </span>
-                                </div>
-                            ))}
+                        <div className="divide-y divide-slate-100 text-xs">
+                            <div className="py-2.5 flex items-center justify-between">
+                                <span className="text-slate-700">
+                                    {adminLang === 'en' ? 'In use on vehicles' : 'Đang sử dụng trên xe'}
+                                </span>
+                                <span className="font-semibold text-slate-900 tabular-nums">
+                                    {stats.inUseDevices}
+                                </span>
+                            </div>
+                            <div className="py-2.5 flex items-center justify-between">
+                                <span className="text-slate-700">
+                                    {adminLang === 'en' ? 'In stock' : 'Tồn kho sẵn sàng'}
+                                </span>
+                                <span className="font-semibold text-slate-900 tabular-nums">
+                                    {stats.inStockDevices}
+                                </span>
+                            </div>
+                            <div className="py-2.5 flex items-center justify-between">
+                                <span className="text-slate-700">
+                                    {adminLang === 'en' ? 'Fault / Warranty' : 'Lỗi / Đang bảo hành'}
+                                </span>
+                                <span className="font-semibold text-slate-900 tabular-nums">
+                                    {stats.issueDevices}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Nhật ký thao tác gần đây */}
-                <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between space-y-4">
-                    <div>
-                        <div className="flex items-center justify-between mb-3">
-                            <div>
-                                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                                    <History className="w-4 h-4 text-sky-600" />
-                                    <span>Hoạt động Quản trị Gần đây</span>
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    Đồng bộ thời gian thực từ khóa nhật ký hệ thống (sys_core_audit_logs)
-                                </p>
-                            </div>
-                            <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono text-[11px] font-bold">
-                                {recentLogs.length} bản ghi
-                            </span>
-                        </div>
-
-                        {recentLogs.length === 0 ? (
-                            <div className="p-8 text-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
-                                Chưa có bản ghi thao tác nào.
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {recentLogs.slice(0, 5).map((log) => (
-                                    <div
-                                        key={log.id}
-                                        className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 flex items-start justify-between gap-3 text-xs"
-                                    >
-                                        <div className="space-y-0.5">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-bold">
-                                                    {log.action || 'HỆ THỐNG'}
-                                                </span>
-                                                <span className="font-bold text-slate-800">
-                                                    {log.admin || 'Quản trị viên'}
-                                                </span>
-                                                {log.username && (
-                                                    <span className="font-mono text-[11px] text-slate-400">
-                                                        ({log.username})
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="text-slate-600">{log.details}</div>
-                                        </div>
-                                        <span className="font-mono text-[11px] text-slate-400 whitespace-nowrap shrink-0">
-                                            {formatAuditTime(log)}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span>{adminLang === 'en' ? 'Total devices' : 'Tổng thiết bị quản lý'}</span>
+                        <strong className="font-semibold text-slate-900 tabular-nums">
+                            {stats.totalDevices}
+                        </strong>
                     </div>
-                </div>
+                </section>
             </div>
 
-            {/* ================= MODAL THỐNG KÊ & ĐỐI SOÁT CHI TIẾT ================= */}
             {activeModal && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-                            <div>
-                                <h3 className="text-base font-bold text-slate-900">
-                                    {activeModal === 'TOTAL_TENANTS' &&
-                                        `Chi tiết Tổng số Doanh nghiệp (${stats.totalTenants} đơn vị)`}
-                                    {activeModal === 'NEW_TENANTS' &&
-                                        `Danh sách Doanh nghiệp mới trong 30 ngày (+${stats.newTenantsCount})`}
-                                    {activeModal === 'TOTAL_VEHICLES' &&
-                                        `Phân bổ Phương tiện Toàn nền tảng (${stats.totalVehicles}/${stats.totalVehicleQuota} xe)`}
-                                    {activeModal === 'MRR_REVENUE' &&
-                                        `Chi tiết Doanh thu Định kỳ Hàng tháng — MRR (${stats.mrr.toLocaleString('vi-VN')} ₫)`}
-                                    {activeModal === 'OVERDUE_DEBT' &&
-                                        `Chi tiết Công nợ Quá hạn (${stats.totalOverdueDebt.toLocaleString('vi-VN')} ₫)`}
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    Dữ liệu đối soát trực tiếp từ hệ thống quản trị DriveLinker
-                                </p>
-                            </div>
+                <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-[1px] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                            <h3 className="text-base font-bold text-slate-900">
+                                {tr('common.details')}
+                            </h3>
                             <button
                                 type="button"
                                 onClick={() => setActiveModal(null)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
+                                className="text-slate-400 hover:text-slate-700 cursor-pointer"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="p-6 overflow-y-auto space-y-3 text-xs">
-                            {(activeModal === 'TOTAL_TENANTS' ||
-                                activeModal === 'NEW_TENANTS' ||
-                                activeModal === 'TOTAL_VEHICLES' ||
-                                activeModal === 'MRR_REVENUE') && (
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500">
-                                                <th className="py-2.5 px-3">Doanh nghiệp</th>
-                                                <th className="py-2.5 px-3">Trạng thái</th>
-                                                <th className="py-2.5 px-3">Gói dịch vụ</th>
-                                                <th className="py-2.5 px-3">Phương tiện</th>
-                                                <th className="py-2.5 px-3 text-right">Phí gói / tháng</th>
+                        <div className="p-6 overflow-y-auto text-xs">
+                            {isDebtModal ? (
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                            <th className="py-2.5 px-3">{tr('admin.colTenant')}</th>
+                                            <th className="py-2.5 px-3">{tr('common.status')}</th>
+                                            <th className="py-2.5 px-3">{tr('admin.colTierPlan')}</th>
+                                            <th className="py-2.5 px-3 text-right">
+                                                {adminLang === 'en' ? 'Amount Due' : 'Số tiền cần thu'}
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {debtRows.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={4} className="py-8 text-center text-slate-500">
+                                                    {tr('common.noData')}
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {(activeModal === 'NEW_TENANTS'
-                                                ? stats.newTenantsList
-                                                : activeModal === 'MRR_REVENUE'
-                                                    ? stats.activeTenants
-                                                    : tenants
-                                            ).map((t) => {
-                                                const cars = vehicleCountMap[t.id] || 0;
-                                                return (
-                                                    <tr key={t.id} className="hover:bg-slate-50">
-                                                        <td className="py-3 px-3">
-                                                            <div className="font-bold text-slate-900">{t.name}</div>
-                                                            <div className="font-mono text-[11px] text-slate-400">
-                                                                {t.code} • Kích hoạt: {formatDateVN(t.activatedAt)}
-                                                            </div>
-                                                        </td>
-                                                        <td className="py-3 px-3">
-                                                            {t.status === 'ACTIVE' ? (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px]">
-                                                                    <CheckCircle2 className="w-3 h-3" /> ACTIVE
-                                                                </span>
-                                                            ) : t.status === 'TRIAL' ? (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 font-bold text-[10px]">
-                                                                    <Clock className="w-3 h-3" /> TRIAL
-                                                                </span>
-                                                            ) : (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold text-[10px]">
-                                                                    <Ban className="w-3 h-3" /> SUSPENDED
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        <td className="py-3 px-3 font-semibold text-slate-700">
-                                                            {PLAN_META[t.plan]?.label || t.plan}
-                                                        </td>
-                                                        <td className="py-3 px-3 font-mono font-bold text-slate-800">
-                                                            {cars} / {t.maxVehicles} xe
-                                                        </td>
-                                                        <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700">
-                                                            {(t.monthlyFee || 0).toLocaleString('vi-VN')} ₫
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                )}
-
-                            {activeModal === 'OVERDUE_DEBT' && (
-                                <>
-                                    {stats.overdueInvoices.length === 0 ? (
-                                        <div className="py-10 text-center text-slate-400">
-                                            Hiện không có công nợ quá hạn nào trên hệ thống.
-                                        </div>
-                                    ) : (
-                                        <table className="w-full text-left border-collapse">
-                                            <thead>
-                                                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500">
-                                                    <th className="py-2.5 px-3">Mã hóa đơn</th>
-                                                    <th className="py-2.5 px-3">Doanh nghiệp</th>
-                                                    <th className="py-2.5 px-3">Hạn thanh toán</th>
-                                                    <th className="py-2.5 px-3 text-right">Còn nợ quá hạn</th>
+                                        ) : (
+                                            debtRows.map((row) => (
+                                                <tr key={row.id}>
+                                                    <td className="py-3 px-3">
+                                                        <div className="font-semibold text-slate-900">{row.tenantName}</div>
+                                                        <div className="text-[11px] text-slate-400 tabular-nums">
+                                                            {row.tenantCode}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3 px-3 font-medium text-rose-600">
+                                                        {row.statusLabel}
+                                                    </td>
+                                                    <td className="py-3 px-3 text-slate-700">{row.planLabel}</td>
+                                                    <td className="py-3 px-3 text-right font-semibold text-rose-600 tabular-nums">
+                                                        {row.amount.toLocaleString('vi-VN')} ₫
+                                                    </td>
                                                 </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {stats.overdueInvoices.map((inv) => (
-                                                    <tr key={inv.id} className="hover:bg-rose-50/40">
-                                                        <td className="py-3 px-3 font-mono font-bold text-rose-700">
-                                                            {inv.invoiceCode}
+                                            ))
+                                        )}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold text-slate-900">
+                                            <td colSpan={3} className="py-3 px-3">
+                                                {adminLang === 'en'
+                                                    ? 'Total amount receivable'
+                                                    : 'Số tiền cần phải thu'}
+                                            </td>
+                                            <td className="py-3 px-3 text-right text-rose-600 tabular-nums">
+                                                {totalReceivableForDebtModal.toLocaleString('vi-VN')} ₫
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            ) : (
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                            <th className="py-2.5 px-3">{tr('admin.colTenant')}</th>
+                                            {isVehiclesOnlyModal ? (
+                                                <th className="py-2.5 px-3 text-right">
+                                                    {tr('fleet.kpiTotal')}
+                                                </th>
+                                            ) : (
+                                                <>
+                                                    <th className="py-2.5 px-3">{tr('common.status')}</th>
+                                                    <th className="py-2.5 px-3">{tr('admin.colTierPlan')}</th>
+                                                    {!isTenantsOnlyModal && (
+                                                        <th className="py-2.5 px-3 text-right">{revenueLabel}</th>
+                                                    )}
+                                                </>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {modalTenants.map((t) => {
+                                            const collectedForTenant =
+                                                collectedByTenantId[t.id] ?? (t.paidAmount || 0);
+                                            const lifecycle = getTenantLifecycle(t);
+                                            const vehicleCount = vehicleCountMap[t.id] || 0;
+
+                                            return (
+                                                <tr key={t.id}>
+                                                    <td className="py-3 px-3">
+                                                        <div className="font-semibold text-slate-900">{t.name}</div>
+                                                        <div className="text-[11px] text-slate-400 tabular-nums">
+                                                            {t.code} · {formatDateVN(t.expiresAt)}
+                                                        </div>
+                                                    </td>
+                                                    {isVehiclesOnlyModal ? (
+                                                        <td className="py-3 px-3 text-right font-semibold text-slate-900 tabular-nums">
+                                                            {vehicleCount} {adminLang === 'en' ? 'vehicles' : 'xe'}
                                                         </td>
-                                                        <td className="py-3 px-3 font-bold text-slate-900">
-                                                            {inv.tenantName} ({inv.tenantCode})
-                                                        </td>
-                                                        <td className="py-3 px-3 font-mono text-slate-600">
-                                                            {formatDateVN(inv.dueDate)}
-                                                        </td>
-                                                        <td className="py-3 px-3 text-right font-mono font-bold text-rose-600">
-                                                            {Math.max(0, inv.totalAmount - inv.paidAmount).toLocaleString(
-                                                                'vi-VN'
-                                                            )}{' '}
-                                                            ₫
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    )}
-                                </>
+                                                    ) : (
+                                                        <>
+                                                            <td className="py-3 px-3 font-medium text-slate-700">
+                                                                {lifecycle === 'SUSPENDED'
+                                                                    ? tr('admin.statusSuspended')
+                                                                    : lifecycle === 'PARTIAL_PAID'
+                                                                        ? tr('admin.statusPartial')
+                                                                        : lifecycle === 'EXPIRING_SOON'
+                                                                            ? tr('admin.statusExpiring')
+                                                                            : tr('admin.statusActive')}
+                                                            </td>
+                                                            <td className="py-3 px-3 text-slate-700">
+                                                                {getTierName(t.tier || 'PRO')} ·{' '}
+                                                                {t.plan === 'PKG_12M'
+                                                                    ? tr('admin.pkg12m')
+                                                                    : tr('admin.pkg6m')}
+                                                            </td>
+                                                            {!isTenantsOnlyModal && (
+                                                                <td className="py-3 px-3 text-right font-semibold text-slate-900 tabular-nums">
+                                                                    {collectedForTenant.toLocaleString('vi-VN')} ₫
+                                                                </td>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             )}
                         </div>
 
-                        <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-                            {onNavigateSection ? (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const targetTab =
-                                            activeModal === 'OVERDUE_DEBT' ? 'billing' : 'tenants';
-                                        setActiveModal(null);
-                                        onNavigateSection(targetTab);
-                                    }}
-                                    className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                                >
-                                    <Wallet className="w-3.5 h-3.5" />
-                                    <span>
-                                        {activeModal === 'OVERDUE_DEBT'
-                                            ? 'Mở trang Công nợ & Thu tiền'
-                                            : 'Mở trang Quản lý Doanh nghiệp'}
-                                    </span>
-                                </button>
-                            ) : (
-                                <span />
-                            )}
-
+                        <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 text-right">
                             <button
                                 type="button"
                                 onClick={() => setActiveModal(null)}
-                                className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                                className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
                             >
-                                Đóng
+                                {tr('common.close')}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
-        </div>
+        </main>
     );
 }

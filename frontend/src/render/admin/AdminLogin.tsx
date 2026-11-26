@@ -1,214 +1,249 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import {
-  Server,
-  Lock,
-  User,
+  Car,
   Eye,
   EyeOff,
   ArrowLeft,
-  AlertCircle,
-  ShieldCheck,
-  KeyRound
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 import { getAdminAccounts, saveAdminAccounts } from './adminAccounts';
-import type { AdminAccount, AdminRole } from './adminAccounts';
 import { recordAdminAction } from './adminAudit';
+import {
+  syncUnifiedPlatformData,
+  PLATFORM_SYNC_EVENT
+} from './AdminBillingManagement';
 
-const ROLE_LABELS: Record<AdminRole, string> = {
-  SUPER_ADMIN: 'Quản trị hệ thống',
-  SUPPORT_ADMIN: 'Hỗ trợ kỹ thuật',
-  BILLING_ADMIN: 'Quản lý thanh toán'
-};
-
-const formatLoginDateTime = (date: Date): string => {
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
-};
+// Danh sách ảnh ô tô cho thuê độ phân giải cao (tự động chuyển ảnh kế tiếp nếu lỗi mạng)
+const CAR_RENTAL_IMAGES = [
+  'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=1920&q=85',
+  'https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&w=1920&q=85',
+  'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1920&q=85'
+];
 
 export default function AdminLogin() {
+  const { language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
 
-  const [identifier, setIdentifier] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [bgIndex, setBgIndex] = useState(0);
 
-  const demoAccounts = useState<AdminAccount[]>(() => {
-    try {
-      return getAdminAccounts();
-    } catch {
-      return [];
-    }
-  })[0];
+  const usernameInputRef = useRef<HTMLInputElement>(null);
 
-  const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError('');
+  useEffect(() => {
+    setUsername('');
+    setPassword('');
+    usernameInputRef.current?.focus();
+  }, []);
 
-    const cleanInput = identifier.trim().toLowerCase();
-    if (!cleanInput || !password) {
-      setError('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const accounts = getAdminAccounts();
-      const matched = accounts.find(
-        (acc) =>
-          (acc.username.toLowerCase() === cleanInput ||
-            acc.email.toLowerCase() === cleanInput) &&
-          acc.password === password
-      );
-
-      if (!matched) {
-        setError('Tên đăng nhập hoặc mật khẩu quản trị không chính xác.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (matched.status === 'LOCKED') {
-        setError(
-          `Tài khoản "${matched.username}" hiện đang bị khóa. Vui lòng liên hệ Super Admin để mở khóa.`
-        );
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Cập nhật thời điểm đăng nhập cuối vào sys_demo_admin_accounts
-      const loginTime = formatLoginDateTime(new Date());
-      const updatedAccounts = accounts.map((acc) =>
-        acc.username === matched.username ? { ...acc, lastLogin: loginTime } : acc
-      );
-      saveAdminAccounts(updatedAccounts);
-
-      // Thiết lập đầy đủ 3 khóa sessionStorage đồng bộ với AdminTenantList & AdminAccountList
-      sessionStorage.setItem('sys_core_username', matched.username);
-      sessionStorage.setItem('sys_core_admin_name', matched.fullName);
-      sessionStorage.setItem('sys_core_role', matched.role);
-
-      // Ghi nhật ký đăng nhập vào sys_core_audit_logs thông qua adminAudit.ts
-      recordAdminAction(
-        'ĐĂNG NHẬP',
-        `Đăng nhập cổng quản trị nền tảng (${ROLE_LABELS[matched.role]})`,
-        { username: matched.username, fullName: matched.fullName }
-      );
-
-      navigate('/overview/admin');
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Không thể đọc dữ liệu tài khoản quản trị trên trình duyệt.'
-      );
-      setIsSubmitting(false);
-    }
+  const handleImageError = () => {
+    setBgIndex((prev) =>
+      prev + 1 < CAR_RENTAL_IMAGES.length ? prev + 1 : prev
+    );
   };
 
-  const handleQuickFill = (account: AdminAccount) => {
-    setIdentifier(account.username);
-    setPassword(account.password);
+  const handleKeyEvent = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    setCapsLockOn(e.getModifierState('CapsLock'));
+  };
+
+  // Đối chiếu tài khoản mẫu, từ chối tài khoản bị khóa, đồng bộ dữ liệu nền tảng và lưu thông tin phiên khi đăng nhập.
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading) return;
+
+    setIsLoading(true);
     setError('');
+
+    setTimeout(() => {
+      let accounts;
+      try {
+        accounts = getAdminAccounts();
+      } catch {
+        setError('Không thể đọc dữ liệu tài khoản trên trình duyệt.');
+        setIsLoading(false);
+        return;
+      }
+
+      const account = accounts.find(
+        (item) =>
+          item.username.toLowerCase() === username.trim().toLowerCase() &&
+          item.password === password
+      );
+
+      if (account?.status === 'LOCKED') {
+        setError(
+          language === 'vi'
+            ? 'Tài khoản đã bị khóa.'
+            : 'This account is locked.'
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      if (account) {
+        try {
+          syncUnifiedPlatformData();
+          window.dispatchEvent(new CustomEvent(PLATFORM_SYNC_EVENT));
+          saveAdminAccounts(
+            accounts.map((item) =>
+              item.username === account.username
+                ? { ...item, lastLogin: new Date().toLocaleString('vi-VN') }
+                : item
+            )
+          );
+        } catch {
+          setError('Không thể lưu dữ liệu tài khoản hoặc đồng bộ hệ thống trên trình duyệt.');
+          setIsLoading(false);
+          return;
+        }
+
+        sessionStorage.setItem('sys_core_role', account.role);
+        sessionStorage.setItem('sys_core_admin_name', account.fullName);
+        sessionStorage.setItem('sys_core_username', account.username);
+        recordAdminAction('ĐĂNG NHẬP', 'Đăng nhập hệ thống quản trị', account);
+        navigate('/overview/admin');
+      } else {
+        setError(
+          language === 'vi'
+            ? 'Tài khoản hoặc mật khẩu không chính xác.'
+            : 'Invalid administrator username or password.'
+        );
+        setIsLoading(false);
+      }
+    }, 350);
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-md">
-        <Link
-          to="/login"
-          className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Quay lại trang đăng nhập Doanh nghiệp</span>
-        </Link>
+    <div className="min-h-screen w-full relative flex flex-col justify-between bg-[#0B1324] font-sans overflow-x-hidden selection:bg-sky-600 selection:text-white">
+      {/* 1. ẢNH NỀN XE Ô TÔ TRÀN TOÀN MÀN HÌNH */}
+      <div className="fixed inset-0 z-0">
+        <img
+          src={CAR_RENTAL_IMAGES[bgIndex]}
+          onError={handleImageError}
+          alt="DriveLinker Car Rental Platform"
+          className="w-full h-full object-cover object-center"
+        />
+        {/* Lớp phủ tối cân đối toàn khung hình */}
+        <div className="absolute inset-0 bg-[#0B1324]/50" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0B1324]/80 via-transparent to-[#0B1324]/50" />
+      </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          {/* Header */}
-          <div className="px-6 pt-7 pb-5 border-b border-slate-100 bg-slate-50/70 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto mb-3">
-              <Server className="w-6 h-6" />
+      {/* 2. THANH HEADER TRONG SUỐT */}
+      <header className="relative z-10 w-full px-6 sm:px-10 lg:px-16 py-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shrink-0">
+            <Car className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-lg tracking-tight text-white leading-none">
+                DRIVELINKER
+              </span>
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/15 text-slate-200 border border-white/15 backdrop-blur-sm leading-none">
+                Admin
+              </span>
             </div>
-            <div className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-rose-600 mb-1">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>SYSTEM CORE GOVERNANCE</span>
-            </div>
-            <h1 className="text-xl font-bold text-slate-900">
-              DriveLinker Admin Login
+            <p className="text-[11px] text-slate-300 font-medium mt-1 leading-none">
+              Drive Safe - Arrive Alive
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={toggleLanguage}
+          className="text-xs font-medium text-white/90 hover:text-white px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 backdrop-blur-md transition-colors cursor-pointer"
+        >
+          {language === 'vi' ? 'EN' : 'VI'}
+        </button>
+      </header>
+
+      {/* 3. KHUNG XÁC THỰC ĐĂNG NHẬP CĂN CHÍNH GIỮA MÀN HÌNH */}
+      <main className="relative z-10 flex-1 flex items-center justify-center px-6 py-6">
+        <div className="w-full max-w-[400px] bg-white/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/40 p-7 sm:p-8 text-slate-900">
+          <div className="mb-6 text-center">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              {language === 'vi' ? 'Xác thực System Admin' : 'System Admin Login'}
             </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Đăng nhập cổng quản trị nền tảng, doanh nghiệp và đối soát công nợ.
+            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+              {language === 'vi'
+                ? 'Dành cho quản trị viên vận hành hệ thống và quản lý các đơn vị cho thuê xe.'
+                : 'For system operators managing platform operations and rental partners.'}
             </p>
           </div>
 
-          {/* Form đăng nhập */}
-          <form onSubmit={handleLogin} className="p-6 space-y-4">
-            {error && (
-              <div
-                role="alert"
-                className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-start gap-2"
-              >
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{error}</span>
-              </div>
-            )}
+          {error && (
+            <div className="mb-4 px-3.5 py-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{error}</span>
+            </div>
+          )}
 
+          <form onSubmit={handleLogin} className="space-y-4" autoComplete="off">
             <div>
               <label
-                htmlFor="admin-identifier"
-                className="block text-xs font-bold text-slate-700 mb-1.5"
+                htmlFor="admin-username"
+                className="block text-xs font-medium text-slate-700 mb-1.5"
               >
-                Tài khoản hoặc Email quản trị
+                {language === 'vi' ? 'Tên đăng nhập' : 'Username'}
               </label>
-              <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  id="admin-identifier"
-                  type="text"
-                  autoComplete="username"
-                  value={identifier}
-                  onChange={(e) => {
-                    setIdentifier(e.target.value);
-                    if (error) setError('');
-                  }}
-                  placeholder="VD: adminlong hoặc billing.minh"
-                  className="w-full h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 bg-white text-sm text-slate-800 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
-                />
-              </div>
+              <input
+                ref={usernameInputRef}
+                id="admin-username"
+                type="text"
+                required
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value.toUpperCase());
+                  if (error) setError('');
+                }}
+                placeholder={
+                  language === 'vi' ? 'Nhập mã quản trị viên' : 'Enter admin ID'
+                }
+                className="w-full h-10 px-3.5 bg-white border border-slate-300 rounded-lg text-sm font-mono uppercase text-slate-900 placeholder:font-sans placeholder:normal-case placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-colors"
+              />
             </div>
 
             <div>
-              <label
-                htmlFor="admin-password"
-                className="block text-xs font-bold text-slate-700 mb-1.5"
-              >
-                Mật khẩu truy cập
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor="admin-password"
+                  className="block text-xs font-medium text-slate-700"
+                >
+                  {language === 'vi' ? 'Mật khẩu' : 'Password'}
+                </label>
+                {capsLockOn && (
+                  <span className="text-[11px] font-medium text-amber-600">
+                    Caps Lock
+                  </span>
+                )}
+              </div>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   id="admin-password"
                   type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
+                  required
                   value={password}
+                  onKeyUp={handleKeyEvent}
                   onChange={(e) => {
                     setPassword(e.target.value);
                     if (error) setError('');
                   }}
                   placeholder="••••••••"
-                  className="w-full h-11 pl-10 pr-10 rounded-xl border border-slate-300 bg-white text-sm text-slate-800 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
+                  className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-lg text-sm font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
-                  aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  aria-label="Toggle password visibility"
                 >
                   {showPassword ? (
                     <EyeOff className="w-4 h-4" />
@@ -221,52 +256,48 @@ export default function AdminLogin() {
 
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="w-full h-11 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-sm font-bold shadow-sm transition-colors cursor-pointer"
+              disabled={isLoading}
+              className="w-full h-10 mt-2 bg-[#0B1324] hover:bg-slate-800 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
             >
-              {isSubmitting ? 'Đang xác thực...' : 'Đăng nhập hệ thống quản trị'}
+              {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>
+                {isLoading
+                  ? language === 'vi'
+                    ? 'Đang xác thực...'
+                    : 'Signing in...'
+                  : language === 'vi'
+                    ? 'Đăng nhập'
+                    : 'Sign in'}
+              </span>
             </button>
           </form>
 
-          {/* Danh sách tài khoản mẫu đồng bộ từ adminAccounts.ts */}
-          {demoAccounts.length > 0 && (
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 space-y-2.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                <KeyRound className="w-3.5 h-3.5 text-rose-500" />
-                <span>Tài khoản quản trị (nhấp để điền nhanh)</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {demoAccounts.map((acc) => (
-                  <button
-                    key={acc.username}
-                    type="button"
-                    onClick={() => handleQuickFill(acc)}
-                    className="p-2.5 rounded-xl bg-white hover:bg-rose-50/60 border border-slate-200 hover:border-rose-200 text-left transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-xs font-bold text-slate-800 truncate">
-                        {acc.username}
-                      </span>
-                      <span
-                        className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${acc.status === 'LOCKED'
-                            ? 'bg-rose-100 text-rose-700'
-                            : 'bg-emerald-50 text-emerald-700'
-                          }`}
-                      >
-                        {acc.status === 'LOCKED' ? 'LOCKED' : acc.role.replace('_ADMIN', '')}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-slate-500 truncate mt-0.5">
-                      {acc.fullName}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="mt-5 pt-4 border-t border-slate-200/80 text-center">
+            <Link
+              to="/portal/login"
+              className="inline-flex items-center justify-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>
+                {language === 'vi'
+                  ? 'Đăng nhập cổng doanh nghiệp'
+                  : 'Enterprise portal login'}
+              </span>
+            </Link>
+          </div>
         </div>
-      </div>
+      </main>
+
+      {/* 4. FOOTER */}
+      <footer className="relative z-10 px-6 sm:px-10 lg:px-16 py-4 flex items-center justify-between text-xs text-slate-300/80">
+        <span>© 2026 DriveLinker</span>
+        <span className="hidden md:inline text-slate-300/70">
+          {language === 'vi'
+            ? 'Nền tảng quản lý điều hành và cho thuê xe ô tô'
+            : 'Car rental operations and fleet management platform'}
+        </span>
+        <span className="font-mono">v2.6</span>
+      </footer>
     </div>
   );
 }

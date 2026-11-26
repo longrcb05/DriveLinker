@@ -3,8 +3,9 @@ import type { FormEvent } from 'react';
 import { getAdminAccounts, saveAdminAccounts } from './adminAccounts';
 import { recordAdminAction } from './adminAudit';
 import type { AdminAccount, AdminRole } from './adminAccounts';
-import { ArrowLeft, Search, ShieldCheck, Users } from 'lucide-react';
+import { ArrowLeft, Search, ShieldCheck, Users, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useLanguage } from '../../context/LanguageContext';
 
 const roleNames: Record<AdminRole, string> = {
   SUPER_ADMIN: 'Quản trị hệ thống',
@@ -13,6 +14,7 @@ const roleNames: Record<AdminRole, string> = {
 };
 
 export default function AdminAccountList() {
+  const { language, toggleLanguage } = useLanguage();
   const [accounts, setAccounts] = useState<AdminAccount[]>(() => {
     try { return getAdminAccounts(); } catch { return []; }
   });
@@ -61,7 +63,7 @@ export default function AdminAccountList() {
     if (accounts.some((item) => item.username.toLowerCase() === username || item.email.toLowerCase() === form.email.trim().toLowerCase())) { setError('Username hoặc email đã tồn tại.'); return; }
     const account: AdminAccount = { ...form, username, fullName: form.fullName.trim(), email: form.email.trim(), phone: form.phone.trim(), status: 'ACTIVE', lastLogin: null };
     if (commit([...accounts, account], 'Đã thêm tài khoản ' + username + '.')) {
-      recordAdminAction('THÊM MỚI', `Tạo tài khoản ${username} (${form.role})`);
+      recordAdminAction('THÊM MỚI', `Tạo tài khoản ${username} • ${form.role}`);
       setForm({ fullName: '', username: '', email: '', phone: '', role: 'SUPPORT_ADMIN', password: '' });
       setShowAdd(false);
     }
@@ -101,7 +103,18 @@ export default function AdminAccountList() {
             <h1 className="flex items-center gap-3 text-2xl font-bold text-slate-900 sm:text-3xl"><Users className="h-7 w-7 text-rose-600" aria-hidden="true" /> Tài khoản Admin</h1>
             <p className="mt-2 text-sm text-slate-600">Danh sách tài khoản quản trị hệ thống và thông tin truy cập.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3"><button type="button" onClick={() => { setShowAdd(!showAdd); setPasswordTarget(null); setError(''); setNotice(''); }} className="min-h-11 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600">{showAdd ? 'Đóng biểu mẫu' : 'Thêm tài khoản'}</button></div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              className="min-h-11 inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+              title={language === 'vi' ? 'Chuyển sang Tiếng Anh' : 'Switch to Vietnamese'}
+            >
+              <Globe className="h-4 w-4 text-rose-600" />
+              <span>{language === 'vi' ? 'VI' : 'EN'}</span>
+            </button>
+            <button type="button" onClick={() => { setShowAdd(!showAdd); setPasswordTarget(null); setError(''); setNotice(''); }} className="min-h-11 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 cursor-pointer">{showAdd ? 'Đóng biểu mẫu' : 'Thêm tài khoản'}</button>
+          </div>
         </div>
         {error && <p role="alert" className="mt-5 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
         {notice && <p role="status" className="mt-5 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
@@ -113,12 +126,12 @@ export default function AdminAccountList() {
             <label className="text-sm font-semibold">Email<input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={`${controlClass} mt-1`} /></label>
             <label className="text-sm font-semibold">Số điện thoại<input required type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className={`${controlClass} mt-1`} /></label>
             <label className="text-sm font-semibold">Vai trò<select value={form.role} onChange={e => setForm({ ...form, role: e.target.value as AdminRole })} className={`${controlClass} mt-1`}><option value="SUPER_ADMIN">Super Admin</option><option value="SUPPORT_ADMIN">Support Admin</option><option value="BILLING_ADMIN">Billing Admin</option></select></label>
-            <label className="text-sm font-semibold">Mật khẩu (ít nhất 6 ký tự)<input required type="password" minLength={6} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className={`${controlClass} mt-1`} autoComplete="new-password" /></label>
+            <label className="text-sm font-semibold">Mật khẩu · Tối thiểu 6 ký tự<input required type="password" minLength={6} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className={`${controlClass} mt-1`} autoComplete="new-password" /></label>
           </div><div className="mt-5 flex gap-3"><button type="submit" className="min-h-11 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700">Lưu tài khoản</button><button type="button" onClick={() => { setShowAdd(false); setError(''); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">Hủy</button></div>
         </form>}
         {passwordTarget && <form onSubmit={changePassword} className="mt-6 rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
           <h2 className="text-lg font-bold">Đổi mật khẩu: {passwordTarget}</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold">Mật khẩu mới (ít nhất 6 ký tự)<input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" className={`${controlClass} mt-1`} /></label><label className="text-sm font-semibold">Xác nhận mật khẩu<input type="password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" className={`${controlClass} mt-1`} /></label></div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold">Mật khẩu mới · Tối thiểu 6 ký tự<input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" className={`${controlClass} mt-1`} /></label><label className="text-sm font-semibold">Xác nhận mật khẩu<input type="password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" className={`${controlClass} mt-1`} /></label></div>
           <div className="mt-5 flex gap-3"><button type="submit" className="min-h-11 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700">Lưu mật khẩu</button><button type="button" onClick={() => { setPasswordTarget(null); setNewPassword(''); setConfirmPassword(''); setError(''); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">Hủy</button></div>
         </form>}
         <div className="mt-7 rounded-xl border border-slate-200 bg-white">

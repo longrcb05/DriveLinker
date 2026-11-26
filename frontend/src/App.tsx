@@ -14,6 +14,7 @@ import FleetManagement from './render/FleetManagement';
 import AdminLogin from './render/admin/AdminLogin';
 import AdminTenantList from './render/admin/AdminTenantList';
 import AdminAccountList from './render/admin/AdminAccountList';
+import AdminDevices from './render/admin/AdminDevices';
 import { LanguageProvider } from './context/LanguageContext';
 
 // Middleware bảo vệ Core Admin - SỬ DỤNG SESSION_STORAGE ĐỂ BẢO MẬT TỐI ĐA
@@ -42,6 +43,7 @@ export default function App() {
               ========================================================= */}
           <Route path="/overview/admin/login" element={<AdminLogin />} />
           <Route path="/overview/admin/accounts" element={<RequireAdminAuth><AdminAccountList /></RequireAdminAuth>} />
+          <Route path="/overview/admin/devices" element={<RequireAdminAuth><AdminDevices /></RequireAdminAuth>} />
           <Route
             path="/overview/admin"
             element={
