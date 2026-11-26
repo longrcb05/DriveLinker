@@ -46,6 +46,16 @@ const RAW_EVENTS = [
 
 export default function Analytics() {
   const { language, t } = useLanguage();
+  // Trang dùng dữ liệu mẫu; lưu các dữ liệu đã xử lý theo doanh nghiệp trên trình duyệt.
+  const resolutionKey = `analytics_resolved_events:${localStorage.getItem('tenantId') || 'default'}`;
+  const [resolvedEvents, setResolvedEvents] = useState<string[]>(() => {
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(resolutionKey) || '[]');
+      return Array.isArray(saved) ? saved.filter((item): item is string => typeof item === 'string') : [];
+    } catch { return []; }
+  });
+  const [pendingEvent, setPendingEvent] = useState<(typeof RAW_EVENTS)[number] | null>(null);
+  const [resolutionError, setResolutionError] = useState('');
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [isExporting, setIsExporting] = useState(false);
   // Các bộ lọc dùng chung cho bảng, thống kê, biểu đồ và dữ liệu xuất CSV.
@@ -69,13 +79,29 @@ export default function Analytics() {
    * Kết hợp ngày, biển số, loại cảnh báo và trạng thái; ALL nghĩa là không lọc.
    */
   const filteredEvents = useMemo(() => {
-    return RAW_EVENTS.filter(e =>
+    // Ghép trạng thái đã lưu trước khi lọc để bảng, thống kê và CSV dùng cùng kết quả.
+    return RAW_EVENTS.map(e => resolvedEvents.includes(`${e.date}:${e.id}`) ? { ...e, status: 'RESOLVED' } : e).filter(e =>
       (!selectedDate || e.date === selectedDate) &&
-      (!plateSearch.trim() || matchesPlate(e.vehicle, plateSearch)) &&
-      (typeFilter === 'ALL' || e.type === typeFilter) &&
-      (statusFilter === 'ALL' || e.status === statusFilter)
+      (!plateSearch.trim() || matchesPlate(e.vehicle, plateSearch)) && // tìm biển số
+      (typeFilter === 'ALL' || e.type === typeFilter) && //lọc loại cảnh báo
+      (statusFilter === 'ALL' || e.status === statusFilter) // lọc trạng thái xử lý
     );
-  }, [selectedDate, plateSearch, typeFilter, statusFilter]);
+  }, [selectedDate, plateSearch, typeFilter, statusFilter, resolvedEvents]);
+
+  // Chỉ lưu khi người dùng chọn OK; hộp thoại này không gửi thông báo tới tài xế.
+  const confirmResolution = () => {
+    if (!pendingEvent) return;
+    const key = `${pendingEvent.date}:${pendingEvent.id}`;
+    const next = resolvedEvents.includes(key) ? resolvedEvents : [...resolvedEvents, key];
+    try {
+      localStorage.setItem(resolutionKey, JSON.stringify(next));
+      setResolvedEvents(next);
+      setResolutionError('');
+      setPendingEvent(null);
+    } catch {
+      setResolutionError(language === 'vi' ? 'Không thể lưu trạng thái. Vui lòng thử lại.' : 'Could not save the status. Please try again.');
+    }
+  };
 
   /**
    * Thống kê KPI tổng quan
@@ -488,7 +514,7 @@ export default function Analytics() {
 
               {/* TRƯỜNG HỢP 2: BIỂU ĐỒ CỘT (BAR CHART) */}
               {chartMode === 'bar' && (
-                <>
+                <>{/* Các cột dữ liệu theo khung giờ */}
                   {chartPoints.map((pt, idx) => {
                     const barHeight = (pt.count / chartMax) * 155;
                     const barY = 175 - barHeight;
@@ -687,11 +713,9 @@ export default function Analytics() {
                         {e.severity}
                       </span>
                     </td>
+                    {/* chức năng " Chưa xử lý " */}
                     <td className="p-4 text-center">
-                      <span className={`inline-flex px-2 py-1 text-[10px] font-bold rounded-full ${e.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700 animate-pulse'
-                        }`}>
-                        {e.status === 'RESOLVED' ? t('analytics.resolved') : t('analytics.unresolved')}
-                      </span>
+                      {e.status === 'RESOLVED' ? <span className="inline-flex px-2 py-1 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-700">{t('analytics.resolved')}</span> : <button type="button" onClick={() => { setResolutionError(''); setPendingEvent(e); }} aria-label={`${t('analytics.unresolved')}: ${e.id}`} className="inline-flex px-2 py-1 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600">{t('analytics.unresolved')}</button>}
                     </td>
                   </tr>
                 ))}
@@ -711,6 +735,14 @@ export default function Analytics() {
           </div>
         </div>
       </div>
+      {/* Hộp xác nhận xử lý */}
+      {pendingEvent && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onKeyDown={event => { if (event.key === 'Escape') { setPendingEvent(null); setResolutionError(''); } }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="resolution-title" className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+          <h3 id="resolution-title" className="text-lg font-semibold text-slate-900">Đã xử lý &amp; nhắc nhở tài xế</h3>
+          {resolutionError && <p role="alert" className="mt-3 text-sm text-red-700">{resolutionError}</p>}
+          <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => { setPendingEvent(null); setResolutionError(''); }} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button><button type="button" onClick={confirmResolution} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">OK</button></div>
+        </section>
+      </div>}
     </div>
   );
 }

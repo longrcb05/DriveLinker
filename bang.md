@@ -102,3 +102,59 @@ Các mục dưới đây được đối chiếu với mã nguồn và Git tại
 
 - **Camera & Định vị:** Xếp hai nút **Chi tiết** và **Liên kết** theo chiều dọc trong cột thao tác.
 - **Giao diện Admin:** Điều chỉnh thanh menu sang màu xám rất nhạt `#F3F4F6` và nền nội dung sang màu xám gần trắng `#F9FAFB`; giữ chữ tối và nền đỏ nhạt cho mục menu đang chọn.
+- **Lịch sử thao tác hệ thống:** Bảng chính chỉ hiển thị đăng nhập và đăng xuất. Nút biểu tượng mở rộng chỉ xuất hiện ở dòng đăng xuất và cho phép xem các thao tác đã ghi của tài khoản.
+- **Quản lý tài khoản:** Không cho khóa Super Admin đang hoạt động và ẩn nút khóa ở các tài khoản này; vẫn cho phép mở khóa Super Admin đã bị khóa từ trước.
+- **Phân tích:** Nhấn vào trạng thái **Chưa xử lý** để mở hộp xác nhận “Đã xử lý & nhắc nhở tài xế”; chọn **OK** để chuyển thành **Đã xử lý**, hoặc **Cancel** để giữ nguyên. Trạng thái dữ liệu mẫu được lưu theo doanh nghiệp trên trình duyệt; chưa gửi nhắc nhở thực tế.
+- **Kiểm tra:** Build frontend thành công sau các cập nhật trên; chưa kiểm thử trực quan đầy đủ từng thao tác.
+
+Các chức năng Frontend cần kết nối Backend
+1. Quản lý đội xe
+- Hiển thị danh sách xe.
+- Tìm xe theo biển số, không phân biệt chữ hoa/thường và không phụ thuộc dấu phân cách. Ví dụ: 43A11222 tìm được 43A-112.22.
+- Lọc xe theo trạng thái.
+- Khi thêm hoặc sửa xe, số điện thoại tài xế là không bắt buộc; nếu nhập thì phải gồm 10 chữ số và bắt đầu bằng 0.
+- Dữ liệu xe cần được phân biệt theo từng doanh nghiệp.
+Backend cần: API danh sách và bộ lọc xe; kiểm tra số điện thoại ở server; hỗ trợ các thao tác thêm, sửa, xóa và đổi trạng thái xe theo quyền.
+2. Theo dõi & AI
+- Tìm xe theo biển số, không phụ thuộc dấu phân cách.
+- Hiển thị danh sách và thông tin phương tiện trong trang theo dõi.
+Backend cần: cung cấp danh sách xe và dữ liệu theo dõi thuộc đúng doanh nghiệp; hỗ trợ tìm kiếm biển số nếu việc lọc được thực hiện ở server.
+3. Phân tích và cảnh báo
+- Lọc sự kiện theo ngày, biển số, loại cảnh báo và trạng thái xử lý.
+- Bảng, thống kê và biểu đồ sử dụng dữ liệu sau khi lọc.
+- Biểu đồ cột chia theo các khoảng 3 giờ; thang và khoảng có nhiều sự kiện nhất thay đổi theo dữ liệu.
+- Xuất dữ liệu đã lọc thành CSV.
+- Nhấn vào Chưa xử lý sẽ hiện xác nhận:
+  - OK: chuyển thành Đã xử lý.
+  - Cancel: giữ nguyên Chưa xử lý.
+Backend cần: trả danh sách sự kiện, dữ liệu thống kê/biểu đồ theo bộ lọc và lưu trạng thái xử lý, người xử lý, thời gian xử lý. Cần kiểm tra cảnh báo thuộc đúng doanh nghiệp.
+4. Quản lý tài khoản admin
+- Đăng nhập admin; từ chối tài khoản đã khóa.
+- Xem danh sách tài khoản; tìm theo tên, username, email hoặc số điện thoại.
+- Lọc theo vai trò và trạng thái.
+- Thêm tài khoản admin.
+- Đổi mật khẩu của tài khoản đang đăng nhập, có kiểm tra mật khẩu hiện tại.
+- Khóa/mở khóa tài khoản theo quyền.
+- Super Admin đang hoạt động không thể bị khóa; không hiển thị nút khóa cho các tài khoản này.
+Backend cần: API đăng nhập, danh sách/tìm kiếm/lọc, thêm tài khoản, đổi mật khẩu và khóa/mở khóa. Các quy tắc phân quyền cần được kiểm tra ở backend; mật khẩu cần được lưu dưới dạng hash.
+5. Nhật ký thao tác hệ thống
+- Ghi nhận tài khoản thực hiện, thời gian, hành động và nội dung.
+- Lọc theo admin, ngày và loại hoạt động.
+- Bảng chính chỉ hiển thị các lần đăng nhập và đăng xuất.
+- Tại dòng đăng xuất, mở rộng để xem các thao tác đã được ghi của tài khoản đó.
+Backend cần: ghi nhật ký tại server và cung cấp API đọc/lọc nhật ký cùng dữ liệu chi tiết theo tài khoản. Cần phân biệt nhật ký admin hệ thống với nhật ký thuộc từng doanh nghiệp.
+6. Camera & Định vị
+- Quản lý hai loại thiết bị: Camera và DL GPS.
+- Xem danh sách và thống kê thiết bị.
+- Tìm theo IMEI, Serial Number hoặc biển số.
+- Lọc theo loại thiết bị, trạng thái và doanh nghiệp.
+- Thêm thiết bị; IMEI phải gồm đúng 15 chữ số, không trùng IMEI hoặc Serial Number.
+- Cập nhật trạng thái: Tồn kho, Đang lắp đặt, Đang sử dụng, Lỗi, Bảo hành.
+- Thẻ thống kê vẫn gộp Lỗi/Bảo hành; dữ liệu cũ chưa phân loại được giữ riêng.
+- Xem chi tiết, liên kết/tháo liên kết với doanh nghiệp và phương tiện; xem lịch sử thay đổi thiết bị.
+Backend cần: API quản lý kho thiết bị, kiểm tra dữ liệu và trùng lặp, liên kết với doanh nghiệp/xe, lưu và trả lịch sử thay đổi. Cần thống nhất cách lưu thiết bị chưa liên kết doanh nghiệp.
+7. Tổng quan và quản lý doanh nghiệp
+- Hiển thị danh sách và số lượng doanh nghiệp.
+- Thêm doanh nghiệp, xem chi tiết và truy cập vào hệ thống doanh nghiệp.
+- Ghi nhận thao tác admin khi truy cập và thoát chế độ truy cập.
+Backend cần: API danh sách, tạo và xem chi tiết doanh nghiệp; cơ chế truy cập theo quyền admin và ghi nhật ký các thao tác liên quan.

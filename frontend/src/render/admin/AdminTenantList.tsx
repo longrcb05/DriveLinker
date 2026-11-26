@@ -246,9 +246,14 @@ export default function AdminTenantList() {
   const [auditDay, setAuditDay] = useState('');
   const [auditAction, setAuditAction] = useState('');
   const adminKey = (log: AdminAuditLog) => log.username ? `user:${log.username}` : `name:${log.admin || 'Không rõ'}`;
-  const adminOptions = Array.from(new Map(auditLogs.map(log => [adminKey(log), log.username ? `${log.admin || 'Không rõ'} (${log.username})` : log.admin || 'Không rõ'])).entries());
-  const actionOptions = Array.from(new Set(auditLogs.map(log => log.action).filter((action): action is string => Boolean(action)))).sort();
-  const filteredAuditLogs = auditLogs.filter(log => (!auditAdmin || adminKey(log) === auditAdmin) && (!auditDay || auditDate(log) === auditDay) && (!auditAction || log.action === auditAction));
+  // Bảng chính chỉ hiện đăng nhập và đăng xuất; các thao tác khác vẫn nằm trong nhật ký.
+  const sessionLogs = auditLogs.filter(log => log.action === 'ĐĂNG NHẬP' || log.action === 'ĐĂNG XUẤT');
+  // Bộ lọc admin, ngày tháng năm, loại hoạt động
+  const adminOptions = Array.from(new Map(sessionLogs.map(log => [adminKey(log), log.username ? `${log.admin || 'Không rõ'} (${log.username})` : log.admin || 'Không rõ'])).entries());
+  const actionOptions = Array.from(new Set(sessionLogs.map(log => log.action).filter((action): action is string => Boolean(action)))).sort();
+  const filteredAuditLogs = sessionLogs.filter(log => (!auditAdmin || adminKey(log) === auditAdmin) && (!auditDay || auditDate(log) === auditDay) && (!auditAction || log.action === auditAction));
+  // Phần mở rộng lấy toàn bộ lịch sử đã ghi của tài khoản, không bị giới hạn bởi bộ lọc bảng.
+  const accountActivity = (log: AdminAuditLog) => auditLogs.filter(item => log.username && item.username ? item.username === log.username : Boolean(log.admin && item.admin === log.admin));
 
   // Bộ lọc & Tìm kiếm
   const [searchQuery, setSearchQuery] = useState('');
@@ -503,6 +508,7 @@ export default function AdminTenantList() {
     }));
   };
 
+  // Kiểm tra dữ liệu biểu mẫu trước khi thêm hoặc cập nhật doanh nghiệp và ghi nhật ký.
   const handleSaveTenant = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = formValues.name.trim();
@@ -852,7 +858,7 @@ export default function AdminTenantList() {
             >
               <History className="w-4 h-4" /> Lịch sử
               <span className="px-1.5 py-0.2 rounded bg-slate-100 text-[11px] font-mono text-slate-600">
-                {auditLogs.length}
+                {sessionLogs.length}
               </span>
             </button>
 
@@ -1872,7 +1878,7 @@ export default function AdminTenantList() {
                 <tbody className="divide-y divide-slate-100">
                   {filteredAuditLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-10 text-center text-slate-500">{auditLogs.length ? 'Không có bản ghi phù hợp với bộ lọc.' : 'Chưa có bản ghi nhật ký nào.'}</td>
+                      <td colSpan={4} className="px-6 py-10 text-center text-slate-500">{sessionLogs.length ? 'Không có bản ghi phù hợp với bộ lọc.' : 'Chưa có bản ghi đăng nhập hoặc đăng xuất.'}</td>
                     </tr>
                   ) : (
                     filteredAuditLogs.map((log) => (
@@ -1899,10 +1905,11 @@ export default function AdminTenantList() {
                           >
                             {log.action}
                           </span>
+                          // Chức năng chi tiết ( chỉ hiện thị ở dòng đăng xuất )
                         </td>
-                        <td className="px-6 py-3 text-sm text-slate-600"><div className="flex items-center gap-2"><span>{log.details || 'Không có chi tiết'}</span><button type="button" onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)} aria-expanded={expandedLog === log.id} aria-label={`${expandedLog === log.id ? 'Ẩn' : 'Xem'} lịch sử của ${log.admin || 'tài khoản'}`} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-lg font-bold text-slate-700 hover:bg-slate-100">{expandedLog === log.id ? '−' : '+'}</button></div></td>
+                        <td className="px-6 py-3 text-sm text-slate-600"><div className="flex items-center gap-2"><span>{log.details || 'Không có chi tiết'}</span>{log.action === 'ĐĂNG XUẤT' && <button type="button" onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)} aria-expanded={expandedLog === log.id} aria-label={`${expandedLog === log.id ? 'Ẩn' : 'Xem'} lịch sử của ${log.admin || 'tài khoản'}`} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 text-emerald-500 hover:bg-sky-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"><Info className="h-4 w-4" aria-hidden="true" /></button>}</div></td>
                       </tr>
-                      {expandedLog === log.id && <tr><td colSpan={4} className="bg-slate-50 px-6 py-4"><h3 className="mb-3 text-sm font-bold text-slate-800">Hoạt động của {log.admin || 'tài khoản không rõ'}{log.username ? ` (${log.username})` : ''}</h3><ul className="space-y-2">{filteredAuditLogs.filter((item) => log.username && item.username ? item.username === log.username : Boolean(log.admin && item.admin === log.admin)).map((item) => <li key={item.id} className="text-sm text-slate-700"><span className="text-slate-500">{formatAuditTime(item)}</span> · <strong>{item.action || 'Không rõ'}</strong> · {item.details || 'Không có chi tiết'}</li>)}</ul></td></tr>}
+                      {log.action === 'ĐĂNG XUẤT' && expandedLog === log.id && <tr><td colSpan={4} className="bg-slate-50 px-6 py-4"><h3 className="mb-3 text-sm font-bold text-slate-800">Hoạt động của {log.admin || 'tài khoản không rõ'}{log.username ? ` (${log.username})` : ''}</h3><ul className="space-y-2">{accountActivity(log).map((item) => <li key={item.id} className="text-sm text-slate-700"><span className="text-slate-500">{formatAuditTime(item)}</span> · <strong>{item.action || 'Không rõ'}</strong> · {item.details || 'Không có chi tiết'}</li>)}</ul></td></tr>}
                       </React.Fragment>
                     ))
                   )}

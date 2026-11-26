@@ -114,7 +114,7 @@ export default function FleetManagement() {
     return counts;
   }, [vehicles]);
 
-  // Bộ lọc dữ liệu
+  // Kết hợp trạng thái với tìm kiếm biển số( lọc ds xe theo biển số); matchesPlate bỏ qua dấu phân cách.
   const filteredVehicles = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
     return vehicles.filter(v => {
@@ -440,7 +440,7 @@ export default function FleetManagement() {
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-sky-500 focus:bg-white transition"
           />
         </div>
-
+          // Ds bộ lọc trạng thái xe
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
           <select
             value={selectedStatus}
@@ -482,6 +482,7 @@ export default function FleetManagement() {
                   </td>
                 </tr>
               ) : (
+                // Ds hiển thị những xe đã qua bộ lọc
                 filteredVehicles.map(v => (
                   <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
                     {/* Cột 1: Biển số & Hãng */}
