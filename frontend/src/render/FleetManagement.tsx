@@ -440,7 +440,7 @@ export default function FleetManagement() {
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-sky-500 focus:bg-white transition"
           />
         </div>
-          // Ds bộ lọc trạng thái xe
+        {/* Ds bộ lọc trạng thái xe */}
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
           <select
             value={selectedStatus}

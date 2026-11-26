@@ -1902,10 +1902,9 @@ export default function AdminTenantList() {
                                     ? 'bg-slate-200 text-slate-600'
                                     : 'bg-rose-100 text-rose-700'
                               }`}
-                          >
-                            {log.action}
-                          </span>
-                          // Chức năng chi tiết ( chỉ hiện thị ở dòng đăng xuất )
+                          > {/* "Chức năng chưa xử lý" chỉ xuất hiện ở dòng đăng xuất */} 
+                            {log.action}                         
+                          </span>  
                         </td>
                         <td className="px-6 py-3 text-sm text-slate-600"><div className="flex items-center gap-2"><span>{log.details || 'Không có chi tiết'}</span>{log.action === 'ĐĂNG XUẤT' && <button type="button" onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)} aria-expanded={expandedLog === log.id} aria-label={`${expandedLog === log.id ? 'Ẩn' : 'Xem'} lịch sử của ${log.admin || 'tài khoản'}`} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 text-emerald-500 hover:bg-sky-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"><Info className="h-4 w-4" aria-hidden="true" /></button>}</div></td>
                       </tr>
