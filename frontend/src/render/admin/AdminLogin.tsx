@@ -76,6 +76,7 @@ export default function AdminLogin() {
     setCapsLockOn(e.getModifierState('CapsLock'));
   };
 
+  // Đối chiếu tài khoản mẫu, từ chối tài khoản bị khóa và lưu thông tin phiên khi đăng nhập.
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;

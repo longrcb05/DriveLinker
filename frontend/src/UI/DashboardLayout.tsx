@@ -40,6 +40,7 @@ export default function DashboardLayout() {
 
   const filteredMenu = menuItems.filter(item => !item.roles || item.roles.includes(userRole));
 
+  // Thoát nhập vai trở về admin; đăng xuất doanh nghiệp chỉ xóa thông tin phiên.
   const handleLogout = () => {
     if (isAdminImpersonating) {
       recordAdminAction('TRUY CẬP', `Thoát chế độ truy cập doanh nghiệp ${tenantName}`);

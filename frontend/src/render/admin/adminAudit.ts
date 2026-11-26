@@ -10,6 +10,7 @@ export interface AdminAuditLog {
 
 const AUDIT_KEY = 'sys_core_audit_logs';
 
+// Nhật ký hiện được lưu trong trình duyệt, không tự đồng bộ sang máy khác.
 export function readAdminAuditLogs(): AdminAuditLog[] {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(AUDIT_KEY) || '[]');
@@ -19,6 +20,7 @@ export function readAdminAuditLogs(): AdminAuditLog[] {
   }
 }
 
+// Ghi người thực hiện từ phiên admin cùng hành động, nội dung và thời gian.
 export function recordAdminAction(action: string, details: string, actor?: { username: string; fullName: string }): void {
   try {
     const raw = localStorage.getItem(AUDIT_KEY);

@@ -10,6 +10,7 @@ type Device = { id: string; imei: string; serial: string; type: DeviceType; rece
 type Tenant = { id: string; name: string };
 const key = 'sys_admin_inventory_demo_v1';
 const statuses: Status[] = ['Tồn kho', 'Đang lắp đặt', 'Đang sử dụng', 'Lỗi', 'Bảo hành'];
+// Bộ lọc tách Lỗi và Bảo hành, còn thẻ thống kê giữ tổng chung cho cả hai.
 const summaryStatuses = ['Tồn kho', 'Đang lắp đặt', 'Đang sử dụng', 'Lỗi/Bảo hành'] as const;
 const statusIcons: Record<(typeof summaryStatuses)[number], typeof Package> = {
   'Tồn kho': Warehouse,
@@ -24,6 +25,7 @@ const demo: Device[] = [
 ];
 const input = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500';
 const blank = { imei: '', serial: '', type: 'Camera' as DeviceType, received: '', status: 'Tồn kho' as Status, tenantId: '', vehicle: '' };
+// Dữ liệu thiết bị đang lưu trên trình duyệt; giữ trạng thái gộp cũ khi chưa thể phân loại.
 function readDevices(): Device[] {
   const raw = localStorage.getItem(key);
   if (!raw) return demo;
@@ -48,9 +50,12 @@ export default function AdminDevices() {
   const tenants = readTenants();
   const tenantName = (id: string) => tenants.find(t => t.id === id)?.name || (id ? `Doanh nghiệp ${id}` : 'Chưa liên kết');
   const selectedDevice = devices.find(d => d.id === selected);
+  // Tìm theo IMEI, Serial Number, biển số và kết hợp các bộ lọc
   const filtered = devices.filter(d => [d.imei, d.serial, d.vehicle].some(v => v.toLowerCase().includes(search.trim().toLowerCase())) && (type === 'ALL' || d.type === type) && (status === 'ALL' || d.status === status) && (tenant === 'ALL' || d.tenantId === tenant));
   const save = (next: Device[], message: string, audit: string) => { try { localStorage.setItem(key, JSON.stringify(next)); setDevices(next); setError(''); setNotice(message); recordAdminAction('THIẾT BỊ', audit); return true; } catch { setError('Không thể lưu dữ liệu thiết bị trên trình duyệt.'); return false; } };
+  // Kiểm tra IMEI và Serial Number trước khi thêm thiết bị vào danh sách.
   const add = (event: FormEvent) => {
+    // kiểm tra imei đúng điều kiện hay không
     event.preventDefault(); const imei = form.imei.trim(); const serial = form.serial.trim();
     if (!/^\d{15}$/.test(imei)) { setError('IMEI phải gồm 15 chữ số.'); return; }
     if (!serial) { setError('Vui lòng nhập Serial Number.'); return; }
@@ -58,11 +63,13 @@ export default function AdminDevices() {
     const entry: Device = { ...form, imei, serial, id: `device-${Date.now()}-${Math.random().toString(36).slice(2)}`, history: [{time: new Date().toISOString(), detail: `Nhập thiết bị · trạng thái ${form.status}`}] };
     if (save([entry, ...devices], 'Đã thêm thiết bị.', `Thêm thiết bị ${serial}`)) { setAdding(false); setForm(blank); }
   };
+  // Mỗi lần đổi trạng thái đều thêm một dòng vào lịch sử của thiết bị.
   const changeStatus = (device: Device, next: Status) => {
     if (next === device.status) return;
     const detail = `Chuyển trạng thái: ${device.status} → ${next}`;
     save(devices.map(d => d.id === device.id ? {...d, status: next, history: [{time: new Date().toISOString(), detail}, ...d.history]} : d), 'Đã cập nhật trạng thái.', `${device.serial}: ${detail}`);
   };
+  // Liên kết doanh nghiệp và biển số mẫu; để trống doanh nghiệp để tháo liên kết.
   const updateLink = (event: FormEvent) => {
     event.preventDefault(); const device = devices.find(d => d.id === linkTarget); if (!device) return;
     const vehicle = linkVehicle.trim().toUpperCase();
