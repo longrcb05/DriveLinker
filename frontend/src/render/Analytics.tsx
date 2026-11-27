@@ -1,24 +1,14 @@
 /**
  * @file Analytics.tsx
- * @module Frontend/Analytics
- * @description Báo cáo Phân tích An toàn Giao thông & Thống kê Rủi ro Đội xe (Fleet Safety & AI Infraction Analytics).
- * 
- * KIẾN TRÚC & MÔ HÌNH DỮ LIỆU BÁO CÁO:
- * 1. Sơ đồ Burndown Triệt tiêu Rủi ro (Incident Burndown Chart):
- *    - Mô phỏng tốc độ xử lý và triệt tiêu các cảnh báo an toàn phát sinh theo từng khung giờ trong ngày làm việc.
- *    - Trục tung thể hiện số lượng vi phạm còn tồn đọng; trục hoành là các mốc thời gian từ 07:00 đến 21:00.
- * 
- * 2. Phân bổ Vi phạm Theo Giờ & Cơ cấu Rủi ro:
- *    - Biểu đồ Cột (Bar Chart): Thống kê mật độ sự cố tập trung vào các khung giờ cao điểm hoặc giờ tài xế dễ buồn ngủ (13:00 - 15:00).
- *    - Biểu đồ Tròn (Pie Chart): Phân loại tỷ lệ các nhóm hành vi vi phạm: Nhắm mắt kéo dài (Drowsiness), Ngáp liên tục, Mất tập trung, Vượt tốc độ.
- * 
- * 3. Kết xuất Báo cáo CSV Chuẩn Hóa (UTF-8 CSV Exporter):
- *    - Tạo chuỗi CSV có tiền tố BOM `\uFEFF` để Excel và Google Sheets mở file tiếng Việt có dấu không bị lỗi font.
- *    - Đóng gói dữ liệu gồm Mã sự cố, Thời gian, Biển số, Tài xế, Loại vi phạm, Mức độ và Trạng thái xử lý.
+ * @description Phân hệ Phân tích và Báo cáo (Analytics & Alerts).
+ * Tích hợp Sơ đồ Burndown (Burn Chart) và Biểu đồ Cột (Bar Chart) phân phối sự cố theo thời gian.
+ * Theo dõi tần suất rủi ro, tiến độ triệt tiêu cảnh báo an toàn và kết xuất báo cáo CSV.
+ * Dữ liệu được cách ly theo định danh doanh nghiệp (tenantId).
  */
 
 import { useState, useMemo } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { matchesPlate } from '../services/vehicleService';
 import {
   Download, ChevronRight, AlertTriangle, ShieldCheck,
   Activity, BarChart3, PieChart, FileText, Loader2,
@@ -56,8 +46,22 @@ const RAW_EVENTS = [
 
 export default function Analytics() {
   const { language, t } = useLanguage();
+  // Trang dùng dữ liệu mẫu; lưu các dữ liệu đã xử lý theo doanh nghiệp trên trình duyệt.
+  const resolutionKey = `analytics_resolved_events:${localStorage.getItem('tenantId') || 'default'}`;
+  const [resolvedEvents, setResolvedEvents] = useState<string[]>(() => {
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(resolutionKey) || '[]');
+      return Array.isArray(saved) ? saved.filter((item): item is string => typeof item === 'string') : [];
+    } catch { return []; }
+  });
+  const [pendingEvent, setPendingEvent] = useState<(typeof RAW_EVENTS)[number] | null>(null);
+  const [resolutionError, setResolutionError] = useState('');
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [isExporting, setIsExporting] = useState(false);
+  // Các bộ lọc dùng chung cho bảng, thống kê, biểu đồ và dữ liệu xuất CSV.
+  const [plateSearch, setPlateSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
 
   const getEventTypeName = (type: string) => {
     if (type === 'Nhắm mắt kéo dài' || type === 'Ngủ gật / Nhắm mắt') return t('analytics.typeDrowsy');
@@ -72,12 +76,32 @@ export default function Analytics() {
   const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
 
   /**
-   * Lọc sự kiện theo ngày được chọn
+   * Kết hợp ngày, biển số, loại cảnh báo và trạng thái; ALL nghĩa là không lọc.
    */
   const filteredEvents = useMemo(() => {
-    if (!selectedDate) return RAW_EVENTS;
-    return RAW_EVENTS.filter(e => e.date === selectedDate);
-  }, [selectedDate]);
+    // Ghép trạng thái đã lưu trước khi lọc để bảng, thống kê và CSV dùng cùng kết quả.
+    return RAW_EVENTS.map(e => resolvedEvents.includes(`${e.date}:${e.id}`) ? { ...e, status: 'RESOLVED' } : e).filter(e =>
+      (!selectedDate || e.date === selectedDate) &&
+      (!plateSearch.trim() || matchesPlate(e.vehicle, plateSearch)) && // tìm biển số
+      (typeFilter === 'ALL' || e.type === typeFilter) && //lọc loại cảnh báo
+      (statusFilter === 'ALL' || e.status === statusFilter) // lọc trạng thái xử lý
+    );
+  }, [selectedDate, plateSearch, typeFilter, statusFilter, resolvedEvents]);
+
+  // Chỉ lưu khi người dùng chọn OK; hộp thoại này không gửi thông báo tới tài xế.
+  const confirmResolution = () => {
+    if (!pendingEvent) return;
+    const key = `${pendingEvent.date}:${pendingEvent.id}`;
+    const next = resolvedEvents.includes(key) ? resolvedEvents : [...resolvedEvents, key];
+    try {
+      localStorage.setItem(resolutionKey, JSON.stringify(next));
+      setResolvedEvents(next);
+      setResolutionError('');
+      setPendingEvent(null);
+    } catch {
+      setResolutionError(language === 'vi' ? 'Không thể lưu trạng thái. Vui lòng thử lại.' : 'Could not save the status. Please try again.');
+    }
+  };
 
   /**
    * Thống kê KPI tổng quan
@@ -97,7 +121,7 @@ export default function Analytics() {
   /**
    * 8 Khung giờ chuẩn hóa trong ngày phục vụ tính toán Sơ đồ Burndown & Bar Chart
    */
-  const timeSlotsConfig = [
+  const burnSlotsConfig = [
     { label: '06:00', start: 6, end: 8, ideal: 12, actual: 12, defaultCount: 2, defaultHigh: 0, defaultMed: 1, defaultLow: 1 },
     { label: '08:00', start: 8, end: 10, ideal: 10.3, actual: 11, defaultCount: 3, defaultHigh: 1, defaultMed: 2, defaultLow: 0 },
     { label: '10:00', start: 10, end: 12, ideal: 8.6, actual: 8, defaultCount: 2, defaultHigh: 0, defaultMed: 1, defaultLow: 1 },
@@ -107,6 +131,11 @@ export default function Analytics() {
     { label: '18:00', start: 18, end: 20, ideal: 1.7, actual: 2, defaultCount: 1, defaultHigh: 0, defaultMed: 1, defaultLow: 0 },
     { label: '20:00', start: 20, end: 22, ideal: 0, actual: 1, defaultCount: 1, defaultHigh: 0, defaultMed: 0, defaultLow: 1 },
   ];
+  // Biểu đồ cột chia cả ngày thành các khoảng 3 giờ; burndown giữ cấu hình mẫu.
+  const timeSlotsConfig = chartMode === 'burn' ? burnSlotsConfig : Array.from({ length: 8 }, (_, i) => ({
+    label: `${String(i * 3).padStart(2, '0')}:00`, start: i * 3, end: (i + 1) * 3,
+    ideal: 0, actual: 0, defaultCount: 0, defaultHigh: 0, defaultMed: 0, defaultLow: 0,
+  }));
 
   // Tọa độ hình học và dữ liệu phân bổ trên SVG
   const chartPoints = useMemo(() => {
@@ -119,10 +148,11 @@ export default function Analytics() {
         return hour >= slot.start && hour < slot.end;
       });
 
-      const count = slotEvents.length > 0 ? slotEvents.length : slot.defaultCount;
-      const high = slotEvents.length > 0 ? slotEvents.filter(e => e.severity === 'HIGH').length : slot.defaultHigh;
-      const med = slotEvents.length > 0 ? slotEvents.filter(e => e.severity === 'MEDIUM').length : slot.defaultMed;
-      const low = slotEvents.length > 0 ? slotEvents.filter(e => e.severity === 'LOW').length : slot.defaultLow;
+      // Chỉ burndown dùng số liệu mặc định khi khoảng giờ không có sự kiện.
+      const count = chartMode === 'burn' && slotEvents.length === 0 ? slot.defaultCount : slotEvents.length;
+      const high = chartMode === 'burn' && slotEvents.length === 0 ? slot.defaultHigh : slotEvents.filter(e => e.severity === 'HIGH').length;
+      const med = chartMode === 'burn' && slotEvents.length === 0 ? slot.defaultMed : slotEvents.filter(e => e.severity === 'MEDIUM').length;
+      const low = chartMode === 'burn' && slotEvents.length === 0 ? slot.defaultLow : slotEvents.filter(e => e.severity === 'LOW').length;
 
       // Tính tọa độ Y: thang giá trị từ 0 đến 12 (155px chiều cao biểu đồ)
       const yActual = 20 + ((12 - slot.actual) / 12) * 155;
@@ -139,7 +169,11 @@ export default function Analytics() {
         low,
       };
     });
-  }, [filteredEvents]);
+  }, [filteredEvents, chartMode]);
+
+  // Giữ mẫu số tối thiểu là 1 khi không có sự kiện và tìm khoảng có nhiều sự kiện nhất.
+  const chartMax = Math.max(1, ...chartPoints.map(point => point.count));
+  const peakSlot = chartPoints.reduce((best, point) => point.count > best.count ? point : best, chartPoints[0]);
 
   // Đường vẽ SVG Burndown Line & Area
   const { burnLinePath, burnAreaPath } = useMemo(() => {
@@ -162,14 +196,17 @@ export default function Analytics() {
 
     setTimeout(() => {
       const headers = [t('analytics.colId'), 'Date', t('analytics.colTime'), t('analytics.colVehicle'), t('analytics.colDriver'), t('analytics.colType'), t('analytics.colSeverity'), t('analytics.colStatus')];
-      const csvRows = [headers.join(',')];
+      // Bao từng ô và nhân đôi dấu ngoặc kép để dấu phẩy hoặc dấu nháy không làm lệch cột CSV.
+      const csvCell = (value: string) => `"${value.replace(/"/g, '""')}"`;
+      const csvRows = [headers.map(csvCell).join(',')];
 
       filteredEvents.forEach(e => {
-        csvRows.push(`${e.id},${e.date},${e.time},${e.vehicle},${e.driver},${e.type},${e.severity},${e.status}`);
+        csvRows.push([e.id, e.date, e.time, e.vehicle, e.driver, e.type, e.severity, e.status].map(csvCell).join(','));
       });
 
       const csvContent = "data:text/csv;charset=utf-8,﻿" + csvRows.join('\n');
-      const encodedUri = encodeURI(csvContent);
+      // Chỉ mã hóa phần nội dung để ký tự đặc biệt không phá vỡ data URI.
+      const encodedUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent.slice('data:text/csv;charset=utf-8,'.length));
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
       link.setAttribute("download", `BaoCao_VanHanh_${selectedDate || 'ALL'}_${Date.now()}.csv`);
@@ -205,8 +242,12 @@ export default function Analytics() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:border-transparent transition-all shadow-sm cursor-pointer"
+                aria-label={language === 'vi' ? 'Chọn ngày' : 'Select date'}
+                className="peer px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-transparent font-bold focus:text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:border-transparent transition-all shadow-sm cursor-pointer"
               />
+              <span aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-700 font-bold peer-focus:opacity-0">
+                {selectedDate ? `${selectedDate.slice(8, 10)}-${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(selectedDate.slice(5, 7)) - 1]}-${selectedDate.slice(2, 4)}` : 'dd-mmm-yy'}
+              </span>
             </div>
 
             {/* Nút xuất báo cáo */}
@@ -327,7 +368,7 @@ export default function Analytics() {
               <span className="hidden md:flex items-center gap-1.5 font-semibold text-slate-600">
                 <Flame className="w-3.5 h-3.5 text-rose-500" />
                 <span>{t('analytics.peakRisk')}:</span>
-                <span className="text-rose-600 font-bold bg-rose-50 border border-rose-200/60 px-1.5 py-0.5 rounded text-[11px]">14:00 - 16:00</span>
+                <span className="text-rose-600 font-bold bg-rose-50 border border-rose-200/60 px-1.5 py-0.5 rounded text-[11px]">{peakSlot.count ? `${peakSlot.label} - ${String(peakSlot.end).padStart(2, '0')}:00` : '—'}</span>
               </span>
             </div>
 
@@ -387,9 +428,10 @@ export default function Analytics() {
                 </linearGradient>
               </defs>
 
-              {/* Lưới tọa độ ngang (Horizontal Grid Lines) */}
-              {[12, 9, 6, 3, 0].map((val, idx) => {
-                const y = 20 + ((12 - val) / 12) * 155;
+              {/* Burndown dùng thang cố định; biểu đồ cột dùng giá trị lớn nhất hiện có. */}
+              {[1, 0.75, 0.5, 0.25, 0].map((fraction, idx) => {
+                const val = Number((fraction * (chartMode === 'burn' ? 12 : chartMax)).toFixed(2));
+                const y = 20 + (1 - fraction) * 155;
                 return (
                   <g key={idx}>
                     <line
@@ -472,9 +514,9 @@ export default function Analytics() {
 
               {/* TRƯỜNG HỢP 2: BIỂU ĐỒ CỘT (BAR CHART) */}
               {chartMode === 'bar' && (
-                <>
+                <>{/* Các cột dữ liệu theo khung giờ */}
                   {chartPoints.map((pt, idx) => {
-                    const barHeight = Math.max(8, (pt.count / 6) * 145);
+                    const barHeight = (pt.count / chartMax) * 155;
                     const barY = 175 - barHeight;
                     const isHighRisk = pt.high > 0;
 
@@ -629,6 +671,19 @@ export default function Analytics() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-slate-100 bg-slate-50">
             <h3 className="text-sm font-bold text-slate-800">{t('analytics.historyTableTitle')}</h3>
+            {/* Các điều khiển này cập nhật cùng tập sự kiện đang được hiển thị và xuất. */}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <input aria-label={language === 'vi' ? 'Tìm biển số' : 'Search plate'} value={plateSearch} onChange={e => setPlateSearch(e.target.value)} placeholder={language === 'vi' ? 'Tìm biển số' : 'Search plate'} className="rounded-lg border border-slate-200 px-3 py-2 text-xs" />
+              <select aria-label={language === 'vi' ? 'Loại cảnh báo' : 'Alert type'} value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs">
+                <option value="ALL">{language === 'vi' ? 'Tất cả cảnh báo' : 'All alerts'}</option>
+                {['Nhắm mắt kéo dài', 'Ngáp liên tục', 'Mất tập trung', 'Vượt tốc độ'].map(type => <option key={type} value={type}>{getEventTypeName(type)}</option>)}
+              </select>
+              <select aria-label={language === 'vi' ? 'Trạng thái xử lý' : 'Resolution status'} value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs">
+                <option value="ALL">{language === 'vi' ? 'Tất cả trạng thái' : 'All statuses'}</option>
+                <option value="RESOLVED">{t('analytics.resolved')}</option>
+                <option value="UNRESOLVED">{t('analytics.unresolved')}</option>
+              </select>
+            </div>
           </div>
           <div className="flex-1 overflow-auto max-h-[400px]">
             <table className="w-full text-left border-collapse text-sm">
@@ -658,11 +713,9 @@ export default function Analytics() {
                         {e.severity}
                       </span>
                     </td>
+                    {/* chức năng " Chưa xử lý " */}
                     <td className="p-4 text-center">
-                      <span className={`inline-flex px-2 py-1 text-[10px] font-bold rounded-full ${e.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700 animate-pulse'
-                        }`}>
-                        {e.status === 'RESOLVED' ? t('analytics.resolved') : t('analytics.unresolved')}
-                      </span>
+                      {e.status === 'RESOLVED' ? <span className="inline-flex px-2 py-1 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-700">{t('analytics.resolved')}</span> : <button type="button" onClick={() => { setResolutionError(''); setPendingEvent(e); }} aria-label={`${t('analytics.unresolved')}: ${e.id}`} className="inline-flex px-2 py-1 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600">{t('analytics.unresolved')}</button>}
                     </td>
                   </tr>
                 ))}
@@ -682,6 +735,14 @@ export default function Analytics() {
           </div>
         </div>
       </div>
+      {/* Hộp xác nhận xử lý */}
+      {pendingEvent && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onKeyDown={event => { if (event.key === 'Escape') { setPendingEvent(null); setResolutionError(''); } }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="resolution-title" className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+          <h3 id="resolution-title" className="text-lg font-semibold text-slate-900">Đã xử lý &amp; nhắc nhở tài xế</h3>
+          {resolutionError && <p role="alert" className="mt-3 text-sm text-red-700">{resolutionError}</p>}
+          <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => { setPendingEvent(null); setResolutionError(''); }} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button><button type="button" onClick={confirmResolution} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">OK</button></div>
+        </section>
+      </div>}
     </div>
   );
 }

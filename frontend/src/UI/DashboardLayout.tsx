@@ -40,6 +40,7 @@ export default function DashboardLayout() {
 
   const filteredMenu = menuItems.filter(item => !item.roles || item.roles.includes(userRole));
 
+  // Thoát nhập vai trở về admin; đăng xuất doanh nghiệp chỉ xóa thông tin phiên.
   const handleLogout = () => {
     if (isAdminImpersonating) {
       recordAdminAction('TRUY CẬP', `Thoát chế độ truy cập doanh nghiệp ${tenantName}`);
@@ -47,7 +48,7 @@ export default function DashboardLayout() {
       localStorage.removeItem('userRole');
       navigate('/overview/admin');
     } else {
-      localStorage.clear();
+      ['token', 'userRole', 'username', 'tenantId', 'tenantCode', 'tenantName', 'organizationId', 'isAdminImpersonating'].forEach(key => localStorage.removeItem(key));
       navigate('/portal/login');
     }
   };

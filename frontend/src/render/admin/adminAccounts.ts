@@ -19,6 +19,7 @@ const initialAccounts: AdminAccount[] = [
   { username: 'billing.minh', fullName: 'Nguyễn Nhật Minh', email: 'minh@example.com', phone: '0904 567 890', role: 'BILLING_ADMIN', status: 'ACTIVE', lastLogin: null, password: '123456' },
 ];
 
+// Tài khoản mẫu được lưu trong trình duyệt; khi chưa có dữ liệu thì dùng danh sách ban đầu.
 export function getAdminAccounts(): AdminAccount[] {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return initialAccounts;

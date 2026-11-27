@@ -1,25 +1,8 @@
 /**
  * @file FleetManagement.tsx
- * @module Frontend/Fleet
- * @description Phân hệ Quản trị & Điều phối Danh mục Đội xe (Fleet Vehicle Lifecycle Management).
- * 
- * KIẾN TRÚC & MÔ HÌNH VẬN HÀNH (STATE MACHINE & EVENT ARCHITECTURE):
- * 1. Máy Trạng thái Phương tiện (Finite State Machine - 6 Trạng thái chuẩn hóa):
- *    - AVAILABLE: Xe sẵn sàng nhận hợp đồng cho thuê mới.
- *    - RENTED: Xe đang trong thời hạn hợp đồng vận hành của khách hàng.
- *    - RESERVED: Xe đã được khách đặt cọc giữ chỗ trước.
- *    - MAINTENANCE: Xe đang trong xưởng bảo dưỡng định kỳ hoặc sửa chữa hỏng hóc.
- *    - PENDING_INSPECTION: Xe vừa thu hồi từ hợp đồng, bắt buộc trải qua khâu nghiệm thu kỹ thuật trước khi chuyển về AVAILABLE.
- *    - INACTIVE: Xe tạm ngưng hoạt động hoặc thanh lý.
- * 
- * 2. Cơ chế Đồng bộ Đa Tab (Inter-Tab Event-Driven Synchronization):
- *    - Lắng nghe cả sự kiện cục bộ `window.addEventListener('dl_vehicles_updated')` và sự kiện hệ thống `window.addEventListener('storage')`.
- *    - Khi phương tiện được thêm mới từ Modal ở Header (`DashboardLayout`) hoặc cập nhật trạng thái từ hợp đồng,
- *      danh sách xe trên màn hình này tự động tải lại mà không cần tải lại toàn trang (Zero Full Page Reload).
- * 
- * 3. Kiểm soát Ràng buộc Dữ liệu (Relational Constraint Protection):
- *    - Chặn hành vi xóa nhầm xe đang có hợp đồng cho thuê còn hiệu lực (`status === 'RENTED'`).
- *    - Yêu cầu bắt buộc kiểm định kỹ thuật khi tiếp nhận xe hoàn trả từ khách hàng.
+ * @description Trang Quản lý & Theo dõi Đội xe (Fleet Tracking) hoàn chỉnh.
+ * Hỗ trợ 6 trạng thái phương tiện, CRUD phương tiện, kiểm tra ràng buộc,
+ * tích hợp bộ lọc, tìm kiếm và hỗ trợ song ngữ Tiếng Việt - English.
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -131,12 +114,12 @@ export default function FleetManagement() {
     return counts;
   }, [vehicles]);
 
-  // Bộ lọc dữ liệu
+  // Kết hợp trạng thái với tìm kiếm biển số( lọc ds xe theo biển số); matchesPlate bỏ qua dấu phân cách.
   const filteredVehicles = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
     return vehicles.filter(v => {
       const matchStatus = selectedStatus === 'ALL' || v.status === selectedStatus;
-      const matchSearch = !q || matchesPlate(v.plate, q) || v.plate.toLowerCase().includes(q) || v.brand.toLowerCase().includes(q) || v.model.toLowerCase().includes(q) || (v.driver && v.driver.toLowerCase().includes(q));
+      const matchSearch = !q || matchesPlate(v.plate, q);
       return matchStatus && matchSearch;
     });
   }, [vehicles, selectedStatus, searchTerm]);
@@ -170,7 +153,8 @@ export default function FleetManagement() {
       payload: vehicle.payload,
       status: vehicle.status,
       driver: vehicle.driver || '',
-      driverPhone: vehicle.driverPhone || '',
+      // Chuẩn hóa số điện thoại cũ trước khi đưa vào biểu mẫu chỉnh sửa.
+      driverPhone: (vehicle.driverPhone || '').replace(/\D/g, ''),
       notes: vehicle.notes || '',
     });
     setFormError('');
@@ -182,6 +166,13 @@ export default function FleetManagement() {
     e.preventDefault();
     if (!formData.plate.trim()) {
       setFormError('Vui lòng nhập biển số xe.');
+      return;
+    }
+    // Số điện thoại là tùy chọn; nếu có, phải gồm 10 chữ số và bắt đầu bằng 0.
+    if (formData.driverPhone && !/^0\d{9}$/.test(formData.driverPhone)) {
+      setFormError(language === 'vi'
+        ? 'Số điện thoại tài xế phải gồm 10 chữ số và bắt đầu bằng số 0.'
+        : 'The driver phone number must contain 10 digits and start with 0.');
       return;
     }
 
@@ -449,7 +440,7 @@ export default function FleetManagement() {
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-sky-500 focus:bg-white transition"
           />
         </div>
-
+        {/* Ds bộ lọc trạng thái xe */}
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
           <select
             value={selectedStatus}
@@ -491,6 +482,7 @@ export default function FleetManagement() {
                   </td>
                 </tr>
               ) : (
+                // Ds hiển thị những xe đã qua bộ lọc
                 filteredVehicles.map(v => (
                   <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
                     {/* Cột 1: Biển số & Hãng */}
@@ -755,11 +747,13 @@ export default function FleetManagement() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     {t('fleet.formDriverPhone')}
                   </label>
+                  {/* Chỉ giữ tối đa 10 chữ số khi nhập số điện thoại. */}
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
                     value={formData.driverPhone}
-                    onChange={e => setFormData({ ...formData, driverPhone: e.target.value })}
-                    placeholder="09xx.xxx.xxx"
+                    onChange={e => setFormData({ ...formData, driverPhone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="0xxxxxxxxx"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium outline-none focus:border-sky-500"
                   />
                 </div>
