@@ -60,7 +60,7 @@ const translateFromViEn = (
 };
 
 export interface AdminDashboardProps {
-    onNavigateSection?: (section: 'tenants' | 'billing') => void;
+    onNavigateSection?: (section: 'tenants' | 'billing' | 'accounts' | 'devices') => void;
 }
 
 type StatModalType =
@@ -250,7 +250,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
 
     const revenueLabel = adminLang === 'en' ? 'Revenue' : 'Doanh thu';
 
-    const handleGoToSection = (section: 'tenants' | 'billing') => {
+    const handleGoToSection = (section: 'tenants' | 'billing' | 'accounts' | 'devices') => {
         if (onNavigateSection) {
             onNavigateSection(section);
         } else {
@@ -790,8 +790,8 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                 type="button"
                                 onClick={() => toggleSeries('committed')}
                                 className={`h-7 px-2.5 rounded-md border inline-flex items-center gap-1.5 font-medium transition-opacity cursor-pointer ${visibleSeries.committed
-                                        ? 'border-slate-200 bg-white text-slate-700'
-                                        : 'border-slate-100 bg-slate-50 text-slate-400 opacity-55'
+                                    ? 'border-slate-200 bg-white text-slate-700'
+                                    : 'border-slate-100 bg-slate-50 text-slate-400 opacity-55'
                                     }`}
                             >
                                 <span className="w-2 h-2 rounded-xs bg-[#0B1324] inline-block" />
@@ -802,8 +802,8 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                 type="button"
                                 onClick={() => toggleSeries('collected')}
                                 className={`h-7 px-2.5 rounded-md border inline-flex items-center gap-1.5 font-medium transition-opacity cursor-pointer ${visibleSeries.collected
-                                        ? 'border-slate-200 bg-white text-slate-700'
-                                        : 'border-slate-100 bg-slate-50 text-slate-400 opacity-55'
+                                    ? 'border-slate-200 bg-white text-slate-700'
+                                    : 'border-slate-100 bg-slate-50 text-slate-400 opacity-55'
                                     }`}
                             >
                                 <span className="w-2 h-2 rounded-xs bg-sky-500 inline-block" />
@@ -814,8 +814,8 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                 type="button"
                                 onClick={() => toggleSeries('tenants')}
                                 className={`h-7 px-2.5 rounded-md border inline-flex items-center gap-1.5 font-medium transition-opacity cursor-pointer ${visibleSeries.tenants
-                                        ? 'border-slate-200 bg-white text-slate-700'
-                                        : 'border-slate-100 bg-slate-50 text-slate-400 opacity-55'
+                                    ? 'border-slate-200 bg-white text-slate-700'
+                                    : 'border-slate-100 bg-slate-50 text-slate-400 opacity-55'
                                     }`}
                             >
                                 <span className="w-2 h-2 rounded-full border-2 border-rose-600 bg-white inline-block" />
@@ -830,8 +830,8 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                     type="button"
                                     onClick={() => setChartRange(r)}
                                     className={`px-2.5 rounded-sm font-medium transition-all cursor-pointer ${chartRange === r
-                                            ? 'bg-white text-slate-900 shadow-2xs'
-                                            : 'text-slate-500 hover:text-slate-800'
+                                        ? 'bg-white text-slate-900 shadow-2xs'
+                                        : 'text-slate-500 hover:text-slate-800'
                                         }`}
                                 >
                                     {r} {adminLang === 'en' ? 'mo' : 'tháng'}
@@ -1176,12 +1176,22 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                             <h3 className="text-sm font-semibold text-slate-900">
                                 {tr('admin.devicesMenu')}
                             </h3>
-                            <Link
-                                to="/overview/admin/devices"
-                                className="text-xs font-medium text-[#0B1324] hover:text-rose-600"
-                            >
-                                {tr('common.details')}
-                            </Link>
+                            {onNavigateSection ? (
+                                <button
+                                    type="button"
+                                    onClick={() => handleGoToSection('devices')}
+                                    className="text-xs font-medium text-[#0B1324] hover:text-rose-600 cursor-pointer"
+                                >
+                                    {tr('common.details')}
+                                </button>
+                            ) : (
+                                <Link
+                                    to="/overview/admin/devices"
+                                    className="text-xs font-medium text-[#0B1324] hover:text-rose-600"
+                                >
+                                    {tr('common.details')}
+                                </Link>
+                            )}
                         </div>
 
                         <div className="divide-y divide-slate-100 text-xs">
