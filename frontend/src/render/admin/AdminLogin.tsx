@@ -9,7 +9,11 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { getAdminAccounts, saveAdminAccounts } from './adminAccounts';
+import {
+  getAdminAccounts,
+  saveAdminAccounts,
+  formatLastLogin
+} from './adminAccounts';
 import { recordAdminAction } from './adminAudit';
 import {
   syncUnifiedPlatformData,
@@ -94,7 +98,7 @@ export default function AdminLogin() {
           saveAdminAccounts(
             accounts.map((item) =>
               item.username === account.username
-                ? { ...item, lastLogin: new Date().toLocaleString('vi-VN') }
+                ? { ...item, lastLogin: formatLastLogin(new Date().toISOString()) }
                 : item
             )
           );
