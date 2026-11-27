@@ -293,24 +293,32 @@ export default function PriceApprovals() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="flex border-b border-slate-200">
                     <button
+                        type="button"
                         onClick={() => setActiveTab('PENDING')}
-                        className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${
+                        className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors cursor-pointer inline-flex items-center gap-2 ${
                             activeTab === 'PENDING'
                                 ? 'border-sky-500 text-sky-600'
                                 : 'border-transparent text-slate-500 hover:text-slate-700'
                         }`}
                     >
-                        {t('approvals.pendingTab')} ({pendingRequests.length})
+                        <span>{t('approvals.pendingTab')}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'PENDING' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {pendingRequests.length}
+                        </span>
                     </button>
                     <button
+                        type="button"
                         onClick={() => setActiveTab('HISTORY')}
-                        className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${
+                        className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors cursor-pointer inline-flex items-center gap-2 ${
                             activeTab === 'HISTORY'
                                 ? 'border-sky-500 text-sky-600'
                                 : 'border-transparent text-slate-500 hover:text-slate-700'
                         }`}
                     >
-                        {t('approvals.historyTab')} ({historyRequests.length})
+                        <span>{t('approvals.historyTab')}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'HISTORY' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {historyRequests.length}
+                        </span>
                     </button>
                 </div>
 

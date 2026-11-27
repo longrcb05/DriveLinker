@@ -2,19 +2,6 @@
  * @file CreateContract.tsx
  * @module Frontend/Contracts
  * @description Phân hệ Soạn thảo & Phát hành Hợp đồng Thuê xe Điện tử (Digital E-Contract Authoring Engine).
- * 
- * TÍNH NĂNG & NGUYÊN TẮC KỸ THUẬT:
- * 1. Khung Ký số Điện tử HTML5 Canvas (Biometric Touch Signature):
- *    - Sử dụng `canvasRef` bắt sự kiện chuột (`mousedown`, `mousemove`, `mouseup`) và màn hình cảm ứng (`touchstart`, `touchmove`, `touchend`).
- *    - Trích xuất chữ ký điện tử trực tiếp sang định dạng Base64 PNG URL (`canvas.toDataURL('image/png')`) để nhúng vào trang in hợp đồng.
- * 
- * 2. Cơ chế Tự động Lưu & Khôi phục Bản nháp (Auto-Draft Resilience):
- *    - Sử dụng `useRef(formData)` để giải quyết triệt để lỗi Stale Closure khi lưu bản nháp vào `sys_contract_drafts`.
- *    - Cho phép phục hồi nguyên vẹn dữ liệu form, ảnh CCCD 2 mặt và chữ ký khi bấm sửa bản nháp từ màn hình danh sách.
- * 
- * 3. Đồng bộ Trạng thái Phương tiện (Fleet State Sync):
- *    - Khi hợp đồng chính thức được phát hành, hệ thống tự động gọi `vehicleService.updateStatus(carPlate, 'RENTED')`
- *      và phát sự kiện `dl_vehicles_updated` để cập nhật trạng thái xe trên toàn hệ thống.
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -105,19 +92,70 @@ interface ContractPaperProps {
     rentalSummary: RentalSummary;
 }
 
-// Các biểu thức chính quy (Regex) kiểm tra điều kiện chuẩn
-const PHONE_REGEX = /^0\d{9}$/; // Bắt đầu bằng 0, đúng 10 chữ số
-const CCCD_REGEX = /^\d{12}$/; // CCCD gắn chip đúng 12 chữ số
-const TAX_CODE_REGEX = /^\d{10}(\d{3})?$/; // MST doanh nghiệp 10 hoặc 13 chữ số
-const PLATE_REGEX = /^\d{2}[A-Z]{1,2}[-.]?\d{4,5}(\.\d{2})?$/; // Biển số xe VN (VD: 43A-682.19, 51H-12345)
+const PHONE_REGEX = /^0\d{9}$/;
+const CCCD_REGEX = /^\d{12}$/;
+const TAX_CODE_REGEX = /^\d{10}(\d{3})?$/;
+const PLATE_REGEX = /^\d{2}[A-Z]{1,2}[-.]?\d{4,5}(\.\d{2})?$/;
 
-// Danh sách xe gợi ý sẵn (luôn có lựa chọn ngay cả khi kho xe chưa nhập liệu)
-const PRESET_VEHICLES: VehicleOption[] = [
-    { id: 'PRESET-1', plate: '43A-682.19', model: 'Mazda 3 Luxury', dailyRate: 850000, status: 'AVAILABLE' },
-    { id: 'PRESET-2', plate: '43A-519.84', model: 'Hyundai Accent AT', dailyRate: 700000, status: 'AVAILABLE' },
-    { id: 'PRESET-3', plate: '43A-791.05', model: 'Kia Carnival', dailyRate: 1800000, status: 'AVAILABLE' },
-    { id: 'PRESET-4', plate: '43A-348.62', model: 'Toyota Vios G', dailyRate: 650000, status: 'AVAILABLE' }
-];
+const PLATFORM_SYNC_EVENT = 'drivelinker:platform-sync';
+
+const readActiveTenantId = (): string =>
+    localStorage.getItem('tenantId') ||
+    sessionStorage.getItem('tenantId') ||
+    'COMPANY_A';
+
+const readTenantVehicles = (currentTenantId: string): VehicleOption[] => {
+    try {
+        const storageKey = `sys_vehicles_${currentTenantId}`;
+        const storedRaw = localStorage.getItem(storageKey);
+
+        let sourceList: any[] = [];
+        if (storedRaw) {
+            const parsed = JSON.parse(storedRaw);
+            if (Array.isArray(parsed)) {
+                sourceList = parsed.filter(
+                    (v: any) => !v?.tenantId || String(v.tenantId) === currentTenantId
+                );
+            }
+        } else {
+            const globalRaw = localStorage.getItem('sys_vehicles');
+            if (globalRaw) {
+                const parsedGlobal = JSON.parse(globalRaw);
+                if (Array.isArray(parsedGlobal)) {
+                    sourceList = parsedGlobal.filter(
+                        (v: any) => String(v?.tenantId || '') === currentTenantId
+                    );
+                }
+            }
+        }
+
+        if (sourceList.length === 0) return [];
+
+        const mapped: VehicleOption[] = sourceList.map((v: any, idx: number) => ({
+            id: v.id || `${currentTenantId}-VEH-${idx}`,
+            plate: String(
+                v.plate || v.carPlate || v.licensePlate || `XE-${idx + 1}`
+            ).toUpperCase(),
+            model: v.model || v.name || v.vehicleName || '',
+            dailyRate: Number(v.price || v.dailyRate || 0),
+            status: v.status || 'AVAILABLE'
+        }));
+
+        const freeList = mapped.filter(
+            (v) =>
+                !v.status ||
+                v.status === 'AVAILABLE' ||
+                v.status === 'Rảnh' ||
+                v.status === 'Sẵn sàng' ||
+                v.status === 'Sẵn sàng cho thuê'
+        );
+
+        return freeList.length > 0 ? freeList : mapped;
+    } catch (e) {
+        console.error('Lỗi tải danh sách xe theo doanh nghiệp:', e);
+        return [];
+    }
+};
 
 const formatVND = (amount: string | number): string => {
     const num = typeof amount === 'string' ? Number(amount) : amount;
@@ -393,13 +431,12 @@ export default function CreateContract() {
     const location = useLocation();
     const draftId = location.state?.draftId as string | undefined;
 
-    const tenantId =
-        localStorage.getItem('tenantId') ||
-        sessionStorage.getItem('tenantId') ||
-        'COMPANY_A';
+    const [tenantId, setTenantId] = useState<string>(() => readActiveTenantId());
     const draftKey = 'sys_contract_drafts';
 
-    const [availableVehicles, setAvailableVehicles] = useState<VehicleOption[]>(PRESET_VEHICLES);
+    const [availableVehicles, setAvailableVehicles] = useState<VehicleOption[]>(() =>
+        readTenantVehicles(readActiveTenantId())
+    );
     const [standardVehiclePrice, setStandardVehiclePrice] = useState<number>(0);
     const [priceChangeReason, setPriceChangeReason] = useState<string>('');
     const [isPartyAExpanded, setIsPartyAExpanded] = useState<boolean>(false);
@@ -455,47 +492,40 @@ export default function CreateContract() {
 
     const todayDateStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-    // 1. Nạp danh sách xe từ kho + kết hợp sẵn các xe gợi ý để luôn có lựa chọn
+    // Đồng bộ danh sách xe theo đúng doanh nghiệp hiện tại (tenantId)
     useEffect(() => {
-        try {
-            const storageKey = `sys_vehicles_${tenantId}`;
-            const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            const globalStored = JSON.parse(localStorage.getItem('sys_vehicles') || '[]');
-            const sourceList =
-                Array.isArray(stored) && stored.length > 0
-                    ? stored
-                    : Array.isArray(globalStored) && globalStored.length > 0
-                    ? globalStored
-                    : [];
+        const refreshTenantVehicles = () => {
+            const activeId = readActiveTenantId();
+            setTenantId(activeId);
+            const list = readTenantVehicles(activeId);
+            setAvailableVehicles(list);
 
-            if (sourceList.length > 0) {
-                const mapped: VehicleOption[] = sourceList.map((v: any, idx: number) => ({
-                    id: v.id || `VEH-${idx}`,
-                    plate: String(v.plate || v.carPlate || v.licensePlate || `XE-${idx + 1}`).toUpperCase(),
-                    model: v.model || v.name || v.vehicleName || '',
-                    dailyRate: Number(v.price || v.dailyRate || 0),
-                    status: v.status || 'AVAILABLE'
-                }));
-
-                const freeList = mapped.filter(
-                    (v) =>
-                        !v.status ||
-                        v.status === 'AVAILABLE' ||
-                        v.status === 'Rảnh' ||
-                        v.status === 'Sẵn sàng'
+            setFormData((prev) => {
+                if (!prev.carPlate) return prev;
+                const stillInTenant = list.some(
+                    (v) => v.plate.toUpperCase() === prev.carPlate.toUpperCase()
                 );
+                if (stillInTenant) return prev;
+                return {
+                    ...prev,
+                    carPlate: '',
+                    rentPrice: ''
+                };
+            });
+        };
 
-                setAvailableVehicles(freeList.length > 0 ? freeList : mapped);
-            } else {
-                setAvailableVehicles(PRESET_VEHICLES);
-            }
-        } catch (e) {
-            console.error('Lỗi tải danh sách xe:', e);
-            setAvailableVehicles(PRESET_VEHICLES);
-        }
-    }, [tenantId]);
+        refreshTenantVehicles();
+        window.addEventListener('storage', refreshTenantVehicles);
+        window.addEventListener(PLATFORM_SYNC_EVENT, refreshTenantVehicles);
+        window.addEventListener('dl_vehicles_updated', refreshTenantVehicles);
+        return () => {
+            window.removeEventListener('storage', refreshTenantVehicles);
+            window.removeEventListener(PLATFORM_SYNC_EVENT, refreshTenantVehicles);
+            window.removeEventListener('dl_vehicles_updated', refreshTenantVehicles);
+        };
+    }, []);
 
-    // 2. Khôi phục bản nháp nếu có (đồng thời chuẩn hóa lại SĐT/CCCD về dạng chỉ chứa số)
+    // Khôi phục bản nháp nếu có
     useEffect(() => {
         if (!draftId) return;
         try {
@@ -524,7 +554,6 @@ export default function CreateContract() {
         formRef.current = formData;
     }, [formData]);
 
-    // 3. Tự động lưu nháp khi có thay đổi
     const saveDraftToStorage = useCallback(() => {
         if (isSuccess) return;
         const currentData = formRef.current;
@@ -567,7 +596,6 @@ export default function CreateContract() {
         navigate('/partners');
     };
 
-    // 4. Tính toán thời gian thuê & tổng chi phí tự động
     const rentalSummary = useMemo<RentalSummary>(() => {
         const dailyRate = Number(formData.rentPrice) || 0;
         const deposit = Number(formData.depositAmount) || 0;
@@ -618,7 +646,6 @@ export default function CreateContract() {
         return standardVehiclePrice > 0 && currentPrice > 0 && currentPrice !== standardVehiclePrice;
     }, [formData.rentPrice, standardVehiclePrice]);
 
-    // Chọn nhanh từ danh sách xe gợi ý
     const handleSelectPresetVehicle = (vehicle: VehicleOption) => {
         hasUserEditedRef.current = true;
         if (error) setError('');
@@ -635,7 +662,6 @@ export default function CreateContract() {
         const { name, value, type } = e.target;
         const checked = (e.target as HTMLInputElement).checked;
 
-        // 1. Điều kiện Số điện thoại: chỉ nhận số, bắt đầu bằng số 0, tối đa 10 chữ số
         if (name === 'renterPhone' || name === 'guarantorPhone' || name === 'partyAPhone') {
             const digitsOnly = sanitizeDigits(value, 10);
             if (digitsOnly.length > 0 && digitsOnly[0] !== '0') {
@@ -658,7 +684,6 @@ export default function CreateContract() {
             return;
         }
 
-        // 2. Điều kiện CCCD gắn chip: chỉ nhận số, tối đa 12 chữ số
         if (name === 'cccdNumber') {
             const cccdDigits = sanitizeDigits(value, 12);
             hasUserEditedRef.current = true;
@@ -670,7 +695,6 @@ export default function CreateContract() {
             return;
         }
 
-        // 3. Điều kiện Mã số thuế VAT: chỉ nhận số, tối đa 13 chữ số
         if (name === 'taxCode') {
             const taxDigits = sanitizeDigits(value, 13);
             hasUserEditedRef.current = true;
@@ -682,7 +706,6 @@ export default function CreateContract() {
             return;
         }
 
-        // 4. Điều kiện Họ tên & Chức vụ: loại bỏ chữ số và ký tự đặc biệt
         if (
             name === 'renterName' ||
             name === 'guarantorName' ||
@@ -700,7 +723,6 @@ export default function CreateContract() {
             return;
         }
 
-        // 5. Điều kiện Giấy phép lái xe: chỉ cho phép chữ cái, số, dấu cách, gạch ngang và dấu phẩy
         if (name === 'licenseNumber') {
             const cleanLicense = value.replace(/[^a-zA-ZÀ-ỹ0-9\s,.-]/g, '').slice(0, 30);
             hasUserEditedRef.current = true;
@@ -715,7 +737,6 @@ export default function CreateContract() {
         hasUserEditedRef.current = true;
         if (error) setError('');
 
-        // 6. Điều kiện Biển số xe: tự động in hoa, chỉ nhận chữ, số, dấu gạch ngang & dấu chấm
         if (name === 'carPlate') {
             const normalizedPlate = value
                 .toUpperCase()
@@ -765,7 +786,6 @@ export default function CreateContract() {
         }));
     };
 
-    // Xử lý Canvas chữ ký điện tử
     const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
@@ -824,9 +844,7 @@ export default function CreateContract() {
         return false;
     };
 
-    // Kiểm tra toàn bộ điều kiện trước khi cho phép xem/ký/phát hành hợp đồng
     const validateForm = () => {
-        // 1. Kiểm tra Bên Cho Thuê (Bên A)
         if (!formData.partyAName.trim() || formData.partyAName.trim().length < 2) {
             setIsPartyAExpanded(true);
             return failValidation(
@@ -844,7 +862,6 @@ export default function CreateContract() {
             );
         }
 
-        // 2. Kiểm tra Khách Thuê (Bên B)
         if (!formData.renterName.trim() || formData.renterName.trim().length < 2) {
             return failValidation(
                 language === 'vi'
@@ -860,7 +877,6 @@ export default function CreateContract() {
             );
         }
 
-        // 3. Kiểm tra Người bảo lãnh / Liên hệ khẩn cấp (nếu có nhập 1 trong 2 ô thì phải nhập đủ & đúng)
         const hasGuarantorName = formData.guarantorName.trim().length > 0;
         const hasGuarantorPhone = formData.guarantorPhone.length > 0;
 
@@ -900,7 +916,6 @@ export default function CreateContract() {
             );
         }
 
-        // 4. Kiểm tra Giấy tờ Pháp lý (CCCD gắn chip 12 số & Ngày cấp hợp lệ)
         if (!CCCD_REGEX.test(formData.cccdNumber)) {
             return failValidation(
                 language === 'vi'
@@ -916,7 +931,6 @@ export default function CreateContract() {
             );
         }
 
-        // 5. Kiểm tra Biển số xe, Thời gian thuê & Đơn giá
         const cleanPlate = formData.carPlate.trim();
         if (!cleanPlate) {
             return failValidation(
@@ -954,7 +968,6 @@ export default function CreateContract() {
             );
         }
 
-        // 6. Kiểm tra Hóa đơn VAT (nếu bật yêu cầu xuất hóa đơn)
         if (formData.requireInvoice) {
             if (!TAX_CODE_REGEX.test(formData.taxCode)) {
                 return failValidation(
@@ -1245,7 +1258,6 @@ export default function CreateContract() {
                 </div>
             ) : (
                 <div className="no-print space-y-5 max-w-7xl mx-auto">
-                    {/* Header trang */}
                     <div className="flex flex-wrap justify-between items-end gap-4">
                         <div>
                             <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
@@ -1316,7 +1328,7 @@ export default function CreateContract() {
                                     {t('createContract.partyA')}
                                 </span>
                                 <span className="text-xs text-slate-500">
-                                    • {formData.partyAName} ({formData.partyARepresentative} -{' '}
+                                    - {formData.partyAName} ({formData.partyARepresentative} -{' '}
                                     {formData.partyAPhone})
                                 </span>
                             </div>
@@ -1326,8 +1338,8 @@ export default function CreateContract() {
                                         ? 'Thu gọn'
                                         : 'Collapse'
                                     : language === 'vi'
-                                    ? 'Chỉnh sửa'
-                                    : 'Edit'}
+                                        ? 'Chỉnh sửa'
+                                        : 'Edit'}
                                 {isPartyAExpanded ? (
                                     <ChevronUp className="w-4 h-4" />
                                 ) : (
@@ -1365,11 +1377,10 @@ export default function CreateContract() {
                                         value={formData.partyAPhone}
                                         onChange={handleChange}
                                         placeholder="0977737475"
-                                        className={`w-full px-3 py-2 border rounded-lg text-sm outline-none font-mono ${
-                                            isPartyAPhoneInvalid || phoneHint?.field === 'partyAPhone'
+                                        className={`w-full px-3 py-2 border rounded-lg text-sm outline-none font-mono ${isPartyAPhoneInvalid || phoneHint?.field === 'partyAPhone'
                                                 ? 'border-rose-400 bg-rose-50/30 focus:border-rose-500'
                                                 : 'border-slate-300 focus:border-sky-500'
-                                        }`}
+                                            }`}
                                     />
                                     {(isPartyAPhoneInvalid || phoneHint?.field === 'partyAPhone') && (
                                         <p className="text-[11px] text-rose-600 mt-1 font-medium">
@@ -1457,22 +1468,21 @@ export default function CreateContract() {
                                             name="renterPhone"
                                             value={formData.renterPhone}
                                             onChange={handleChange}
-                                            className={`w-full px-3 py-2 border rounded-lg text-sm outline-none font-mono ${
-                                                isRenterPhoneInvalid ||
-                                                phoneHint?.field === 'renterPhone'
+                                            className={`w-full px-3 py-2 border rounded-lg text-sm outline-none font-mono ${isRenterPhoneInvalid ||
+                                                    phoneHint?.field === 'renterPhone'
                                                     ? 'border-rose-400 bg-rose-50/30 focus:border-rose-500'
                                                     : 'border-slate-300 focus:border-sky-500'
-                                            }`}
+                                                }`}
                                             placeholder="0901234567"
                                         />
                                         {(isRenterPhoneInvalid ||
                                             phoneHint?.field === 'renterPhone') && (
-                                            <p className="text-[11px] text-rose-600 mt-1 font-medium">
-                                                {phoneHint?.field === 'renterPhone'
-                                                    ? phoneHint.message
-                                                    : `Nhập đủ 10 số bắt đầu bằng 0 (${formData.renterPhone.length}/10)`}
-                                            </p>
-                                        )}
+                                                <p className="text-[11px] text-rose-600 mt-1 font-medium">
+                                                    {phoneHint?.field === 'renterPhone'
+                                                        ? phoneHint.message
+                                                        : `Nhập đủ 10 số bắt đầu bằng 0 (${formData.renterPhone.length}/10)`}
+                                                </p>
+                                            )}
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-bold text-slate-600 mb-1">
@@ -1534,22 +1544,21 @@ export default function CreateContract() {
                                             name="guarantorPhone"
                                             value={formData.guarantorPhone}
                                             onChange={handleChange}
-                                            className={`w-full px-3 py-2 border bg-white rounded-lg text-sm outline-none font-mono text-rose-700 ${
-                                                isGuarantorPhoneInvalid ||
-                                                phoneHint?.field === 'guarantorPhone'
+                                            className={`w-full px-3 py-2 border bg-white rounded-lg text-sm outline-none font-mono text-rose-700 ${isGuarantorPhoneInvalid ||
+                                                    phoneHint?.field === 'guarantorPhone'
                                                     ? 'border-rose-400 focus:border-rose-500'
                                                     : 'border-rose-200 focus:border-rose-500'
-                                            }`}
+                                                }`}
                                             placeholder="0981234567"
                                         />
                                         {(isGuarantorPhoneInvalid ||
                                             phoneHint?.field === 'guarantorPhone') && (
-                                            <p className="text-[11px] text-rose-600 mt-1 font-medium">
-                                                {phoneHint?.field === 'guarantorPhone'
-                                                    ? phoneHint.message
-                                                    : `Nhập đủ 10 số bắt đầu bằng 0 (${formData.guarantorPhone.length}/10)`}
-                                            </p>
-                                        )}
+                                                <p className="text-[11px] text-rose-600 mt-1 font-medium">
+                                                    {phoneHint?.field === 'guarantorPhone'
+                                                        ? phoneHint.message
+                                                        : `Nhập đủ 10 số bắt đầu bằng 0 (${formData.guarantorPhone.length}/10)`}
+                                                </p>
+                                            )}
                                     </div>
                                 </div>
                             </div>
@@ -1587,7 +1596,10 @@ export default function CreateContract() {
                                             {availableVehicles.map((v) => (
                                                 <option key={v.id || v.plate} value={v.plate}>
                                                     {v.model
-                                                        ? `${v.model} - ${v.dailyRate.toLocaleString('vi-VN')}đ/ngày`
+                                                        ? `${v.model}${v.dailyRate > 0
+                                                            ? ` - ${v.dailyRate.toLocaleString('vi-VN')}đ/ngày`
+                                                            : ''
+                                                        }`
                                                         : ''}
                                                 </option>
                                             ))}
@@ -1617,50 +1629,55 @@ export default function CreateContract() {
                                             value={formData.rentEndDate}
                                             min={formData.rentStartDate || undefined}
                                             onChange={handleChange}
-                                            className={`w-full px-3 py-2 border rounded-lg text-sm outline-none ${
-                                                !rentalSummary.isValidRange
+                                            className={`w-full px-3 py-2 border rounded-lg text-sm outline-none ${!rentalSummary.isValidRange
                                                     ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500'
                                                     : 'border-slate-300 focus:border-emerald-500'
-                                            }`}
+                                                }`}
                                         />
                                     </div>
                                 </div>
 
-                                {/* Hàng chọn nhanh biển số xe có sẵn */}
+                                {/* Hàng chọn nhanh biển số xe của doanh nghiệp hiện tại */}
                                 <div className="mb-4 flex flex-wrap items-center gap-1.5">
                                     <span className="text-[11px] font-semibold text-slate-400 mr-1">
                                         {language === 'vi' ? 'Gợi ý nhanh:' : 'Quick pick:'}
                                     </span>
-                                    {availableVehicles.slice(0, 6).map((v) => {
-                                        const isSelected =
-                                            formData.carPlate.trim().toUpperCase() ===
-                                            v.plate.toUpperCase();
-                                        return (
-                                            <button
-                                                key={v.id || v.plate}
-                                                type="button"
-                                                onClick={() => handleSelectPresetVehicle(v)}
-                                                className={`px-2.5 py-1 rounded-md text-xs font-mono transition-colors border cursor-pointer ${
-                                                    isSelected
-                                                        ? 'bg-emerald-600 text-white border-emerald-600 font-bold'
-                                                        : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 border-slate-200 hover:border-emerald-300'
-                                                }`}
-                                            >
-                                                {v.plate}
-                                                {v.model && (
-                                                    <span
-                                                        className={`font-sans ml-1 ${
-                                                            isSelected
-                                                                ? 'text-emerald-100'
-                                                                : 'text-slate-400'
+                                    {availableVehicles.length === 0 ? (
+                                        <span className="text-[11px] text-slate-400 italic">
+                                            {language === 'vi'
+                                                ? 'Chưa có phương tiện nào trong đội xe của đơn vị này.'
+                                                : 'No vehicles in this enterprise fleet yet.'}
+                                        </span>
+                                    ) : (
+                                        availableVehicles.slice(0, 6).map((v) => {
+                                            const isSelected =
+                                                formData.carPlate.trim().toUpperCase() ===
+                                                v.plate.toUpperCase();
+                                            return (
+                                                <button
+                                                    key={v.id || v.plate}
+                                                    type="button"
+                                                    onClick={() => handleSelectPresetVehicle(v)}
+                                                    className={`px-2.5 py-1 rounded-md text-xs font-mono transition-colors border cursor-pointer ${isSelected
+                                                            ? 'bg-emerald-600 text-white border-emerald-600 font-bold'
+                                                            : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 border-slate-200 hover:border-emerald-300'
                                                         }`}
-                                                    >
-                                                        • {v.model}
-                                                    </span>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
+                                                >
+                                                    {v.plate}
+                                                    {v.model && (
+                                                        <span
+                                                            className={`font-sans ml-1 ${isSelected
+                                                                    ? 'text-emerald-100'
+                                                                    : 'text-slate-400'
+                                                                }`}
+                                                        >
+                                                            - {v.model}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })
+                                    )}
                                 </div>
 
                                 {!rentalSummary.isValidRange && (
@@ -1688,8 +1705,8 @@ export default function CreateContract() {
                                                 value={
                                                     formData.rentPrice
                                                         ? Number(formData.rentPrice).toLocaleString(
-                                                              'vi-VN'
-                                                          )
+                                                            'vi-VN'
+                                                        )
                                                         : ''
                                                 }
                                                 onChange={handleMoneyChange}
@@ -1716,8 +1733,8 @@ export default function CreateContract() {
                                                 value={
                                                     formData.depositAmount
                                                         ? Number(
-                                                              formData.depositAmount
-                                                          ).toLocaleString('vi-VN')
+                                                            formData.depositAmount
+                                                        ).toLocaleString('vi-VN')
                                                         : ''
                                                 }
                                                 onChange={handleMoneyChange}
@@ -1828,11 +1845,10 @@ export default function CreateContract() {
                                                 name="taxCode"
                                                 value={formData.taxCode}
                                                 onChange={handleChange}
-                                                className={`w-full px-3 py-2 border rounded-lg text-sm outline-none font-mono ${
-                                                    isTaxCodeInvalid
+                                                className={`w-full px-3 py-2 border rounded-lg text-sm outline-none font-mono ${isTaxCodeInvalid
                                                         ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500'
                                                         : 'border-amber-300 bg-amber-50/30 focus:border-amber-500'
-                                                }`}
+                                                    }`}
                                                 placeholder="0101234567"
                                             />
                                             {isTaxCodeInvalid && (
@@ -1896,11 +1912,10 @@ export default function CreateContract() {
                                             name="cccdNumber"
                                             value={formData.cccdNumber}
                                             onChange={handleChange}
-                                            className={`w-full px-3 py-2 border rounded-lg text-sm outline-none font-mono ${
-                                                isCccdInvalid
+                                            className={`w-full px-3 py-2 border rounded-lg text-sm outline-none font-mono ${isCccdInvalid
                                                     ? 'border-rose-400 bg-rose-50/30 focus:border-rose-500'
                                                     : 'border-slate-300 focus:border-indigo-500'
-                                            }`}
+                                                }`}
                                             placeholder="048200012345"
                                         />
                                         {isCccdInvalid && (
@@ -1955,7 +1970,6 @@ export default function CreateContract() {
                         </div>
                     </div>
 
-                    {/* Thanh hành động Sticky bên trong vùng nội dung */}
                     <div className="sticky bottom-0 z-30 -mx-6 -mb-6 mt-6 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 shadow-[0_-4px_12px_rgba(15,23,42,0.04)]">
                         <p className="text-xs text-slate-500 font-medium max-w-md">
                             {t('createContract.previewNote')}

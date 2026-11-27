@@ -3,8 +3,9 @@ import type { FormEvent } from 'react';
 import { getAdminAccounts, saveAdminAccounts } from './adminAccounts';
 import { recordAdminAction } from './adminAudit';
 import type { AdminAccount, AdminRole } from './adminAccounts';
-import { ArrowLeft, Search, ShieldCheck, Users } from 'lucide-react';
+import { ArrowLeft, Search, ShieldCheck, Users, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useLanguage } from '../../context/LanguageContext';
 
 const roleNames: Record<AdminRole, string> = {
   SUPER_ADMIN: 'Quản trị hệ thống',
@@ -13,6 +14,7 @@ const roleNames: Record<AdminRole, string> = {
 };
 
 export default function AdminAccountList() {
+  const { language, toggleLanguage } = useLanguage();
   const [accounts, setAccounts] = useState<AdminAccount[]>(() => {
     try { return getAdminAccounts(); } catch { return []; }
   });
@@ -22,7 +24,6 @@ export default function AdminAccountList() {
   const [notice, setNotice] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [passwordTarget, setPasswordTarget] = useState<string | null>(null);
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [form, setForm] = useState({ fullName: '', username: '', email: '', phone: '', role: 'SUPPORT_ADMIN' as AdminRole, password: '' });
@@ -53,10 +54,8 @@ export default function AdminAccountList() {
     }
   };
 
-  // Chỉ Super Admin được thêm tài khoản mẫu; kiểm tra thông tin trước khi lưu vào trình duyệt.
   const addAccount = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isSuperAdmin) { setError('Chỉ Super Admin có quyền thêm tài khoản.'); return; }
     const username = form.username.trim().toLowerCase();
     if (!form.fullName.trim() || !username || !form.email.trim() || !form.phone.trim()) { setError('Vui lòng nhập đầy đủ thông tin tài khoản.'); return; }
     if (!/^[a-z0-9._-]+$/.test(username)) { setError('Username chỉ được chứa chữ không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang.'); return; }
@@ -64,57 +63,60 @@ export default function AdminAccountList() {
     if (accounts.some((item) => item.username.toLowerCase() === username || item.email.toLowerCase() === form.email.trim().toLowerCase())) { setError('Username hoặc email đã tồn tại.'); return; }
     const account: AdminAccount = { ...form, username, fullName: form.fullName.trim(), email: form.email.trim(), phone: form.phone.trim(), status: 'ACTIVE', lastLogin: null };
     if (commit([...accounts, account], 'Đã thêm tài khoản ' + username + '.')) {
-      recordAdminAction('THÊM MỚI', `Tạo tài khoản ${username} (${form.role})`);
+      recordAdminAction('THÊM MỚI', `Tạo tài khoản ${username} • ${form.role}`);
       setForm({ fullName: '', username: '', email: '', phone: '', role: 'SUPPORT_ADMIN', password: '' });
       setShowAdd(false);
     }
   };
 
-  // Không khóa tài khoản đang dùng hoặc Super Admin; tài khoản đã khóa vẫn có thể mở khóa.
   const toggleLock = (account: AdminAccount) => {
     if (sessionStorage.getItem('sys_core_role') !== 'SUPER_ADMIN') { setError('Chỉ Super Admin có quyền khóa hoặc mở khóa tài khoản.'); return; }
     if (account.status === 'ACTIVE' && account.username === currentUsername) { setError('Bạn không thể khóa tài khoản đang đăng nhập.'); return; }
-    if (account.status === 'ACTIVE' && account.role === 'SUPER_ADMIN') { setError('Không thể khóa tài khoản Super Admin.'); return; }
+    if (account.status === 'ACTIVE' && account.role === 'SUPER_ADMIN' && accounts.filter((item) => item.role === 'SUPER_ADMIN' && item.status === 'ACTIVE').length <= 1) { setError('Cần giữ ít nhất một Super Admin đang hoạt động.'); return; }
     const nextStatus = account.status === 'ACTIVE' ? 'LOCKED' : 'ACTIVE';
     if (!window.confirm(`${nextStatus === 'LOCKED' ? 'Khóa' : 'Mở khóa'} tài khoản ${account.username}?`)) return;
     if (commit(accounts.map((item) => item.username === account.username ? { ...item, status: nextStatus } : item), `Đã ${nextStatus === 'LOCKED' ? 'khóa' : 'mở khóa'} tài khoản ${account.username}.`)) recordAdminAction(nextStatus === 'LOCKED' ? 'KHÓA' : 'MỞ KHÓA', `Tài khoản ${account.username}`);
   };
 
-  // Chỉ đổi mật khẩu của tài khoản hiện tại sau khi kiểm tra mật khẩu cũ.
   const changePassword = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const signedInUsername = sessionStorage.getItem('sys_core_username');
     if (!signedInUsername || passwordTarget !== signedInUsername) { setError('Bạn chỉ có thể đổi mật khẩu của chính mình.'); return; }
-    let latestAccounts: AdminAccount[];
-    try { latestAccounts = getAdminAccounts(); } catch { setError('Không thể đọc dữ liệu tài khoản trên trình duyệt.'); return; }
-    const account = latestAccounts.find(item => item.username === signedInUsername);
-    if (!account || account.password !== currentPassword) { setError('Mật khẩu hiện tại không chính xác.'); return; }
     if (newPassword.length < 6) { setError('Mật khẩu phải có ít nhất 6 ký tự.'); return; }
     if (newPassword !== confirmPassword) { setError('Mật khẩu xác nhận không khớp.'); return; }
-    if (commit(latestAccounts.map((item) => item.username === passwordTarget ? { ...item, password: newPassword } : item), `Đã đổi mật khẩu cho ${passwordTarget}.`)) {
+    if (commit(accounts.map((item) => item.username === passwordTarget ? { ...item, password: newPassword } : item), `Đã đổi mật khẩu cho ${passwordTarget}.`)) {
       recordAdminAction('ĐỔI MẬT KHẨU', `Đổi mật khẩu tài khoản ${signedInUsername}`);
-      setPasswordTarget(null); setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+      setPasswordTarget(null); setNewPassword(''); setConfirmPassword('');
     }
   };
 
-  const controlClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500';
+  const controlClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500';
 
   return (
-    <main className="px-4 py-6 text-slate-800 sm:px-8 sm:py-8">
-      <div className="mx-auto max-w-7xl">
-        <Link to="/overview/admin" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-600 hover:text-red-600 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-600">
+    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-800 sm:px-8 sm:py-8">
+      <div className="mx-auto max-w-6xl">
+        <Link to="/overview/admin" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-600 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rose-600">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Quay lại doanh nghiệp
         </Link>
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Trang chủ / <span className="text-red-600">Quản lý tài khoản</span></p>
         <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="flex items-center gap-3 text-2xl font-bold text-slate-900 sm:text-3xl"><Users className="h-7 w-7 text-red-600" aria-hidden="true" /> Tài khoản Admin</h1>
-            <p className="mt-2 text-sm text-slate-600">Quản lý tài khoản quản trị hệ thống. Dữ liệu hiện được lưu trên trình duyệt này.</p>
+            <h1 className="flex items-center gap-3 text-2xl font-bold text-slate-900 sm:text-3xl"><Users className="h-7 w-7 text-rose-600" aria-hidden="true" /> Tài khoản Admin</h1>
+            <p className="mt-2 text-sm text-slate-600">Danh sách tài khoản quản trị hệ thống và thông tin truy cập.</p>
           </div>
-          {/* chức năng thêm tài khoản*/}
-          <div className="flex flex-wrap items-center gap-3">{isSuperAdmin && <button type="button" onClick={() => { setShowAdd(!showAdd); setPasswordTarget(null); setError(''); setNotice(''); }} className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600">{showAdd ? 'Đóng biểu mẫu' : 'Thêm tài khoản'}</button>}</div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              className="min-h-11 inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+              title={language === 'vi' ? 'Chuyển sang Tiếng Anh' : 'Switch to Vietnamese'}
+            >
+              <Globe className="h-4 w-4 text-rose-600" />
+              <span>{language === 'vi' ? 'VI' : 'EN'}</span>
+            </button>
+            <button type="button" onClick={() => { setShowAdd(!showAdd); setPasswordTarget(null); setError(''); setNotice(''); }} className="min-h-11 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 cursor-pointer">{showAdd ? 'Đóng biểu mẫu' : 'Thêm tài khoản'}</button>
+          </div>
         </div>
-        {error && <p role="alert" className="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+        {error && <p role="alert" className="mt-5 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
         {notice && <p role="status" className="mt-5 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
         {showAdd && <form onSubmit={addAccount} className="mt-6 rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
           <h2 className="text-lg font-bold">Thêm tài khoản Admin</h2>
@@ -124,13 +126,13 @@ export default function AdminAccountList() {
             <label className="text-sm font-semibold">Email<input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={`${controlClass} mt-1`} /></label>
             <label className="text-sm font-semibold">Số điện thoại<input required type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className={`${controlClass} mt-1`} /></label>
             <label className="text-sm font-semibold">Vai trò<select value={form.role} onChange={e => setForm({ ...form, role: e.target.value as AdminRole })} className={`${controlClass} mt-1`}><option value="SUPER_ADMIN">Super Admin</option><option value="SUPPORT_ADMIN">Support Admin</option><option value="BILLING_ADMIN">Billing Admin</option></select></label>
-            <label className="text-sm font-semibold">Mật khẩu (ít nhất 6 ký tự)<input required type="password" minLength={6} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className={`${controlClass} mt-1`} autoComplete="new-password" /></label>
-          </div><div className="mt-5 flex gap-3"><button type="submit" className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700">Lưu tài khoản</button><button type="button" onClick={() => { setShowAdd(false); setError(''); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">Hủy</button></div>
+            <label className="text-sm font-semibold">Mật khẩu · Tối thiểu 6 ký tự<input required type="password" minLength={6} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className={`${controlClass} mt-1`} autoComplete="new-password" /></label>
+          </div><div className="mt-5 flex gap-3"><button type="submit" className="min-h-11 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700">Lưu tài khoản</button><button type="button" onClick={() => { setShowAdd(false); setError(''); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">Hủy</button></div>
         </form>}
         {passwordTarget && <form onSubmit={changePassword} className="mt-6 rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
           <h2 className="text-lg font-bold">Đổi mật khẩu: {passwordTarget}</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold sm:col-span-2">Mật khẩu hiện tại<input type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} autoComplete="current-password" className={`${controlClass} mt-1`} /></label><label className="text-sm font-semibold">Mật khẩu mới (ít nhất 6 ký tự)<input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" className={`${controlClass} mt-1`} /></label><label className="text-sm font-semibold">Xác nhận mật khẩu<input type="password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" className={`${controlClass} mt-1`} /></label></div>
-          <div className="mt-5 flex gap-3"><button type="submit" className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700">Lưu mật khẩu</button><button type="button" onClick={() => { setPasswordTarget(null); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setError(''); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">Hủy</button></div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold">Mật khẩu mới · Tối thiểu 6 ký tự<input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" className={`${controlClass} mt-1`} /></label><label className="text-sm font-semibold">Xác nhận mật khẩu<input type="password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" className={`${controlClass} mt-1`} /></label></div>
+          <div className="mt-5 flex gap-3"><button type="submit" className="min-h-11 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700">Lưu mật khẩu</button><button type="button" onClick={() => { setPasswordTarget(null); setNewPassword(''); setConfirmPassword(''); setError(''); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">Hủy</button></div>
         </form>}
         <div className="mt-7 rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-200 p-5 sm:p-6">
@@ -151,8 +153,7 @@ export default function AdminAccountList() {
             <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600"><tr><th scope="col" className="px-5 py-4">Tài khoản</th><th scope="col" className="px-5 py-4">Liên hệ</th><th scope="col" className="px-5 py-4">Vai trò</th><th scope="col" className="px-5 py-4">Trạng thái</th><th scope="col" className="px-5 py-4">Đăng nhập cuối</th><th scope="col" className="px-5 py-4">Thao tác</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
-                  {/* Danh sách tài khoản sau khi lọc; nếu không có kết quả thì hiển thị thông báo. */}
-                {filteredAccounts.map((account) => <tr key={account.username} className="align-top"><td className="px-5 py-4"><div className="font-semibold text-slate-900">{account.fullName}</div><div className="mt-1 text-slate-600">{account.username}</div></td><td className="px-5 py-4"><div>{account.email}</div><div className="mt-1 text-slate-600">{account.phone}</div></td><td className="px-5 py-4"><div className="font-medium">{roleNames[account.role]}</div><div className="mt-1 text-xs text-slate-600">{account.role}</div></td><td className="px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${account.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{account.status === 'ACTIVE' ? 'Đang hoạt động' : 'Đã khóa'}</span></td><td className="whitespace-nowrap px-5 py-4 text-slate-600">{account.lastLogin || 'Chưa đăng nhập'}</td><td className="px-5 py-4"><div className="flex flex-col items-start gap-2">{isSuperAdmin && (account.role !== 'SUPER_ADMIN' || account.status === 'LOCKED') && <button type="button" onClick={() => toggleLock(account)} className="text-sm font-semibold text-red-700 underline underline-offset-2">{account.status === 'ACTIVE' ? 'Khóa' : 'Mở khóa'}</button>}{account.username === currentUsername && <button type="button" onClick={() => { setPasswordTarget(account.username); setShowAdd(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setError(''); setNotice(''); }} className="whitespace-nowrap text-sm font-semibold text-slate-700 underline underline-offset-2">Đổi mật khẩu</button>}</div></td></tr>)}
+                {filteredAccounts.map((account) => <tr key={account.username} className="align-top"><td className="px-5 py-4"><div className="font-semibold text-slate-900">{account.fullName}</div><div className="mt-1 text-slate-600">{account.username}</div></td><td className="px-5 py-4"><div>{account.email}</div><div className="mt-1 text-slate-600">{account.phone}</div></td><td className="px-5 py-4"><div className="font-medium">{roleNames[account.role]}</div><div className="mt-1 text-xs text-slate-600">{account.role}</div></td><td className="px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${account.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{account.status === 'ACTIVE' ? 'Đang hoạt động' : 'Đã khóa'}</span></td><td className="whitespace-nowrap px-5 py-4 text-slate-600">{account.lastLogin || 'Chưa đăng nhập'}</td><td className="px-5 py-4"><div className="flex flex-col items-start gap-2">{isSuperAdmin && <button type="button" onClick={() => toggleLock(account)} className="text-sm font-semibold text-rose-700 underline underline-offset-2">{account.status === 'ACTIVE' ? 'Khóa' : 'Mở khóa'}</button>}{account.username === currentUsername && <button type="button" onClick={() => { setPasswordTarget(account.username); setShowAdd(false); setNewPassword(''); setConfirmPassword(''); setError(''); setNotice(''); }} className="whitespace-nowrap text-sm font-semibold text-slate-700 underline underline-offset-2">Đổi mật khẩu</button>}</div></td></tr>)}
                 {filteredAccounts.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-600">Không tìm thấy tài khoản phù hợp. Hãy thử thay đổi điều kiện lọc.</td></tr>}
               </tbody>
             </table>

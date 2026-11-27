@@ -1,2199 +1,3338 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Receipt,
-    Plus,
-    Search,
-    CheckCircle2,
-    Clock,
-    AlertTriangle,
-    Lock,
-    Unlock,
-    CreditCard,
-    Banknote,
-    Building2,
-    Car,
-    FileCheck2,
-    Eye,
-    X,
-    AlertCircle,
-    ShieldCheck,
-    Wallet,
-    Calendar,
-    FileText,
-    Upload,
-    Sparkles,
-    Calculator
+  Plus,
+  Search,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Calendar,
+  Building2,
+  FileText,
+  X,
+  RefreshCw,
+  Trash2,
+  Upload,
+  Image as ImageIcon,
+  Eye,
+  Wallet,
+  ArrowRight,
+  ArrowLeft,
+  QrCode,
+  Copy,
+  Check,
+  Printer,
+  Store,
+  CreditCard,
 } from 'lucide-react';
-import { useLanguage } from '../../context/LanguageContext';
-import type { TenantRecord, TenantStatus, SubscriptionPlan } from './AdminTenantList';
+import { recordAdminAction } from './adminAudit';
+import { vi } from '../../locales/vi';
+import { en } from '../../locales/en';
 
-export type PaymentStatus = 'PAID' | 'UNPAID' | 'OVERDUE';
-export type BillingMode = 'PACKAGE' | 'PER_VEHICLE';
-export type PaymentMethod = 'BANK_TRANSFER' | 'CASH';
-export type TxVerifyStatus = 'CONFIRMED' | 'PENDING';
-export type PaidPlanKey = Exclude<SubscriptionPlan, 'TRIAL_14D'>;
+// ==========================================
+// 1. SHARED TYPES & CONSTANTS (DÙNG CHUNG CHO CẢ 3 TRANG)
+// ==========================================
 
-export interface PaymentTransaction {
-    id: string;
-    amount: number;
-    method: PaymentMethod;
-    transactionCode: string;
-    voucherCode: string;
-    voucherImage?: string;
-    paidAt: string;
-    verifyStatus: TxVerifyStatus;
-    verifiedBy?: string;
-    verifiedAt?: string;
-    note?: string;
+export type AdminLang = 'vi' | 'en';
+export const ADMIN_LANG_STORAGE_KEY = 'sys_admin_lang_v1';
+export const ADMIN_LANG_CHANGE_EVENT = 'drivelinker:admin-lang-change';
+
+export const readAdminLang = (): AdminLang => {
+  try {
+    return localStorage.getItem(ADMIN_LANG_STORAGE_KEY) === 'en' ? 'en' : 'vi';
+  } catch {
+    return 'vi';
+  }
+};
+
+export const toggleAdminLang = (): AdminLang => {
+  const next: AdminLang = readAdminLang() === 'vi' ? 'en' : 'vi';
+  try {
+    localStorage.setItem(ADMIN_LANG_STORAGE_KEY, next);
+  } catch {
+    // ignore storage errors
+  }
+  window.dispatchEvent(new CustomEvent(ADMIN_LANG_CHANGE_EVENT, { detail: next }));
+  return next;
+};
+
+export const translateFromViEn = (
+  lang: AdminLang,
+  key: string,
+  params?: Record<string, string | number>
+): string => {
+  const dict: any = lang === 'en' ? en : vi;
+  const parts = key.split('.');
+  let cur = dict;
+  for (const p of parts) {
+    if (!cur || typeof cur !== 'object') {
+      cur = undefined;
+      break;
+    }
+    cur = cur[p];
+  }
+  let text = typeof cur === 'string' ? cur : key;
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+    });
+  }
+  return text;
+};
+
+export type PackageDuration = 6 | 12;
+export type ServiceTier = 'BASIC' | 'PRO' | 'ENTERPRISE';
+export type TenantLifecycleStatus =
+  | 'ACTIVE'
+  | 'EXPIRING_SOON'
+  | 'PARTIAL_PAID'
+  | 'SUSPENDED';
+
+export type RenewalChannel = 'QR_TRANSFER' | 'COUNTER_CONTRACT';
+
+export interface ServiceTierOption {
+  key: ServiceTier;
+  label: string;
+  description: string;
+  prices: Record<PackageDuration, number>;
+}
+
+export interface RentalPackageOption {
+  id: 'pkg-6m' | 'pkg-12m';
+  planKey: 'PKG_6M' | 'PKG_12M';
+  duration: PackageDuration;
+  name: string;
+  price: number;
+  description: string;
+}
+
+export interface ContractEvidenceItem {
+  id: string;
+  type: 'INITIAL' | 'RENEWAL' | 'BILLING';
+  title: string;
+  tierLabel: string;
+  packageName: string;
+  amount: number;
+  startDate: string;
+  endDate: string;
+  imageUrl: string;
+  uploadedAt: string;
+  note?: string;
 }
 
 export interface BillingInvoice {
-    id: string;
-    invoiceCode: string;
-    tenantId: string;
-    tenantName: string;
-    tenantCode: string;
-    billingPeriod: string;
-    billingMode: BillingMode;
-    planKey?: PaidPlanKey;
-    planName: string;
-    durationMonths: number;
-    discountPercent: number;
-    vehicleCount: number;
-    includedVehicles?: number;
-    overageVehicles?: number;
-    overageAmount?: number;
-    unitPricePerVehicle: number;
-    totalAmount: number;
-    paidAmount: number;
-    dueDate: string;
-    createdAt: string;
-    transactions: PaymentTransaction[];
+  id: string;
+  invoiceCode: string;
+  tenantId: string;
+  tenantName: string;
+  tenantCode: string;
+  tier: ServiceTier;
+  tierName: string;
+  packageId: 'pkg-6m' | 'pkg-12m';
+  packageName: string;
+  duration: PackageDuration;
+  totalAmount: number;
+  paidAmount: number;
+  remainingDueDate?: string;
+  isAdvanceForNextCycle?: boolean;
+  startDate: string;
+  endDate: string;
+  dueDate: string;
+  paymentMethod: 'BANK_TRANSFER' | 'INVOICE';
+  proofImage?: string;
+  note?: string;
+  updatedAt: string;
 }
 
-interface CoreAuditLog {
-    id: number;
-    time: string;
-    admin: string;
-    action: string;
-    details: string;
+export interface UnifiedTenantRecord {
+  id: string;
+  name: string;
+  code: string;
+  ownerName: string;
+  phone: string;
+  email?: string;
+  address: string;
+  status: 'ACTIVE' | 'SUSPENDED';
+  lifecycleStatus?: TenantLifecycleStatus;
+  isPartialPayment?: boolean;
+  paidAmount?: number;
+  remainingAmount?: number;
+  remainingDueDate?: string;
+  advanceNextCycleAmount?: number;
+  advanceNextCycleDueDate?: string;
+  daysUntilExpiry?: number;
+  tier: ServiceTier;
+  plan: 'PKG_6M' | 'PKG_12M';
+  packagePrice: number;
+  monthlyFee: number;
+  activatedAt: string;
+  expiresAt: string;
+  evidenceHistory?: ContractEvidenceItem[];
+  notes?: string;
+  updatedAt?: string;
 }
 
-interface PaidPackageSpec {
-    key: PaidPlanKey;
-    labelVi: string;
-    labelEn: string;
-    monthlyFee: number;
-    maxVehicles: number;
+export interface ExecuteRenewalParams {
+  tenantId: string;
+  tenantName: string;
+  tenantCode: string;
+  sourceInvoiceCode?: string;
+  tier: ServiceTier;
+  duration: PackageDuration;
+  startDate: string;
+  dueDate?: string;
+  paymentMethod: 'BANK_TRANSFER' | 'INVOICE';
+  paidAmount: number;
+  remainingDueDate?: string;
+  proofImage: string;
+  note?: string;
 }
 
-interface DurationOption {
-    months: number;
-    labelVi: string;
-    labelEn: string;
-    discountPercent: number;
+export interface UnifiedPlatformMetrics {
+  totalTenants: number;
+  activeCount: number;
+  suspendedCount: number;
+  expiringSoonCount: number;
+  partialCount: number;
+  newTenantsList: UnifiedTenantRecord[];
+  newTenantsCount: number;
+  totalVehicles: number;
+  totalPackageValue: number;
+  monthlyPackageRevenue: number;
+  arpu: number;
+  activeTenants: UnifiedTenantRecord[];
+  currentCycleDebtInvoices: BillingInvoice[];
+  overdueInvoices: BillingInvoice[];
+  currentPartialInvoices: BillingInvoice[];
+  advanceNextCycleInvoices: BillingInvoice[];
+  totalOverdueDebt: number;
+  totalCurrentPartialRemaining: number;
+  totalRemainingAll: number;
+  totalAdvancePaidNextCycle: number;
+  totalAdvanceRemainingNextCycle: number;
+  totalCommittedInvoices: number;
+  totalCollected: number;
+  count6M: number;
+  count12M: number;
+  totalDevices: number;
+  inUseDevices: number;
+  inStockDevices: number;
+  issueDevices: number;
+  cameraCount: number;
+  gpsCount: number;
 }
 
-const AUDIT_STORAGE_KEY = 'sys_core_audit_logs';
-const OVERAGE_RATE_PER_VEHICLE = 120000; // 120.000đ / xe vượt hạn mức / tháng
-
-const PAID_PACKAGES: Record<PaidPlanKey, PaidPackageSpec> = {
-    STARTER: {
-        key: 'STARTER',
-        labelVi: 'Starter (Cơ bản)',
-        labelEn: 'Starter',
-        monthlyFee: 990000,
-        maxVehicles: 15
+export const SERVICE_TIERS: Record<ServiceTier, ServiceTierOption> = {
+  BASIC: {
+    key: 'BASIC',
+    label: 'Cơ bản',
+    description: 'Giám sát GPS, lộ trình & quản lý đội xe tiêu chuẩn',
+    prices: {
+      6: 9000000,
+      12: 16200000,
     },
-    PRO: {
-        key: 'PRO',
-        labelVi: 'Professional (Chuyên nghiệp)',
-        labelEn: 'Professional',
-        monthlyFee: 2490000,
-        maxVehicles: 50
+  },
+  PRO: {
+    key: 'PRO',
+    label: 'Chuyên nghiệp',
+    description: 'Đầy đủ giám sát AI Camera, cảnh báo & báo cáo nâng cao',
+    prices: {
+      6: 15000000,
+      12: 27000000,
     },
-    ENTERPRISE: {
-        key: 'ENTERPRISE',
-        labelVi: 'Enterprise (Doanh nghiệp lớn)',
-        labelEn: 'Enterprise',
-        monthlyFee: 4990000,
-        maxVehicles: 200
-    }
+  },
+  ENTERPRISE: {
+    key: 'ENTERPRISE',
+    label: 'Cao cấp',
+    description: 'Vận hành quy mô lớn, API mở rộng & ưu tiên hỗ trợ suốt ngày đêm',
+    prices: {
+      6: 24000000,
+      12: 43200000,
+    },
+  },
 };
 
-const DURATION_OPTIONS: DurationOption[] = [
-    { months: 1, labelVi: '1 tháng', labelEn: '1 Month', discountPercent: 0 },
-    { months: 3, labelVi: '3 tháng (Quý)', labelEn: '3 Months', discountPercent: 5 },
-    { months: 6, labelVi: '6 tháng', labelEn: '6 Months', discountPercent: 10 },
-    { months: 12, labelVi: '12 tháng (Năm)', labelEn: '12 Months', discountPercent: 15 }
+export const getPackagePrice = (
+  tier: ServiceTier = 'PRO',
+  duration: PackageDuration = 6
+): number => {
+  const tierConfig = SERVICE_TIERS[tier] || SERVICE_TIERS.PRO;
+  return tierConfig.prices[duration] ?? SERVICE_TIERS.PRO.prices[6];
+};
+
+export const RENTAL_PACKAGES: RentalPackageOption[] = [
+  {
+    id: 'pkg-6m',
+    planKey: 'PKG_6M',
+    duration: 6,
+    name: 'Gói 6 tháng',
+    price: SERVICE_TIERS.PRO.prices[6],
+    description: 'Sử dụng trọn gói hệ thống quản lý & giám sát trong 6 tháng',
+  },
+  {
+    id: 'pkg-12m',
+    planKey: 'PKG_12M',
+    duration: 12,
+    name: 'Gói 12 tháng',
+    price: SERVICE_TIERS.PRO.prices[12],
+    description: 'Sử dụng trọn gói trong 12 tháng (tiết kiệm 10% so với gói 6 tháng)',
+  },
 ];
 
-// Biểu phí bậc thang theo quy mô đội xe thực tế (Pay-as-you-go)
-const getPerVehicleTierRate = (vehicleCount: number): { rate: number; tierLabel: string } => {
-    if (vehicleCount <= 10) {
-        return { rate: 150000, tierLabel: 'Bậc 1 (1–10 xe)' };
-    }
-    if (vehicleCount <= 30) {
-        return { rate: 130000, tierLabel: 'Bậc 2 (11–30 xe)' };
-    }
-    return { rate: 110000, tierLabel: 'Bậc 3 (Trên 30 xe)' };
+export const BILLING_STORAGE_KEY = 'sys_platform_billing';
+export const TENANTS_STORAGE_KEY = 'sys_tenants';
+export const PLATFORM_SYNC_EVENT = 'drivelinker:platform-sync';
+export const EXPIRING_SOON_DAYS = 7;
+export const MAX_PARTIAL_SETTLE_DAYS = 30;
+
+// ==========================================
+// 2. SHARED HELPERS & REAL-TIME SYNC ENGINE
+// ==========================================
+
+export const compressImageToDataURL = (
+  file: File,
+  maxWidth = 1100,
+  quality = 0.75
+): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Không thể đọc tệp ảnh'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+      img.onload = () => {
+        const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(typeof reader.result === 'string' ? reader.result : '');
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = typeof reader.result === 'string' ? reader.result : '';
+    };
+    reader.readAsDataURL(file);
+  });
+
+const calculateEndDate = (startDateStr: string, months: PackageDuration): string => {
+  if (!startDateStr) return '';
+  const date = new Date(startDateStr);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setMonth(date.getMonth() + months);
+  return date.toISOString().split('T')[0];
 };
 
-const addDaysISO = (baseDateStr: string, days: number): string => {
-    const base = baseDateStr ? new Date(baseDateStr) : new Date();
-    if (Number.isNaN(base.getTime())) return new Date().toISOString().split('T')[0];
-    base.setDate(base.getDate() + days);
-    return base.toISOString().split('T')[0];
+const addDays = (dateStr: string, days: number): string => {
+  const date = new Date(dateStr || new Date().toISOString().split('T')[0]);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split('T')[0];
 };
+
+const getDaysRemainingISO = (targetDateStr?: string): number => {
+  if (!targetDateStr) return 999;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(targetDateStr);
+  target.setHours(0, 0, 0, 0);
+  if (Number.isNaN(target.getTime())) return 999;
+  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+};
+
+export const validatePartialDueDate = (
+  dueDateStr: string,
+  maxEndDateStr?: string,
+  baseDateStr?: string
+): string | null => {
+  const todayStr = baseDateStr || new Date().toISOString().split('T')[0];
+  if (!dueDateStr) {
+    return 'Vui lòng chọn ngày hẹn trả đủ phần còn lại.';
+  }
+  if (dueDateStr < todayStr) {
+    return 'Ngày hẹn trả đủ không được nằm trong quá khứ.';
+  }
+  const maxAllowedByPolicy = addDays(todayStr, MAX_PARTIAL_SETTLE_DAYS);
+  const ceilingDate =
+    maxEndDateStr && maxEndDateStr < maxAllowedByPolicy
+      ? maxEndDateStr
+      : maxAllowedByPolicy;
+
+  if (dueDateStr > ceilingDate) {
+    return `Thời hạn trả đủ tối đa ${MAX_PARTIAL_SETTLE_DAYS} ngày (không vượt quá ${formatDateVN(ceilingDate)}).`;
+  }
+  return null;
+};
+
+const formatVND = (amount: number): string =>
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+    Math.max(0, amount || 0)
+  );
 
 const formatDateVN = (isoDate?: string): string => {
-    if (!isoDate) return '--/--/----';
-    const parts = isoDate.split('-');
-    if (parts.length !== 3) return isoDate;
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  if (!isoDate) return '--/--/----';
+  const parts = isoDate.split('-');
+  if (parts.length !== 3) return isoDate;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
 };
 
-const computePaymentStatus = (invoice: BillingInvoice): PaymentStatus => {
-    const remaining = Math.max(0, invoice.totalAmount - invoice.paidAmount);
-    if (remaining <= 0) return 'PAID';
+const normalizeTier = (rawTier: any): ServiceTier => {
+  if (rawTier === 'BASIC' || rawTier === 'PRO' || rawTier === 'ENTERPRISE') {
+    return rawTier;
+  }
+  return 'PRO';
+};
+
+export type InvoicePaymentState =
+  | 'PAID'
+  | 'PARTIAL'
+  | 'EXPIRING_SOON'
+  | 'PENDING'
+  | 'OVERDUE';
+
+export const getInvoicePaymentState = (
+  inv: BillingInvoice,
+  todayStr?: string
+): InvoicePaymentState => {
+  const refToday = todayStr || new Date().toISOString().split('T')[0];
+  const total = inv.totalAmount || 0;
+  const paid = Math.max(0, inv.paidAmount || 0);
+  const remaining = Math.max(0, total - paid);
+
+  const daysToEnd = getDaysRemainingISO(inv.endDate);
+  const effectiveDue = inv.remainingDueDate || inv.dueDate;
+  const isDueOverdue = Boolean(effectiveDue && effectiveDue < refToday && remaining > 0);
+  const isContractExpired = daysToEnd < 0;
+
+  if (isContractExpired || isDueOverdue) {
+    return 'OVERDUE';
+  }
+
+  if (paid > 0 && remaining > 0) {
+    return 'PARTIAL';
+  }
+
+  const daysToDue = effectiveDue ? getDaysRemainingISO(effectiveDue) : 999;
+  if (
+    daysToEnd <= EXPIRING_SOON_DAYS ||
+    (remaining > 0 && daysToDue <= EXPIRING_SOON_DAYS)
+  ) {
+    return 'EXPIRING_SOON';
+  }
+
+  if (remaining === 0 && total > 0) {
+    return 'PAID';
+  }
+
+  return 'PENDING';
+};
+
+export const getOverdueAmountForInvoice = (inv: BillingInvoice): number => {
+  const pkgPrice =
+    typeof inv.totalAmount === 'number' && inv.totalAmount > 0
+      ? inv.totalAmount
+      : getPackagePrice(inv.tier || 'PRO', inv.duration || 6);
+  const paid = Math.max(0, Number(inv.paidAmount) || 0);
+  const remaining = Math.max(0, pkgPrice - paid);
+  return remaining > 0 ? remaining : pkgPrice;
+};
+
+export const getReceivableAmountForInvoice = (
+  inv: BillingInvoice,
+  todayStr?: string
+): number => {
+  const state = getInvoicePaymentState(inv, todayStr);
+  const pkgPrice =
+    typeof inv.totalAmount === 'number' && inv.totalAmount > 0
+      ? inv.totalAmount
+      : getPackagePrice(inv.tier || 'PRO', inv.duration || 6);
+  const paid = Math.max(0, Number(inv.paidAmount) || 0);
+  const remaining = Math.max(0, pkgPrice - paid);
+
+  if (state === 'OVERDUE') {
+    return getOverdueAmountForInvoice(inv);
+  }
+  return remaining;
+};
+
+const evaluateTenantLifecycle = (params: {
+  rawStatus?: 'ACTIVE' | 'SUSPENDED';
+  expiresAt: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingDueDate?: string;
+  isAdvanceForNextCycle?: boolean;
+}): {
+  status: 'ACTIVE' | 'SUSPENDED';
+  lifecycleStatus: TenantLifecycleStatus;
+  isPartialPayment: boolean;
+  remainingAmount: number;
+  daysUntilExpiry: number;
+} => {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const daysUntilExpiry = getDaysRemainingISO(params.expiresAt);
+  const remainingAmount = Math.max(0, (params.totalAmount || 0) - (params.paidAmount || 0));
+  const isPartialPayment =
+    !params.isAdvanceForNextCycle &&
+    (params.paidAmount || 0) > 0 &&
+    remainingAmount > 0;
+  const isExpired = daysUntilExpiry < 0;
+  const isPartialOverdue =
+    isPartialPayment &&
+    Boolean(params.remainingDueDate && params.remainingDueDate < todayStr);
+  const isUnpaidAtDue =
+    !params.isAdvanceForNextCycle &&
+    remainingAmount > 0 &&
+    !isPartialPayment &&
+    daysUntilExpiry <= 0;
+
+  if (isExpired || isPartialOverdue || isUnpaidAtDue) {
+    return {
+      status: 'SUSPENDED',
+      lifecycleStatus: 'SUSPENDED',
+      isPartialPayment,
+      remainingAmount,
+      daysUntilExpiry,
+    };
+  }
+
+  if (isPartialPayment) {
+    return {
+      status: 'ACTIVE',
+      lifecycleStatus: 'PARTIAL_PAID',
+      isPartialPayment: true,
+      remainingAmount,
+      daysUntilExpiry,
+    };
+  }
+
+  if (daysUntilExpiry <= EXPIRING_SOON_DAYS) {
+    return {
+      status: 'ACTIVE',
+      lifecycleStatus: 'EXPIRING_SOON',
+      isPartialPayment: false,
+      remainingAmount,
+      daysUntilExpiry,
+    };
+  }
+
+  return {
+    status: 'ACTIVE',
+    lifecycleStatus: 'ACTIVE',
+    isPartialPayment: false,
+    remainingAmount,
+    daysUntilExpiry,
+  };
+};
+
+const pickLatestInvoice = (
+  currentBest: BillingInvoice | undefined,
+  candidate: BillingInvoice
+): BillingInvoice => {
+  if (!currentBest) return candidate;
+  const bestKey = `${currentBest.endDate || ''}__${currentBest.updatedAt || ''}`;
+  const candKey = `${candidate.endDate || ''}__${candidate.updatedAt || ''}`;
+  return candKey >= bestKey ? candidate : currentBest;
+};
+
+const buildDefaultUnifiedData = (): {
+  tenants: UnifiedTenantRecord[];
+  invoices: BillingInvoice[];
+} => {
+  const today = new Date().toISOString().split('T')[0];
+  const nowIso = new Date().toISOString();
+  const pkg6 = RENTAL_PACKAGES[0];
+  const proPrice6 = getPackagePrice('PRO', 6);
+  const basicPrice6 = getPackagePrice('BASIC', 6);
+
+  const companyAStart = addDays(today, -175);
+  const companyAEnd = addDays(today, 5);
+
+  const companyBEnd = addDays(today, -5);
+  const companyBStart = addDays(companyBEnd, -180);
+
+  const companyCStart = addDays(today, -30);
+  const companyCEnd = calculateEndDate(companyCStart, 6);
+  const companyCRemainingDue = addDays(today, 14);
+
+  const rawTenants: UnifiedTenantRecord[] = [
+    {
+      id: 'COMPANY_A',
+      name: 'Demo CTY A',
+      code: 'CTYA26',
+      ownerName: 'Trần Văn A',
+      phone: '0901234567',
+      email: 'vanhanh@ctya-rental.vn',
+      address: '123 Nguyễn Văn Linh, Đà Nẵng',
+      status: 'ACTIVE',
+      tier: 'PRO',
+      plan: 'PKG_6M',
+      packagePrice: proPrice6,
+      monthlyFee: Math.round(proPrice6 / 6),
+      activatedAt: companyAStart,
+      expiresAt: companyAEnd,
+      evidenceHistory: [],
+      notes: 'Gói 6 tháng sắp đến hạn (còn 5 ngày)',
+      updatedAt: nowIso,
+    },
+    {
+      id: 'COMPANY_B',
+      name: 'Demo CTY B',
+      code: 'CTYB26',
+      ownerName: 'Lê Thị B',
+      phone: '0912345678',
+      email: 'contact@ctyb-fleet.vn',
+      address: '456 Lê Duẩn, Hà Nội',
+      status: 'SUSPENDED',
+      tier: 'BASIC',
+      plan: 'PKG_6M',
+      packagePrice: basicPrice6,
+      monthlyFee: Math.round(basicPrice6 / 6),
+      activatedAt: companyBStart,
+      expiresAt: companyBEnd,
+      evidenceHistory: [],
+      notes: 'Quá hạn gói 6 tháng -> tự động tạm ngưng',
+      updatedAt: nowIso,
+    },
+    {
+      id: 'COMPANY_C',
+      name: 'Demo CTY C',
+      code: 'CTYC26',
+      ownerName: 'Phạm Văn C',
+      phone: '0987654321',
+      email: 'admin@ctyc-car.vn',
+      address: '789 Nguyễn Huệ, TP. HCM',
+      status: 'ACTIVE',
+      tier: 'PRO',
+      plan: 'PKG_6M',
+      packagePrice: proPrice6,
+      monthlyFee: Math.round(proPrice6 / 6),
+      activatedAt: companyCStart,
+      expiresAt: companyCEnd,
+      evidenceHistory: [],
+      notes: 'Đã trả trước 8.000.000 ₫ cho gói hiện tại, hẹn trả đủ trong 14 ngày',
+      updatedAt: nowIso,
+    },
+  ];
+
+  const rawInvoices: BillingInvoice[] = [
+    {
+      id: 'inv-001',
+      invoiceCode: 'INV-2026-001',
+      tenantId: 'COMPANY_A',
+      tenantName: 'Demo CTY A',
+      tenantCode: 'CTYA26',
+      tier: 'PRO',
+      tierName: SERVICE_TIERS.PRO.label,
+      packageId: pkg6.id,
+      packageName: pkg6.name,
+      duration: 6,
+      totalAmount: proPrice6,
+      paidAmount: proPrice6,
+      startDate: companyAStart,
+      endDate: companyAEnd,
+      dueDate: addDays(companyAStart, 7),
+      paymentMethod: 'BANK_TRANSFER',
+      note: 'Gói 6 tháng sắp đến hạn gia hạn',
+      updatedAt: nowIso,
+    },
+    {
+      id: 'inv-002',
+      invoiceCode: 'INV-2026-002',
+      tenantId: 'COMPANY_B',
+      tenantName: 'Demo CTY B',
+      tenantCode: 'CTYB26',
+      tier: 'BASIC',
+      tierName: SERVICE_TIERS.BASIC.label,
+      packageId: pkg6.id,
+      packageName: pkg6.name,
+      duration: 6,
+      totalAmount: basicPrice6,
+      paidAmount: 0,
+      startDate: companyBStart,
+      endDate: companyBEnd,
+      dueDate: companyBEnd,
+      paymentMethod: 'BANK_TRANSFER',
+      note: 'Đến hạn nhưng chưa thanh toán -> Tạm ngưng',
+      updatedAt: nowIso,
+    },
+    {
+      id: 'inv-003',
+      invoiceCode: 'INV-2026-003',
+      tenantId: 'COMPANY_C',
+      tenantName: 'Demo CTY C',
+      tenantCode: 'CTYC26',
+      tier: 'PRO',
+      tierName: SERVICE_TIERS.PRO.label,
+      packageId: pkg6.id,
+      packageName: pkg6.name,
+      duration: 6,
+      totalAmount: proPrice6,
+      paidAmount: 8000000,
+      remainingDueDate: companyCRemainingDue,
+      isAdvanceForNextCycle: false,
+      startDate: companyCStart,
+      endDate: companyCEnd,
+      dueDate: addDays(companyCStart, 7),
+      paymentMethod: 'BANK_TRANSFER',
+      note: 'Đã trả trước 8.000.000 ₫, hẹn trả đủ trong 14 ngày',
+      updatedAt: nowIso,
+    },
+  ];
+
+  return { tenants: rawTenants, invoices: rawInvoices };
+};
+
+export const syncUnifiedPlatformData = (): {
+  tenants: UnifiedTenantRecord[];
+  invoices: BillingInvoice[];
+} => {
+  try {
     const today = new Date().toISOString().split('T')[0];
-    if (invoice.dueDate && invoice.dueDate < today) return 'OVERDUE';
-    return 'UNPAID';
-};
+    const fallbackIso = '2026-01-01T00:00:00.000Z';
+    const rawTenants = JSON.parse(localStorage.getItem(TENANTS_STORAGE_KEY) || '[]');
+    const rawInvoices = JSON.parse(localStorage.getItem(BILLING_STORAGE_KEY) || '[]');
 
-const buildSeedInvoices = (): BillingInvoice[] => {
-    const today = new Date().toISOString().split('T')[0];
-    const currentMonth = `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`;
+    const hasTenants = Array.isArray(rawTenants) && rawTenants.length > 0;
+    const hasInvoices = Array.isArray(rawInvoices) && rawInvoices.length > 0;
 
-    return [
-        {
-            id: 'INV-1001',
-            invoiceCode: 'HD-DV-202611-01',
-            tenantId: 'COMPANY_A',
-            tenantName: 'Demo CTY A',
-            tenantCode: 'CTYA26',
-            billingPeriod: `${currentMonth} (1T)`,
-            billingMode: 'PACKAGE',
-            planKey: 'PRO',
-            planName: 'Professional (Chuyên nghiệp)',
-            durationMonths: 1,
-            discountPercent: 0,
-            vehicleCount: 18,
-            includedVehicles: 50,
-            overageVehicles: 0,
-            overageAmount: 0,
-            unitPricePerVehicle: 130000,
-            totalAmount: 2490000,
-            paidAmount: 2490000,
-            dueDate: addDaysISO(today, 10),
-            createdAt: addDaysISO(today, -5),
-            transactions: [
-                {
-                    id: 'TX-9001',
-                    amount: 2490000,
-                    method: 'BANK_TRANSFER',
-                    transactionCode: 'FT26320981234',
-                    voucherCode: 'UNC-2026-0812',
-                    paidAt: addDaysISO(today, -3),
-                    verifyStatus: 'CONFIRMED',
-                    verifiedBy: 'Nguyễn Nhật Long',
-                    verifiedAt: addDaysISO(today, -3),
-                    note: 'Thanh toán đầy đủ gói Pro chu kỳ 1 tháng (18/50 xe)'
-                }
-            ]
-        },
-        {
-            id: 'INV-1002',
-            invoiceCode: 'HD-DV-202611-02',
-            tenantId: 'COMPANY_B',
-            tenantName: 'Demo CTY B',
-            tenantCode: 'CTYB26',
-            billingPeriod: `${currentMonth} (1T)`,
-            billingMode: 'PER_VEHICLE',
-            planName: 'Tính theo đầu xe • Bậc 1 (1–10 xe)',
-            durationMonths: 1,
-            discountPercent: 0,
-            vehicleCount: 10,
-            unitPricePerVehicle: 150000,
-            totalAmount: 1500000,
-            paidAmount: 500000,
-            dueDate: addDaysISO(today, 7),
-            createdAt: addDaysISO(today, -4),
-            transactions: [
-                {
-                    id: 'TX-9002',
-                    amount: 500000,
-                    method: 'CASH',
-                    transactionCode: 'PT-TM-0045',
-                    voucherCode: 'BL-2026-0045',
-                    paidAt: addDaysISO(today, -2),
-                    verifyStatus: 'CONFIRMED',
-                    verifiedBy: 'Nguyễn Nhật Long',
-                    verifiedAt: addDaysISO(today, -2),
-                    note: 'Tạm ứng tiền mặt đợt 1, còn nợ 1.000.000đ'
-                },
-                {
-                    id: 'TX-9003',
-                    amount: 1000000,
-                    method: 'BANK_TRANSFER',
-                    transactionCode: 'VCB998172635',
-                    voucherCode: 'UNC-CTYB-019',
-                    paidAt: today,
-                    verifyStatus: 'PENDING',
-                    note: 'Doanh nghiệp chuyển khoản tất toán phần nợ còn lại, chờ duyệt'
-                }
-            ]
-        },
-        {
-            id: 'INV-1003',
-            invoiceCode: 'HD-DV-202610-03',
-            tenantId: 'COMPANY_C',
-            tenantName: 'Demo CTY C',
-            tenantCode: 'CTYC26',
-            billingPeriod: '10/2026 (1T)',
-            billingMode: 'PACKAGE',
-            planKey: 'STARTER',
-            planName: 'Starter (Cơ bản)',
-            durationMonths: 1,
-            discountPercent: 0,
-            vehicleCount: 9,
-            includedVehicles: 15,
-            overageVehicles: 0,
-            overageAmount: 0,
-            unitPricePerVehicle: 150000,
-            totalAmount: 990000,
-            paidAmount: 0,
-            dueDate: addDaysISO(today, -6),
-            createdAt: addDaysISO(today, -21),
-            transactions: []
-        }
-    ];
-};
+    if (!hasTenants && !hasInvoices) {
+      const seeded = buildDefaultUnifiedData();
+      localStorage.setItem(TENANTS_STORAGE_KEY, JSON.stringify(seeded.tenants));
+      localStorage.setItem(BILLING_STORAGE_KEY, JSON.stringify(seeded.invoices));
+      return syncUnifiedPlatformData();
+    }
 
-export default function AdminBillingManagement() {
-    const { language } = useLanguage();
-    const isVi = language === 'vi';
+    const normalizedInvoices: BillingInvoice[] = [];
+    const latestCurrentInvoiceByCode = new Map<string, BillingInvoice>();
+    const latestCurrentInvoiceById = new Map<string, BillingInvoice>();
+    const latestAnyInvoiceByCode = new Map<string, BillingInvoice>();
+    const latestAnyInvoiceById = new Map<string, BillingInvoice>();
 
-    const adminName = sessionStorage.getItem('sys_core_admin_name') || 'Nguyễn Nhật Long';
+    if (hasInvoices) {
+      rawInvoices.forEach((item: any, idx: number) => {
+        const duration: PackageDuration =
+          item.duration === 12 || item.durationMonths === 12 || item.planKey === 'PKG_12M'
+            ? 12
+            : 6;
+        const pkg = duration === 12 ? RENTAL_PACKAGES[1] : RENTAL_PACKAGES[0];
+        const tier = normalizeTier(item.tier);
+        const totalAmount =
+          typeof item.totalAmount === 'number' && item.totalAmount > 0
+            ? item.totalAmount
+            : getPackagePrice(tier, duration);
+        const rawPaid = Math.max(0, Number(item.paidAmount) || 0);
+        const paidAmount = Math.min(totalAmount, rawPaid);
+        const start = item.startDate || addDays(today, -30);
+        const end = item.endDate || calculateEndDate(start, duration);
+        const code = String(item.tenantCode || `DN${idx + 1}`).toUpperCase();
+        const tid = String(item.tenantId || code);
+        const isAdvanceForNextCycle = Boolean(item.isAdvanceForNextCycle);
 
-    const [tenants, setTenants] = useState<TenantRecord[]>([]);
-    const [vehicleCountMap, setVehicleCountMap] = useState<Record<string, number>>({});
-    const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
-
-    const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'ALL' | PaymentStatus | 'PENDING_VERIFY'>('ALL');
-    const [modeFilter, setModeFilter] = useState<'ALL' | BillingMode>('ALL');
-
-    // State Modal Lập kỳ cước mới (theo Gói thuê + Chu kỳ tháng hoặc Đầu xe bậc thang)
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [createError, setCreateError] = useState('');
-    const [newInvoiceForm, setNewInvoiceForm] = useState<{
-        tenantId: string;
-        startMonth: string;
-        billingMode: BillingMode;
-        selectedPackage: PaidPlanKey;
-        durationMonths: number;
-        vehicleCount: string;
-        dueDate: string;
-    }>({
-        tenantId: '',
-        startMonth: `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`,
-        billingMode: 'PACKAGE',
-        selectedPackage: 'STARTER',
-        durationMonths: 1,
-        vehicleCount: '5',
-        dueDate: addDaysISO(new Date().toISOString().split('T')[0], 10)
-    });
-
-    // State Modal Ghi nhận giao dịch thanh toán
-    const [payModalInvoice, setPayModalInvoice] = useState<BillingInvoice | null>(null);
-    const [payError, setPayError] = useState('');
-    const [txForm, setTxForm] = useState<{
-        amount: string;
-        method: PaymentMethod;
-        transactionCode: string;
-        voucherCode: string;
-        voucherImage: string;
-        paidAt: string;
-        verifyNow: boolean;
-        note: string;
-    }>({
-        amount: '',
-        method: 'BANK_TRANSFER',
-        transactionCode: '',
-        voucherCode: '',
-        voucherImage: '',
-        paidAt: new Date().toISOString().split('T')[0],
-        verifyNow: true,
-        note: ''
-    });
-
-    const [detailInvoiceId, setDetailInvoiceId] = useState<string | null>(null);
-
-    const logCoreAudit = (action: string, details: string) => {
-        try {
-            const newLog: CoreAuditLog = {
-                id: Date.now() + Math.floor(Math.random() * 1000),
-                time: new Date().toLocaleString('vi-VN'),
-                admin: adminName,
-                action,
-                details
-            };
-            const rawLogs = localStorage.getItem(AUDIT_STORAGE_KEY);
-            const currentLogs: CoreAuditLog[] = rawLogs ? JSON.parse(rawLogs) : [];
-            const updatedLogs = [newLog, ...(Array.isArray(currentLogs) ? currentLogs : [])];
-            localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(updatedLogs));
-            window.dispatchEvent(new Event('storage'));
-        } catch (err) {
-            console.error('Lỗi ghi nhật ký sys_core_audit_logs:', err);
-        }
-    };
-
-    const loadData = () => {
-        try {
-            const rawTenants = JSON.parse(localStorage.getItem('sys_tenants') || '[]');
-            const tenantList: TenantRecord[] = Array.isArray(rawTenants) ? rawTenants : [];
-            setTenants(tenantList);
-
-            const counts: Record<string, number> = {};
-            tenantList.forEach((t, idx) => {
-                const rawV = localStorage.getItem(`sys_vehicles_${t.id}`);
-                if (rawV) {
-                    const parsedV = JSON.parse(rawV);
-                    counts[t.id] = Array.isArray(parsedV) ? parsedV.length : 0;
-                } else {
-                    counts[t.id] = idx === 0 ? 18 : idx === 1 ? 4 : 9;
-                }
-            });
-            setVehicleCountMap(counts);
-
-            const rawInvoices = localStorage.getItem('sys_platform_billing');
-            if (rawInvoices) {
-                const parsedInv = JSON.parse(rawInvoices);
-                if (Array.isArray(parsedInv) && parsedInv.length > 0) {
-                    setInvoices(parsedInv);
-                    return;
-                }
-            }
-            const seeded = buildSeedInvoices();
-            localStorage.setItem('sys_platform_billing', JSON.stringify(seeded));
-            setInvoices(seeded);
-        } catch (err) {
-            console.error('Lỗi tải dữ liệu công nợ nền tảng:', err);
-            setInvoices(buildSeedInvoices());
-        }
-    };
-
-    useEffect(() => {
-        loadData();
-        const onStorage = () => loadData();
-        window.addEventListener('storage', onStorage);
-        return () => window.removeEventListener('storage', onStorage);
-    }, []);
-
-    const persistInvoices = (nextInvoices: BillingInvoice[]) => {
-        setInvoices(nextInvoices);
-        localStorage.setItem('sys_platform_billing', JSON.stringify(nextInvoices));
-        window.dispatchEvent(new Event('storage'));
-    };
-
-    const handleToggleTenantService = (
-        tenantId: string,
-        targetStatus: TenantStatus,
-        reason?: string
-    ) => {
-        const targetTenant = tenants.find((t) => t.id === tenantId);
-        const updatedTenants = tenants.map((t) =>
-            t.id === tenantId ? { ...t, status: targetStatus } : t
-        );
-        setTenants(updatedTenants);
-        localStorage.setItem('sys_tenants', JSON.stringify(updatedTenants));
-
-        const tenantLabel = targetTenant
-            ? `${targetTenant.name} (${targetTenant.code})`
-            : tenantId;
-        const suffix = reason ? ` — ${reason}` : '';
-
-        if (targetStatus === 'SUSPENDED') {
-            logCoreAudit('KHÓA DỊCH VỤ', `Khóa dịch vụ doanh nghiệp: ${tenantLabel}${suffix}`);
-        } else {
-            logCoreAudit('MỞ DỊCH VỤ', `Mở khóa dịch vụ doanh nghiệp: ${tenantLabel}${suffix}`);
-        }
-
-        window.dispatchEvent(new Event('storage'));
-    };
-
-    const tenantMap = useMemo(() => {
-        const map: Record<string, TenantRecord> = {};
-        tenants.forEach((t) => {
-            map[t.id] = t;
-        });
-        return map;
-    }, [tenants]);
-
-    const kpi = useMemo(() => {
-        let totalBilled = 0;
-        let totalCollected = 0;
-        let totalDebt = 0;
-        let overdueCount = 0;
-        let pendingVerifyCount = 0;
-
-        invoices.forEach((inv) => {
-            totalBilled += inv.totalAmount;
-            totalCollected += inv.paidAmount;
-            const debt = Math.max(0, inv.totalAmount - inv.paidAmount);
-            totalDebt += debt;
-
-            if (computePaymentStatus(inv) === 'OVERDUE') {
-                overdueCount += 1;
-            }
-            const hasPendingTx = inv.transactions.some((tx) => tx.verifyStatus === 'PENDING');
-            if (hasPendingTx) {
-                pendingVerifyCount += 1;
-            }
-        });
-
-        return {
-            totalBilled,
-            totalCollected,
-            totalDebt,
-            overdueCount,
-            pendingVerifyCount
+        const normalizedInv: BillingInvoice = {
+          id: item.id || `inv-${idx + 1}`,
+          invoiceCode: item.invoiceCode || `INV-2026-${String(idx + 1).padStart(3, '0')}`,
+          tenantId: tid,
+          tenantName: item.tenantName || `Doanh nghiệp ${code}`,
+          tenantCode: code,
+          tier,
+          tierName: item.tierName || SERVICE_TIERS[tier].label,
+          packageId: pkg.id,
+          packageName: item.packageName || pkg.name,
+          duration,
+          totalAmount,
+          paidAmount,
+          remainingDueDate:
+            paidAmount > 0 && paidAmount < totalAmount
+              ? item.remainingDueDate || addDays(today, 14)
+              : undefined,
+          isAdvanceForNextCycle,
+          startDate: start,
+          endDate: end,
+          dueDate: item.dueDate || addDays(start, 7),
+          paymentMethod: item.paymentMethod === 'INVOICE' ? 'INVOICE' : 'BANK_TRANSFER',
+          proofImage: item.proofImage || undefined,
+          note: item.note,
+          updatedAt: item.updatedAt || fallbackIso,
         };
-    }, [invoices]);
 
-    const filteredInvoices = useMemo(() => {
-        const q = searchQuery.trim().toLowerCase();
-        return invoices.filter((inv) => {
-            const status = computePaymentStatus(inv);
-            const hasPending = inv.transactions.some((tx) => tx.verifyStatus === 'PENDING');
+        normalizedInvoices.push(normalizedInv);
+        latestAnyInvoiceByCode.set(
+          code,
+          pickLatestInvoice(latestAnyInvoiceByCode.get(code), normalizedInv)
+        );
+        latestAnyInvoiceById.set(
+          tid,
+          pickLatestInvoice(latestAnyInvoiceById.get(tid), normalizedInv)
+        );
 
-            if (statusFilter === 'PENDING_VERIFY') {
-                if (!hasPending) return false;
-            } else if (statusFilter !== 'ALL' && status !== statusFilter) {
-                return false;
-            }
+        if (!isAdvanceForNextCycle) {
+          latestCurrentInvoiceByCode.set(
+            code,
+            pickLatestInvoice(latestCurrentInvoiceByCode.get(code), normalizedInv)
+          );
+          latestCurrentInvoiceById.set(
+            tid,
+            pickLatestInvoice(latestCurrentInvoiceById.get(tid), normalizedInv)
+          );
+        }
+      });
+    }
 
-            if (modeFilter !== 'ALL' && inv.billingMode !== modeFilter) {
-                return false;
-            }
+    const unifiedTenants: UnifiedTenantRecord[] = [];
+    const matchedTenantKeys = new Set<string>();
+    const canonicalEndDateByTenant = new Map<string, string>();
 
-            if (!q) return true;
-            const txMatch = inv.transactions.some(
-                (tx) =>
-                    tx.transactionCode.toLowerCase().includes(q) ||
-                    tx.voucherCode.toLowerCase().includes(q)
-            );
-            return (
-                inv.invoiceCode.toLowerCase().includes(q) ||
-                inv.tenantName.toLowerCase().includes(q) ||
-                inv.tenantCode.toLowerCase().includes(q) ||
-                txMatch
-            );
-        });
-    }, [invoices, searchQuery, statusFilter, modeFilter]);
+    const sourceTenants = hasTenants ? rawTenants : [];
+    sourceTenants.forEach((t: any, idx: number) => {
+      const code = String(t.code || `CTY${260 + idx}`).toUpperCase();
+      const id = String(t.id || `COMPANY_${idx + 1}`);
+      matchedTenantKeys.add(id);
+      matchedTenantKeys.add(code);
 
-    const detailInvoice = useMemo(
-        () => invoices.find((inv) => inv.id === detailInvoiceId) || null,
-        [invoices, detailInvoiceId]
-    );
+      const currentCycleInv =
+        latestCurrentInvoiceById.get(id) ||
+        latestCurrentInvoiceByCode.get(code) ||
+        latestAnyInvoiceById.get(id) ||
+        latestAnyInvoiceByCode.get(code);
 
-    // Mở modal lập kỳ cước & tự đồng bộ gói + số xe thực tế của doanh nghiệp
-    const openCreateInvoiceModal = () => {
-        const firstTenant = tenants[0];
-        const today = new Date().toISOString().split('T')[0];
-        const actualVehicles = firstTenant ? vehicleCountMap[firstTenant.id] ?? 5 : 5;
-        const initialPkg: PaidPlanKey =
-            firstTenant && firstTenant.plan !== 'TRIAL_14D' ? firstTenant.plan : 'STARTER';
+      const canonicalEndDate =
+        t.expiresAt ||
+        currentCycleInv?.endDate ||
+        calculateEndDate(t.activatedAt || addDays(today, -30), 6);
 
-        setCreateError('');
-        setNewInvoiceForm({
-            tenantId: firstTenant?.id || '',
-            startMonth: `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`,
-            billingMode: 'PACKAGE',
-            selectedPackage: initialPkg,
-            durationMonths: 1,
-            vehicleCount: String(actualVehicles),
-            dueDate: addDaysISO(today, 10)
-        });
-        setIsCreateModalOpen(true);
-    };
+      canonicalEndDateByTenant.set(id, canonicalEndDate);
+      canonicalEndDateByTenant.set(code, canonicalEndDate);
 
-    const handleSelectTenantInCreate = (selectedId: string) => {
-        const target = tenantMap[selectedId];
-        const actualVehicles = vehicleCountMap[selectedId] ?? 0;
-        const mappedPkg: PaidPlanKey =
-            target && target.plan !== 'TRIAL_14D' ? target.plan : 'STARTER';
+      const planKey: 'PKG_6M' | 'PKG_12M' =
+        t.plan === 'PKG_12M' || t.plan === 'ENTERPRISE'
+          ? 'PKG_12M'
+          : currentCycleInv?.duration === 12
+            ? 'PKG_12M'
+            : 'PKG_6M';
 
-        setNewInvoiceForm((prev) => ({
-            ...prev,
-            tenantId: selectedId,
-            selectedPackage: mappedPkg,
-            vehicleCount: String(actualVehicles)
+      const tier = normalizeTier(t.tier || currentCycleInv?.tier);
+      const duration: PackageDuration = planKey === 'PKG_12M' ? 12 : 6;
+      const totalAmount =
+        typeof t.packagePrice === 'number' && t.packagePrice > 0
+          ? t.packagePrice
+          : currentCycleInv?.totalAmount && currentCycleInv.totalAmount > 0
+            ? currentCycleInv.totalAmount
+            : getPackagePrice(tier, duration);
+
+      const activatedAt =
+        t.activatedAt || currentCycleInv?.startDate || addDays(today, -30);
+
+      const advanceInv = normalizedInvoices.find(
+        (inv) =>
+          (inv.tenantId === id || inv.tenantCode.toUpperCase() === code) &&
+          Boolean(inv.isAdvanceForNextCycle)
+      );
+      const advanceNextCycleAmount =
+        typeof t.advanceNextCycleAmount === 'number' && t.advanceNextCycleAmount > 0
+          ? t.advanceNextCycleAmount
+          : advanceInv
+            ? advanceInv.paidAmount
+            : 0;
+      const advanceNextCycleDueDate =
+        t.advanceNextCycleDueDate || advanceInv?.remainingDueDate || undefined;
+
+      const rawPaidAmount = currentCycleInv
+        ? currentCycleInv.paidAmount
+        : typeof t.paidAmount === 'number'
+          ? t.paidAmount
+          : t.status === 'SUSPENDED'
+            ? 0
+            : totalAmount;
+      const paidAmount = Math.min(totalAmount, Math.max(0, rawPaidAmount));
+      const remainingDueDate =
+        paidAmount > 0 && paidAmount < totalAmount
+          ? currentCycleInv?.remainingDueDate || t.remainingDueDate || addDays(today, 14)
+          : undefined;
+
+      const rawStatus: 'ACTIVE' | 'SUSPENDED' =
+        t.status === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE';
+
+      const lifecycle = evaluateTenantLifecycle({
+        rawStatus,
+        expiresAt: canonicalEndDate,
+        totalAmount,
+        paidAmount,
+        remainingDueDate,
+        isAdvanceForNextCycle: false,
+      });
+
+      const existingHistory: ContractEvidenceItem[] = Array.isArray(t.evidenceHistory)
+        ? t.evidenceHistory
+        : [];
+      const tenantDisplayName =
+        t.name || currentCycleInv?.tenantName || `Doanh nghiệp #${idx + 1}`;
+
+      unifiedTenants.push({
+        id,
+        name: tenantDisplayName,
+        code,
+        ownerName: t.ownerName || 'Chưa cập nhật',
+        phone: t.phone || '',
+        email: t.email || '',
+        address: t.address || 'Chưa cập nhật',
+        status: lifecycle.status,
+        lifecycleStatus: lifecycle.lifecycleStatus,
+        isPartialPayment: lifecycle.isPartialPayment,
+        paidAmount,
+        remainingAmount: lifecycle.remainingAmount,
+        remainingDueDate,
+        advanceNextCycleAmount,
+        advanceNextCycleDueDate,
+        daysUntilExpiry: lifecycle.daysUntilExpiry,
+        tier,
+        plan: planKey,
+        packagePrice: totalAmount,
+        monthlyFee: Math.round(totalAmount / duration),
+        activatedAt,
+        expiresAt: canonicalEndDate,
+        evidenceHistory: existingHistory,
+        notes: t.notes || '',
+        updatedAt: t.updatedAt || currentCycleInv?.updatedAt || fallbackIso,
+      });
+    });
+
+    const reconciledInvoices: BillingInvoice[] = normalizedInvoices.map((inv) => {
+      if (inv.isAdvanceForNextCycle) return inv;
+      const matchedEnd =
+        canonicalEndDateByTenant.get(inv.tenantId) ||
+        canonicalEndDateByTenant.get(inv.tenantCode.toUpperCase());
+      if (!matchedEnd || matchedEnd === inv.endDate) return inv;
+      return {
+        ...inv,
+        endDate: matchedEnd,
+      };
+    });
+
+    const finalInvoices =
+      reconciledInvoices.length > 0
+        ? reconciledInvoices
+        : unifiedTenants.map((t, idx) => ({
+          id: `inv-sync-${t.id}`,
+          invoiceCode: `INV-2026-${String(idx + 1).padStart(3, '0')}`,
+          tenantId: t.id,
+          tenantName: t.name,
+          tenantCode: t.code,
+          tier: t.tier,
+          tierName: SERVICE_TIERS[t.tier].label,
+          packageId: t.plan === 'PKG_12M' ? ('pkg-12m' as const) : ('pkg-6m' as const),
+          packageName:
+            t.plan === 'PKG_12M' ? RENTAL_PACKAGES[1].name : RENTAL_PACKAGES[0].name,
+          duration: (t.plan === 'PKG_12M' ? 12 : 6) as PackageDuration,
+          totalAmount: t.packagePrice,
+          paidAmount: t.paidAmount ?? t.packagePrice,
+          remainingDueDate: t.remainingDueDate,
+          isAdvanceForNextCycle: Boolean(t.advanceNextCycleAmount),
+          startDate: t.activatedAt,
+          endDate: t.expiresAt,
+          dueDate: addDays(t.activatedAt, 7),
+          paymentMethod: 'BANK_TRANSFER' as const,
+          proofImage:
+            t.evidenceHistory && t.evidenceHistory.length > 0
+              ? t.evidenceHistory[0].imageUrl
+              : undefined,
+          note: 'Đồng bộ từ danh sách doanh nghiệp',
+          updatedAt: t.updatedAt || fallbackIso,
         }));
-    };
 
-    // BÀI TOÁN TÍNH CƯỚC THỰC TẾ (Tự động tính chiết khấu chu kỳ, phụ trội vượt xe, và bậc thang đầu xe)
-    const billingCalculation = useMemo(() => {
-        const months = newInvoiceForm.durationMonths;
-        const durationOpt =
-            DURATION_OPTIONS.find((d) => d.months === months) || DURATION_OPTIONS[0];
-        const discountRate = durationOpt.discountPercent / 100;
-        const vCount = Math.max(0, Number(newInvoiceForm.vehicleCount) || 0);
+    localStorage.setItem(TENANTS_STORAGE_KEY, JSON.stringify(unifiedTenants));
+    localStorage.setItem(BILLING_STORAGE_KEY, JSON.stringify(finalInvoices));
 
-        if (newInvoiceForm.billingMode === 'PACKAGE') {
-            const pkg = PAID_PACKAGES[newInvoiceForm.selectedPackage];
-            const baseSubtotal = pkg.monthlyFee * months;
-            const discountAmount = Math.round(baseSubtotal * discountRate);
-            const packageNetAmount = baseSubtotal - discountAmount;
+    return { tenants: unifiedTenants, invoices: finalInvoices };
+  } catch {
+    return buildDefaultUnifiedData();
+  }
+};
 
-            const overageVehicles = Math.max(0, vCount - pkg.maxVehicles);
-            const overageAmount = overageVehicles * OVERAGE_RATE_PER_VEHICLE * months;
-            const totalAmount = packageNetAmount + overageAmount;
+export const computeUnifiedPlatformMetrics = (
+  tenants: UnifiedTenantRecord[],
+  invoices: BillingInvoice[],
+  vehicleCountMap: Record<string, number> = {},
+  devices: { id: string; type: string; status: string; tenantId?: string }[] = []
+): UnifiedPlatformMetrics => {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
 
-            return {
-                mode: 'PACKAGE' as BillingMode,
-                pkg,
-                months,
-                discountPercent: durationOpt.discountPercent,
-                discountAmount,
-                baseSubtotal,
-                packageNetAmount,
-                vehicleCount: vCount,
-                includedVehicles: pkg.maxVehicles,
-                overageVehicles,
-                overageAmount,
-                unitRate: 0,
-                tierLabel: '',
-                totalAmount
-            };
-        }
-
-        const { rate, tierLabel } = getPerVehicleTierRate(vCount);
-        const baseSubtotal = vCount * rate * months;
-        const discountAmount = Math.round(baseSubtotal * discountRate);
-        const totalAmount = baseSubtotal - discountAmount;
-
-        return {
-            mode: 'PER_VEHICLE' as BillingMode,
-            pkg: null,
-            months,
-            discountPercent: durationOpt.discountPercent,
-            discountAmount,
-            baseSubtotal,
-            packageNetAmount: totalAmount,
-            vehicleCount: vCount,
-            includedVehicles: vCount,
-            overageVehicles: 0,
-            overageAmount: 0,
-            unitRate: rate,
-            tierLabel,
-            totalAmount
-        };
-    }, [newInvoiceForm]);
-
-    const handleCreateInvoice = (e: React.FormEvent) => {
-        e.preventDefault();
-        const targetTenant = tenantMap[newInvoiceForm.tenantId];
-        if (!targetTenant) {
-            setCreateError(
-                isVi ? 'Vui lòng chọn doanh nghiệp cần lập kỳ cước.' : 'Please select a tenant.'
-            );
-            return;
-        }
-        if (!newInvoiceForm.startMonth.trim()) {
-            setCreateError(
-                isVi ? 'Vui lòng nhập kỳ bắt đầu (VD: 11/2026).' : 'Please enter start billing period.'
-            );
-            return;
-        }
-        if (
-            newInvoiceForm.billingMode === 'PER_VEHICLE' &&
-            billingCalculation.vehicleCount <= 0
-        ) {
-            setCreateError(
-                isVi
-                    ? 'Số lượng phương tiện tính phí phải lớn hơn 0 xe.'
-                    : 'Vehicle count must be greater than 0.'
-            );
-            return;
-        }
-        if (billingCalculation.totalAmount <= 0) {
-            setCreateError(
-                isVi
-                    ? 'Tổng tiền thanh toán kỳ cước phải lớn hơn 0 VNĐ.'
-                    : 'Total invoice amount must be greater than 0.'
-            );
-            return;
-        }
-        if (!newInvoiceForm.dueDate) {
-            setCreateError(
-                isVi ? 'Vui lòng chọn hạn thanh toán.' : 'Please select a due date.'
-            );
-            return;
-        }
-
-        const today = new Date().toISOString().split('T')[0];
-        const periodLabel = `${newInvoiceForm.startMonth.trim()} (${billingCalculation.months}T)`;
-
-        const created: BillingInvoice = {
-            id: `INV-${Date.now()}`,
-            invoiceCode: `HD-DV-${Date.now().toString().slice(-6)}`,
-            tenantId: targetTenant.id,
-            tenantName: targetTenant.name,
-            tenantCode: targetTenant.code,
-            billingPeriod: periodLabel,
-            billingMode: newInvoiceForm.billingMode,
-            planKey:
-                newInvoiceForm.billingMode === 'PACKAGE'
-                    ? newInvoiceForm.selectedPackage
-                    : undefined,
-            planName:
-                newInvoiceForm.billingMode === 'PACKAGE' && billingCalculation.pkg
-                    ? billingCalculation.pkg.labelVi
-                    : `Tính theo đầu xe • ${billingCalculation.tierLabel}`,
-            durationMonths: billingCalculation.months,
-            discountPercent: billingCalculation.discountPercent,
-            vehicleCount: billingCalculation.vehicleCount,
-            includedVehicles: billingCalculation.includedVehicles,
-            overageVehicles: billingCalculation.overageVehicles,
-            overageAmount: billingCalculation.overageAmount,
-            unitPricePerVehicle:
-                newInvoiceForm.billingMode === 'PER_VEHICLE'
-                    ? billingCalculation.unitRate
-                    : OVERAGE_RATE_PER_VEHICLE,
-            totalAmount: billingCalculation.totalAmount,
-            paidAmount: 0,
-            dueDate: newInvoiceForm.dueDate,
-            createdAt: today,
-            transactions: []
-        };
-
-        persistInvoices([created, ...invoices]);
-
-        const basisSummary =
-            newInvoiceForm.billingMode === 'PACKAGE'
-                ? `Gói ${created.planName}, chu kỳ ${created.durationMonths} tháng, ${created.vehicleCount}/${created.includedVehicles} xe`
-                : `${created.vehicleCount} xe × ${created.unitPricePerVehicle.toLocaleString('vi-VN')}đ/xe, chu kỳ ${created.durationMonths} tháng`;
-
-        logCoreAudit(
-            'LẬP KỲ CƯỚC',
-            `Phát hành hóa đơn ${created.invoiceCode} (${basisSummary}) cho ${targetTenant.name} (${targetTenant.code}) — Tổng: ${created.totalAmount.toLocaleString('vi-VN')} ₫`
-        );
-        setIsCreateModalOpen(false);
-    };
-
-    const openRecordPaymentModal = (invoice: BillingInvoice) => {
-        const remaining = Math.max(0, invoice.totalAmount - invoice.paidAmount);
-        const today = new Date().toISOString().split('T')[0];
-        setPayModalInvoice(invoice);
-        setPayError('');
-        setTxForm({
-            amount: remaining > 0 ? String(remaining) : '',
-            method: 'BANK_TRANSFER',
-            transactionCode: '',
-            voucherCode: `CT-${Date.now().toString().slice(-5)}`,
-            voucherImage: '',
-            paidAt: today,
-            verifyNow: true,
-            note: ''
-        });
-    };
-
-    const handleVoucherImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-            if (typeof reader.result === 'string') {
-                setTxForm((prev) => ({ ...prev, voucherImage: reader.result as string }));
-            }
-        };
-        reader.readAsDataURL(file);
-    };
-
-    const handleSavePaymentTransaction = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!payModalInvoice) return;
-
-        const amountNum = Number(txForm.amount) || 0;
-        const remaining = Math.max(0, payModalInvoice.totalAmount - payModalInvoice.paidAmount);
-
-        if (amountNum <= 0) {
-            setPayError(
-                isVi ? 'Số tiền thanh toán phải lớn hơn 0 VNĐ.' : 'Payment amount must be greater than 0.'
-            );
-            return;
-        }
-        if (amountNum > remaining) {
-            setPayError(
-                isVi
-                    ? `Số tiền nhập (${amountNum.toLocaleString('vi-VN')}đ) vượt quá công nợ còn lại (${remaining.toLocaleString('vi-VN')}đ).`
-                    : 'Payment amount exceeds remaining balance.'
-            );
-            return;
-        }
-        if (!txForm.transactionCode.trim()) {
-            setPayError(
-                isVi
-                    ? txForm.method === 'BANK_TRANSFER'
-                        ? 'Vui lòng nhập mã giao dịch ngân hàng.'
-                        : 'Vui lòng nhập mã phiếu thu tiền mặt.'
-                    : 'Please enter transaction or receipt code.'
-            );
-            return;
-        }
-        if (!txForm.voucherCode.trim()) {
-            setPayError(
-                isVi ? 'Vui lòng nhập số chứng từ / biên lai đối soát.' : 'Please enter voucher code.'
-            );
-            return;
-        }
-
-        const today = new Date().toISOString().split('T')[0];
-        const newTx: PaymentTransaction = {
-            id: `TX-${Date.now().toString().slice(-6)}`,
-            amount: amountNum,
-            method: txForm.method,
-            transactionCode: txForm.transactionCode.trim().toUpperCase(),
-            voucherCode: txForm.voucherCode.trim().toUpperCase(),
-            voucherImage: txForm.voucherImage || undefined,
-            paidAt: txForm.paidAt || today,
-            verifyStatus: txForm.verifyNow ? 'CONFIRMED' : 'PENDING',
-            verifiedBy: txForm.verifyNow ? adminName : undefined,
-            verifiedAt: txForm.verifyNow ? today : undefined,
-            note: txForm.note.trim()
-        };
-
-        const nextPaidAmount = txForm.verifyNow
-            ? payModalInvoice.paidAmount + amountNum
-            : payModalInvoice.paidAmount;
-
-        const updatedInvoices = invoices.map((inv) =>
-            inv.id === payModalInvoice.id
-                ? {
-                    ...inv,
-                    paidAmount: nextPaidAmount,
-                    transactions: [newTx, ...inv.transactions]
-                }
-                : inv
-        );
-
-        persistInvoices(updatedInvoices);
-
-        const methodText = txForm.method === 'BANK_TRANSFER' ? 'Chuyển khoản' : 'Tiền mặt';
-        if (txForm.verifyNow) {
-            logCoreAudit(
-                'XÁC NHẬN TT',
-                `Thu & xác nhận thanh toán ${amountNum.toLocaleString('vi-VN')} ₫ (${methodText}, Mã GD: ${newTx.transactionCode}, CT: ${newTx.voucherCode}) cho ${payModalInvoice.tenantName} (${payModalInvoice.invoiceCode})`
-            );
-        } else {
-            logCoreAudit(
-                'THANH TOÁN',
-                `Ghi nhận giao dịch chờ duyệt ${amountNum.toLocaleString('vi-VN')} ₫ (${methodText}, Mã GD: ${newTx.transactionCode}) cho ${payModalInvoice.tenantName} (${payModalInvoice.invoiceCode})`
-            );
-        }
-
-        if (
-            txForm.verifyNow &&
-            nextPaidAmount >= payModalInvoice.totalAmount &&
-            tenantMap[payModalInvoice.tenantId]?.status === 'SUSPENDED'
-        ) {
-            handleToggleTenantService(
-                payModalInvoice.tenantId,
-                'ACTIVE',
-                `Tự động mở khóa sau khi tất toán đủ ${payModalInvoice.invoiceCode}`
-            );
-        }
-
-        setPayModalInvoice(null);
-    };
-
-    const handleConfirmPendingTransaction = (invoiceId: string, txId: string) => {
-        const today = new Date().toISOString().split('T')[0];
-        let unlockedTenantId: string | null = null;
-        let unlockedInvoiceCode = '';
-        let confirmedLogDetail = '';
-
-        const updated = invoices.map((inv) => {
-            if (inv.id !== invoiceId) return inv;
-            let addedPaid = 0;
-            const nextTxs = inv.transactions.map((tx) => {
-                if (tx.id === txId && tx.verifyStatus === 'PENDING') {
-                    addedPaid += tx.amount;
-                    const methodText = tx.method === 'BANK_TRANSFER' ? 'Chuyển khoản' : 'Tiền mặt';
-                    confirmedLogDetail = `Xác nhận thanh toán ${tx.amount.toLocaleString('vi-VN')} ₫ (${methodText}, Mã GD: ${tx.transactionCode}, CT: ${tx.voucherCode}) cho ${inv.tenantName} (${inv.invoiceCode})`;
-                    return {
-                        ...tx,
-                        verifyStatus: 'CONFIRMED' as TxVerifyStatus,
-                        verifiedBy: adminName,
-                        verifiedAt: today
-                    };
-                }
-                return tx;
-            });
-            const nextPaidTotal = Math.min(inv.totalAmount, inv.paidAmount + addedPaid);
-            if (
-                nextPaidTotal >= inv.totalAmount &&
-                tenantMap[inv.tenantId]?.status === 'SUSPENDED'
-            ) {
-                unlockedTenantId = inv.tenantId;
-                unlockedInvoiceCode = inv.invoiceCode;
-            }
-            return {
-                ...inv,
-                paidAmount: nextPaidTotal,
-                transactions: nextTxs
-            };
-        });
-
-        persistInvoices(updated);
-        if (confirmedLogDetail) {
-            logCoreAudit('XÁC NHẬN TT', confirmedLogDetail);
-        }
-        if (unlockedTenantId) {
-            handleToggleTenantService(
-                unlockedTenantId,
-                'ACTIVE',
-                `Tự động mở khóa sau khi tất toán đủ ${unlockedInvoiceCode}`
-            );
-        }
-    };
-
-    const renderPaymentStatusBadge = (status: PaymentStatus) => {
-        if (status === 'PAID') {
-            return (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    PAID
-                </span>
-            );
-        }
-        if (status === 'OVERDUE') {
-            return (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    OVERDUE
-                </span>
-            );
-        }
-        return (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                <Clock className="w-3.5 h-3.5" />
-                UNPAID
-            </span>
-        );
-    };
-
+  const totalTenants = tenants.length;
+  const activeTenants = tenants.filter((t) => t.status === 'ACTIVE');
+  const suspendedTenants = tenants.filter((t) => t.status === 'SUSPENDED');
+  const expiringSoonTenants = activeTenants.filter((t) => {
+    const d = getDaysRemainingISO(t.expiresAt);
+    return d >= 0 && d <= EXPIRING_SOON_DAYS;
+  });
+  const partialTenants = tenants.filter((t) => {
+    if (t.status === 'SUSPENDED') return false;
+    if (t.lifecycleStatus) return t.lifecycleStatus === 'PARTIAL_PAID';
     return (
-        <div className="flex-1 overflow-auto bg-[#F8FAFC] p-6 space-y-6">
-            {/* HEADER TRANG */}
-            <div className="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-sky-600 mb-1">
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        <span>
-                            {isVi
-                                ? 'SYSTEM ADMIN • TÀI CHÍNH NỀN TẢNG'
-                                : 'SYSTEM ADMIN • PLATFORM BILLING'}
-                        </span>
-                    </div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                        {isVi
-                            ? 'Quản lý Công nợ & Thanh toán Dịch vụ'
-                            : 'Billing, Debt & Payment Management'}
-                    </h1>
-                    <p className="text-xs text-slate-500 mt-1">
-                        {isVi
-                            ? 'Tính cước tự động theo gói thuê (1/3/6/12 tháng) kèm phụ trội vượt hạn mức xe hoặc theo quy mô đội xe bậc thang; theo dõi công nợ và khóa/mở dịch vụ.'
-                            : 'Calculate fees by subscription plan & rental cycle or tiered fleet size, manage receivables, and lock/unlock tenant services.'}
-                    </p>
-                </div>
-
-                <button
-                    type="button"
-                    onClick={openCreateInvoiceModal}
-                    className="px-4 py-2.5 bg-[#0EA5E9] hover:bg-sky-600 text-white text-sm font-bold rounded-xl shadow-sm flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                    <Plus className="w-4 h-4" />
-                    <span>{isVi ? 'Lập kỳ cước / Hóa đơn' : 'Create Billing Invoice'}</span>
-                </button>
-            </div>
-
-            {/* 4 THẺ KPI CÔNG NỢ & DOANH THU */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            {isVi ? 'Tổng phải thanh toán' : 'Total Billed'}
-                        </span>
-                        <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
-                            <Receipt className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="text-2xl font-bold text-slate-900 font-mono">
-                        {kpi.totalBilled.toLocaleString('vi-VN')} ₫
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-2">
-                        {isVi
-                            ? `Tổng phát sinh trên ${invoices.length} kỳ hóa đơn`
-                            : `Across ${invoices.length} billing invoices`}
-                    </p>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            {isVi ? 'Đã xác nhận thu' : 'Confirmed Paid'}
-                        </span>
-                        <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                            <CheckCircle2 className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="text-2xl font-bold text-emerald-700 font-mono">
-                        {kpi.totalCollected.toLocaleString('vi-VN')} ₫
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-2">
-                        {isVi
-                            ? `Tỷ lệ thu hồi: ${kpi.totalBilled > 0
-                                ? Math.round((kpi.totalCollected / kpi.totalBilled) * 100)
-                                : 0
-                            }%`
-                            : 'Collection rate'}
-                    </p>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            {isVi ? 'Công nợ còn lại' : 'Remaining Debt'}
-                        </span>
-                        <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                            <Wallet className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="text-2xl font-bold text-amber-600 font-mono">
-                        {kpi.totalDebt.toLocaleString('vi-VN')} ₫
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-2">
-                        {isVi
-                            ? `${kpi.pendingVerifyCount} hóa đơn có chứng từ chờ xác nhận`
-                            : `${kpi.pendingVerifyCount} invoices pending verification`}
-                    </p>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            {isVi ? 'Công nợ quá hạn (OVERDUE)' : 'Overdue Invoices'}
-                        </span>
-                        <div className="w-9 h-9 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-                            <AlertTriangle className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="text-2xl font-bold text-rose-600 font-mono">
-                        {kpi.overdueCount}{' '}
-                        <span className="text-sm font-sans font-semibold text-slate-600">
-                            {isVi ? 'hóa đơn' : 'invoices'}
-                        </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-2">
-                        {isVi
-                            ? 'Cần đôn đốc thanh toán hoặc tạm khóa dịch vụ'
-                            : 'Requires collection or service suspension'}
-                    </p>
-                </div>
-            </div>
-
-            {/* THANH LỌC TRẠNG THÁI THANH TOÁN & HÌNH THỨC TÍNH PHÍ */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-1.5">
-                    {(
-                        [
-                            { key: 'ALL', label: isVi ? 'Tất cả' : 'All' },
-                            { key: 'PAID', label: 'PAID' },
-                            { key: 'UNPAID', label: 'UNPAID' },
-                            { key: 'OVERDUE', label: 'OVERDUE' },
-                            {
-                                key: 'PENDING_VERIFY',
-                                label: isVi
-                                    ? `Chờ xác nhận (${kpi.pendingVerifyCount})`
-                                    : `Pending (${kpi.pendingVerifyCount})`
-                            }
-                        ] as const
-                    ).map((tab) => {
-                        const active = statusFilter === tab.key;
-                        return (
-                            <button
-                                key={tab.key}
-                                type="button"
-                                onClick={() => setStatusFilter(tab.key)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${active
-                                        ? 'bg-slate-900 text-white'
-                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
-                                    }`}
-                            >
-                                {tab.label}
-                            </button>
-                        );
-                    })}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 flex-1 sm:flex-initial justify-end">
-                    <select
-                        value={modeFilter}
-                        onChange={(e) => setModeFilter(e.target.value as 'ALL' | BillingMode)}
-                        className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:border-sky-500"
-                    >
-                        <option value="ALL">
-                            {isVi ? 'Tất cả cách tính phí' : 'All Billing Modes'}
-                        </option>
-                        <option value="PACKAGE">
-                            {isVi ? 'Tính theo gói dịch vụ' : 'Subscription Package'}
-                        </option>
-                        <option value="PER_VEHICLE">
-                            {isVi ? 'Tính theo số lượng phương tiện' : 'Per-Vehicle Count'}
-                        </option>
-                    </select>
-
-                    <div className="relative min-w-[250px] flex-1 sm:flex-initial">
-                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder={
-                                isVi
-                                    ? 'Tìm mã HĐ, doanh nghiệp, mã giao dịch...'
-                                    : 'Search invoice, tenant, transaction ID...'
-                            }
-                            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-xs text-slate-800 outline-none focus:border-sky-500"
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* BẢNG QUẢN LÝ CÔNG NỢ & THANH TOÁN */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                                <th className="py-3.5 px-4">
-                                    {isVi ? 'Mã kỳ cước & Doanh nghiệp' : 'Invoice & Tenant'}
-                                </th>
-                                <th className="py-3.5 px-4">
-                                    {isVi ? 'Gói thuê & Cơ sở tính phí' : 'Plan & Billing Basis'}
-                                </th>
-                                <th className="py-3.5 px-4">
-                                    {isVi ? 'Tổng tiền / Đã trả / Còn nợ' : 'Total / Paid / Debt'}
-                                </th>
-                                <th className="py-3.5 px-4">
-                                    {isVi ? 'Trạng thái & Hạn TT' : 'Status & Due Date'}
-                                </th>
-                                <th className="py-3.5 px-4">
-                                    {isVi ? 'Giao dịch & Chứng từ' : 'Transactions & Vouchers'}
-                                </th>
-                                <th className="py-3.5 px-4 text-right">
-                                    {isVi ? 'Xác nhận & Khóa/Mở DV' : 'Actions & Service Lock'}
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-sm">
-                            {filteredInvoices.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">
-                                        {isVi
-                                            ? 'Không có dữ liệu công nợ phù hợp với bộ lọc.'
-                                            : 'No billing records match your filter.'}
-                                    </td>
-                                </tr>
-                            ) : (
-                                filteredInvoices.map((inv) => {
-                                    const status = computePaymentStatus(inv);
-                                    const remainingDebt = Math.max(0, inv.totalAmount - inv.paidAmount);
-                                    const tenantInfo = tenantMap[inv.tenantId];
-                                    const isServiceSuspended = tenantInfo?.status === 'SUSPENDED';
-                                    const pendingTxs = inv.transactions.filter(
-                                        (tx) => tx.verifyStatus === 'PENDING'
-                                    );
-                                    const months = inv.durationMonths || 1;
-                                    const overageCars = inv.overageVehicles || 0;
-
-                                    return (
-                                        <tr
-                                            key={inv.id}
-                                            className="hover:bg-slate-50/80 transition-colors align-top"
-                                        >
-                                            <td className="py-4 px-4 whitespace-nowrap">
-                                                <div className="font-mono text-xs font-bold text-sky-700">
-                                                    {inv.invoiceCode}
-                                                </div>
-                                                <div className="flex items-center gap-1.5 font-bold text-slate-900 mt-1">
-                                                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                                                    <span>{inv.tenantName}</span>
-                                                    <span className="px-1.5 py-0.2 rounded bg-slate-100 border border-slate-200 text-[10px] font-mono text-slate-600">
-                                                        {inv.tenantCode}
-                                                    </span>
-                                                </div>
-                                                <div className="text-[11px] text-slate-500 mt-1">
-                                                    {isVi ? 'Kỳ cước:' : 'Period:'}{' '}
-                                                    <strong className="font-mono text-slate-700">
-                                                        {inv.billingPeriod}
-                                                    </strong>
-                                                </div>
-                                            </td>
-
-                                            <td className="py-4 px-4 whitespace-nowrap">
-                                                {inv.billingMode === 'PACKAGE' ? (
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold">
-                                                                <Sparkles className="w-3 h-3" />
-                                                                {inv.planName}
-                                                            </span>
-                                                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">
-                                                                {months}T
-                                                            </span>
-                                                            {(inv.discountPercent || 0) > 0 && (
-                                                                <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold">
-                                                                    -{inv.discountPercent}%
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="text-[11px] text-slate-500 font-mono">
-                                                            Quy mô: {inv.vehicleCount} / {inv.includedVehicles || 50} xe
-                                                            {overageCars > 0 && (
-                                                                <span className="ml-1.5 text-amber-700 font-bold">
-                                                                    (+{overageCars} xe vượt: +
-                                                                    {(inv.overageAmount || 0).toLocaleString('vi-VN')}₫)
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-50 text-cyan-800 border border-cyan-200 text-[11px] font-bold">
-                                                                <Car className="w-3 h-3" />
-                                                                {isVi ? 'Theo đầu xe' : 'Per Vehicle'}
-                                                            </span>
-                                                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">
-                                                                {months}T
-                                                            </span>
-                                                            {(inv.discountPercent || 0) > 0 && (
-                                                                <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold">
-                                                                    -{inv.discountPercent}%
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="text-xs font-mono font-semibold text-slate-700">
-                                                            {inv.vehicleCount} xe ×{' '}
-                                                            {inv.unitPricePerVehicle.toLocaleString('vi-VN')} ₫/tháng
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </td>
-
-                                            <td className="py-4 px-4 whitespace-nowrap font-mono text-xs space-y-1">
-                                                <div className="flex items-center justify-between gap-4">
-                                                    <span className="font-sans text-slate-500">
-                                                        {isVi ? 'Phải trả:' : 'Total:'}
-                                                    </span>
-                                                    <span className="font-bold text-slate-900">
-                                                        {inv.totalAmount.toLocaleString('vi-VN')} ₫
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center justify-between gap-4">
-                                                    <span className="font-sans text-slate-500">
-                                                        {isVi ? 'Đã trả:' : 'Paid:'}
-                                                    </span>
-                                                    <span className="font-bold text-emerald-700">
-                                                        {inv.paidAmount.toLocaleString('vi-VN')} ₫
-                                                    </span>
-                                                </div>
-                                                <div className="pt-1 border-t border-slate-100 flex items-center justify-between gap-4">
-                                                    <span className="font-sans font-semibold text-slate-600">
-                                                        {isVi ? 'Còn nợ:' : 'Debt:'}
-                                                    </span>
-                                                    <span
-                                                        className={`font-bold ${remainingDebt > 0 ? 'text-rose-600' : 'text-slate-400'
-                                                            }`}
-                                                    >
-                                                        {remainingDebt.toLocaleString('vi-VN')} ₫
-                                                    </span>
-                                                </div>
-                                            </td>
-
-                                            <td className="py-4 px-4 whitespace-nowrap">
-                                                <div>{renderPaymentStatusBadge(status)}</div>
-                                                <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-2">
-                                                    <Calendar className="w-3 h-3 text-slate-400" />
-                                                    <span>
-                                                        {isVi ? 'Hạn:' : 'Due:'}{' '}
-                                                        <strong className="font-mono text-slate-700">
-                                                            {formatDateVN(inv.dueDate)}
-                                                        </strong>
-                                                    </span>
-                                                </div>
-                                                <div className="mt-1.5">
-                                                    {isServiceSuspended ? (
-                                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                                                            <Lock className="w-2.5 h-2.5" />
-                                                            {isVi ? 'Dịch vụ đang khóa' : 'Service Locked'}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                                            <Unlock className="w-2.5 h-2.5" />
-                                                            {isVi ? 'Dịch vụ đang mở' : 'Service Active'}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-
-                                            <td className="py-4 px-4">
-                                                {inv.transactions.length === 0 ? (
-                                                    <span className="text-xs text-slate-400 italic">
-                                                        {isVi ? 'Chưa có giao dịch' : 'No transactions'}
-                                                    </span>
-                                                ) : (
-                                                    <div className="space-y-1.5">
-                                                        <div className="text-xs font-semibold text-slate-700">
-                                                            {inv.transactions.length}{' '}
-                                                            {isVi ? 'giao dịch ghi nhận' : 'recorded tx'}
-                                                        </div>
-                                                        <div className="text-[11px] font-mono text-slate-500">
-                                                            {isVi ? 'Mới nhất:' : 'Latest:'}{' '}
-                                                            <span className="font-bold text-slate-700">
-                                                                {inv.transactions[0].transactionCode}
-                                                            </span>
-                                                        </div>
-                                                        {pendingTxs.length > 0 && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    handleConfirmPendingTransaction(inv.id, pendingTxs[0].id)
-                                                                }
-                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold shadow-xs transition-colors cursor-pointer"
-                                                            >
-                                                                <FileCheck2 className="w-3 h-3" />
-                                                                <span>
-                                                                    {isVi
-                                                                        ? `Xác nhận TT (${pendingTxs[0].amount.toLocaleString('vi-VN')}đ)`
-                                                                        : 'Confirm Payment'}
-                                                                </span>
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </td>
-
-                                            <td className="py-4 px-4 whitespace-nowrap text-right">
-                                                <div className="inline-flex flex-col items-end gap-1.5">
-                                                    <div className="inline-flex items-center gap-1.5">
-                                                        {remainingDebt > 0 && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => openRecordPaymentModal(inv)}
-                                                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
-                                                            >
-                                                                <CreditCard className="w-3.5 h-3.5" />
-                                                                <span>{isVi ? 'Thu tiền' : 'Record Pay'}</span>
-                                                            </button>
-                                                        )}
-
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setDetailInvoiceId(inv.id)}
-                                                            title={
-                                                                isVi
-                                                                    ? 'Xem chứng từ & Lịch sử xác nhận'
-                                                                    : 'View Vouchers & History'
-                                                            }
-                                                            className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                                                        >
-                                                            <Eye className="w-3.5 h-3.5" />
-                                                            <span>{isVi ? 'Chứng từ' : 'Vouchers'}</span>
-                                                        </button>
-                                                    </div>
-
-                                                    {tenantInfo && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                handleToggleTenantService(
-                                                                    inv.tenantId,
-                                                                    isServiceSuspended ? 'ACTIVE' : 'SUSPENDED',
-                                                                    `Thao tác từ kỳ cước ${inv.invoiceCode}`
-                                                                )
-                                                            }
-                                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border flex items-center gap-1 transition-colors cursor-pointer ${isServiceSuspended
-                                                                    ? 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'
-                                                                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-                                                                }`}
-                                                        >
-                                                            {isServiceSuspended ? (
-                                                                <>
-                                                                    <Unlock className="w-3 h-3" />
-                                                                    <span>
-                                                                        {isVi ? 'Mở khóa dịch vụ' : 'Unlock Service'}
-                                                                    </span>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Lock className="w-3 h-3" />
-                                                                    <span>
-                                                                        {isVi ? 'Khóa dịch vụ DN' : 'Lock Service'}
-                                                                    </span>
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* MODAL 1: LẬP KỲ CƯỚC / HÓA ĐƠN MỚI (CHỌN GÓI THUÊ 1/3/6/12 THÁNG & TÍNH XE THỰC TẾ) */}
-            {isCreateModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-                            <div>
-                                <h3 className="text-base font-bold text-slate-900">
-                                    {isVi ? 'Lập kỳ cước thanh toán mới' : 'Create New Billing Invoice'}
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    {isVi
-                                        ? 'Tự động đồng bộ quy mô đội xe thực tế và áp dụng chiết khấu theo chu kỳ thuê.'
-                                        : 'Auto-sync fleet size and apply rental duration discounts.'}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setIsCreateModalOpen(false)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleCreateInvoice} className="p-6 overflow-y-auto space-y-4">
-                            {createError && (
-                                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-                                    <AlertCircle className="w-4 h-4 shrink-0" />
-                                    <span>{createError}</span>
-                                </div>
-                            )}
-
-                            {/* Doanh nghiệp + Kỳ bắt đầu + Hạn thanh toán */}
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                <div className="md:col-span-2">
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        {isVi ? 'Doanh nghiệp áp dụng' : 'Select Tenant'}{' '}
-                                        <span className="text-rose-500">*</span>
-                                    </label>
-                                    <select
-                                        value={newInvoiceForm.tenantId}
-                                        onChange={(e) => handleSelectTenantInCreate(e.target.value)}
-                                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold outline-none focus:border-sky-500"
-                                    >
-                                        {tenants.map((t) => (
-                                            <option key={t.id} value={t.id}>
-                                                {t.name} ({t.code}) • {vehicleCountMap[t.id] || 0} xe thực tế
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        {isVi ? 'Kỳ bắt đầu' : 'Start Period'}{' '}
-                                        <span className="text-rose-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={newInvoiceForm.startMonth}
-                                        onChange={(e) =>
-                                            setNewInvoiceForm((prev) => ({
-                                                ...prev,
-                                                startMonth: e.target.value
-                                            }))
-                                        }
-                                        placeholder="11/2026"
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono outline-none focus:border-sky-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        {isVi ? 'Hạn thanh toán' : 'Due Date'}{' '}
-                                        <span className="text-rose-500">*</span>
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={newInvoiceForm.dueDate}
-                                        onChange={(e) =>
-                                            setNewInvoiceForm((prev) => ({ ...prev, dueDate: e.target.value }))
-                                        }
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono outline-none focus:border-sky-500"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Chọn Phương thức tính phí dịch vụ */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                    {isVi ? 'Phương thức tính phí dịch vụ' : 'Billing Calculation Mode'}
-                                </label>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setNewInvoiceForm((prev) => ({ ...prev, billingMode: 'PACKAGE' }))
-                                        }
-                                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${newInvoiceForm.billingMode === 'PACKAGE'
-                                                ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
-                                                : 'border-slate-200 hover:border-slate-300'
-                                            }`}
-                                    >
-                                        <div className="text-xs font-bold text-slate-900">
-                                            {isVi
-                                                ? '1. Theo gói thuê & Chu kỳ tháng'
-                                                : '1. By Subscription Package'}
-                                        </div>
-                                        <div className="text-[11px] text-slate-500 mt-0.5">
-                                            {isVi
-                                                ? 'Chọn gói Starter/Pro/Enterprise + tự tính phụ trội nếu vượt hạn mức xe'
-                                                : 'Fixed package + overage if fleet exceeds plan limit'}
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setNewInvoiceForm((prev) => ({
-                                                ...prev,
-                                                billingMode: 'PER_VEHICLE'
-                                            }))
-                                        }
-                                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${newInvoiceForm.billingMode === 'PER_VEHICLE'
-                                                ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
-                                                : 'border-slate-200 hover:border-slate-300'
-                                            }`}
-                                    >
-                                        <div className="text-xs font-bold text-slate-900">
-                                            {isVi
-                                                ? '2. Theo số lượng xe thực tế (Bậc thang)'
-                                                : '2. By Tiered Fleet Size'}
-                                        </div>
-                                        <div className="text-[11px] text-slate-500 mt-0.5">
-                                            {isVi
-                                                ? '1–10 xe: 150k • 11–30 xe: 130k • >30 xe: 110k/xe/tháng'
-                                                : 'Tiered per-vehicle monthly rate'}
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* CHỌN GÓI DỊCH VỤ (KHI Ở CHẾ ĐỘ PACKAGE) */}
-                            {newInvoiceForm.billingMode === 'PACKAGE' && (
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                        {isVi ? 'Chọn gói dịch vụ đăng ký' : 'Select Subscription Plan'}
-                                    </label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                                        {(Object.values(PAID_PACKAGES) as PaidPackageSpec[]).map((pkg) => {
-                                            const active = newInvoiceForm.selectedPackage === pkg.key;
-                                            return (
-                                                <button
-                                                    key={pkg.key}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setNewInvoiceForm((prev) => ({
-                                                            ...prev,
-                                                            selectedPackage: pkg.key
-                                                        }))
-                                                    }
-                                                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${active
-                                                            ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-500/20'
-                                                            : 'border-slate-200 hover:border-slate-300 bg-white'
-                                                        }`}
-                                                >
-                                                    <div className="text-xs font-bold text-slate-900">
-                                                        {isVi ? pkg.labelVi : pkg.labelEn}
-                                                    </div>
-                                                    <div className="text-xs font-mono font-bold text-indigo-700 mt-1">
-                                                        {pkg.monthlyFee.toLocaleString('vi-VN')} ₫/tháng
-                                                    </div>
-                                                    <div className="text-[11px] text-slate-500 mt-0.5">
-                                                        {isVi
-                                                            ? `Hạn mức tối đa ${pkg.maxVehicles} xe`
-                                                            : `Up to ${pkg.maxVehicles} vehicles`}
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* CHỌN CHU KỲ THUÊ (1 THÁNG, 3 THÁNG, 6 THÁNG, 12 THÁNG) */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                    {isVi
-                                        ? 'Chọn chu kỳ thuê dịch vụ (tự động áp dụng chiết khấu)'
-                                        : 'Select Rental Duration'}
-                                </label>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                    {DURATION_OPTIONS.map((opt) => {
-                                        const selected = newInvoiceForm.durationMonths === opt.months;
-                                        return (
-                                            <button
-                                                key={opt.months}
-                                                type="button"
-                                                onClick={() =>
-                                                    setNewInvoiceForm((prev) => ({
-                                                        ...prev,
-                                                        durationMonths: opt.months
-                                                    }))
-                                                }
-                                                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${selected
-                                                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                                                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                                                    }`}
-                                            >
-                                                <div className="text-xs font-bold">
-                                                    {isVi ? opt.labelVi : opt.labelEn}
-                                                </div>
-                                                <div
-                                                    className={`text-[10px] font-bold mt-0.5 ${selected
-                                                            ? 'text-emerald-300'
-                                                            : opt.discountPercent > 0
-                                                                ? 'text-emerald-600'
-                                                                : 'text-slate-400'
-                                                        }`}
-                                                >
-                                                    {opt.discountPercent > 0
-                                                        ? `Giảm ${opt.discountPercent}%`
-                                                        : 'Nguyên giá'}
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* ĐỐI SOÁT SỐ LƯỢNG XE THỰC TẾ */}
-                            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-4">
-                                <div>
-                                    <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                                        <Car className="w-4 h-4 text-indigo-600" />
-                                        <span>
-                                            {isVi
-                                                ? 'Số lượng phương tiện chốt đối soát kỳ này'
-                                                : 'Reconciled Fleet Size'}
-                                        </span>
-                                    </div>
-                                    <p className="text-[11px] text-slate-500 mt-0.5">
-                                        {isVi
-                                            ? `Hệ thống ghi nhận ${vehicleCountMap[newInvoiceForm.tenantId] ?? 0
-                                            } xe đang đăng ký trong đội xe của doanh nghiệp.`
-                                            : 'Synced from tenant registered vehicles.'}
-                                    </p>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={newInvoiceForm.vehicleCount}
-                                        onChange={(e) =>
-                                            setNewInvoiceForm((prev) => ({
-                                                ...prev,
-                                                vehicleCount: e.target.value.replace(/\D/g, '').slice(0, 4)
-                                            }))
-                                        }
-                                        className="w-24 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm font-mono font-bold text-right text-slate-900 outline-none focus:border-sky-500"
-                                    />
-                                    <span className="text-xs font-bold text-slate-600">xe</span>
-                                </div>
-                            </div>
-
-                            {/* BẢNG PHÂN TÍCH CÔNG THỨC TÍNH TIỀN MINH BẠCH */}
-                            <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2 text-xs">
-                                <div className="flex items-center gap-1.5 text-sky-400 font-bold uppercase tracking-wider text-[11px]">
-                                    <Calculator className="w-3.5 h-3.5" />
-                                    <span>Diễn giải bài toán thanh toán kỳ cước</span>
-                                </div>
-
-                                {billingCalculation.mode === 'PACKAGE' && billingCalculation.pkg ? (
-                                    <div className="space-y-1.5 text-slate-300 border-b border-slate-700/80 pb-2.5">
-                                        <div className="flex justify-between">
-                                            <span>
-                                                Phí gói {billingCalculation.pkg.labelVi} (
-                                                {billingCalculation.pkg.monthlyFee.toLocaleString('vi-VN')}đ ×{' '}
-                                                {billingCalculation.months} tháng):
-                                            </span>
-                                            <span className="font-mono">
-                                                {billingCalculation.baseSubtotal.toLocaleString('vi-VN')} ₫
-                                            </span>
-                                        </div>
-
-                                        {billingCalculation.discountAmount > 0 && (
-                                            <div className="flex justify-between text-emerald-400">
-                                                <span>
-                                                    Chiết khấu chu kỳ {billingCalculation.months} tháng (-
-                                                    {billingCalculation.discountPercent}%):
-                                                </span>
-                                                <span className="font-mono">
-                                                    -{billingCalculation.discountAmount.toLocaleString('vi-VN')} ₫
-                                                </span>
-                                            </div>
-                                        )}
-
-                                        <div className="flex justify-between">
-                                            <span>
-                                                Kiểm tra hạn mức xe ({billingCalculation.vehicleCount} /{' '}
-                                                {billingCalculation.includedVehicles} xe):
-                                            </span>
-                                            {billingCalculation.overageVehicles > 0 ? (
-                                                <span className="font-mono text-amber-400">
-                                                    Vượt {billingCalculation.overageVehicles} xe × 120.000đ ×{' '}
-                                                    {billingCalculation.months}T = +
-                                                    {billingCalculation.overageAmount.toLocaleString('vi-VN')} ₫
-                                                </span>
-                                            ) : (
-                                                <span className="text-emerald-400 font-semibold">
-                                                    Trong hạn mức (0 ₫ phụ trội)
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-1.5 text-slate-300 border-b border-slate-700/80 pb-2.5">
-                                        <div className="flex justify-between">
-                                            <span>
-                                                Áp dụng {billingCalculation.tierLabel} (
-                                                {billingCalculation.vehicleCount} xe ×{' '}
-                                                {billingCalculation.unitRate.toLocaleString('vi-VN')}đ ×{' '}
-                                                {billingCalculation.months} tháng):
-                                            </span>
-                                            <span className="font-mono">
-                                                {billingCalculation.baseSubtotal.toLocaleString('vi-VN')} ₫
-                                            </span>
-                                        </div>
-
-                                        {billingCalculation.discountAmount > 0 && (
-                                            <div className="flex justify-between text-emerald-400">
-                                                <span>
-                                                    Chiết khấu chu kỳ {billingCalculation.months} tháng (-
-                                                    {billingCalculation.discountPercent}%):
-                                                </span>
-                                                <span className="font-mono">
-                                                    -{billingCalculation.discountAmount.toLocaleString('vi-VN')} ₫
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="flex items-center justify-between pt-0.5">
-                                    <span className="font-bold text-slate-200">
-                                        {isVi ? 'Tổng tiền phải thanh toán:' : 'Total Amount Due:'}
-                                    </span>
-                                    <span className="text-lg font-mono font-bold text-emerald-400">
-                                        {billingCalculation.totalAmount.toLocaleString('vi-VN')} ₫
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="pt-2 flex items-center justify-end gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCreateModalOpen(false)}
-                                    className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-                                >
-                                    {isVi ? 'Hủy' : 'Cancel'}
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-5 py-2 rounded-lg bg-[#0EA5E9] hover:bg-sky-600 text-white text-xs font-bold cursor-pointer"
-                                >
-                                    {isVi ? 'Phát hành kỳ cước' : 'Issue Invoice'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL 2: GHI NHẬN GIAO DỊCH THANH TOÁN */}
-            {payModalInvoice && (
-                <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-                            <div>
-                                <h3 className="text-base font-bold text-slate-900">
-                                    {isVi ? 'Ghi nhận giao dịch thanh toán' : 'Record Payment Transaction'}
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    {payModalInvoice.invoiceCode} • {payModalInvoice.tenantName} (Còn nợ:{' '}
-                                    <strong className="text-rose-600 font-mono">
-                                        {Math.max(
-                                            0,
-                                            payModalInvoice.totalAmount - payModalInvoice.paidAmount
-                                        ).toLocaleString('vi-VN')}{' '}
-                                        ₫
-                                    </strong>
-                                    )
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setPayModalInvoice(null)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <form
-                            onSubmit={handleSavePaymentTransaction}
-                            className="p-6 overflow-y-auto space-y-4"
-                        >
-                            {payError && (
-                                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-                                    <AlertCircle className="w-4 h-4 shrink-0" />
-                                    <span>{payError}</span>
-                                </div>
-                            )}
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                    {isVi ? 'Hình thức thanh toán' : 'Payment Method'}
-                                </label>
-                                <div className="grid grid-cols-2 gap-2.5">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setTxForm((prev) => ({ ...prev, method: 'BANK_TRANSFER' }))
-                                        }
-                                        className={`p-3 rounded-xl border flex items-center gap-2.5 text-left cursor-pointer ${txForm.method === 'BANK_TRANSFER'
-                                                ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
-                                                : 'border-slate-200 hover:border-slate-300'
-                                            }`}
-                                    >
-                                        <CreditCard className="w-4 h-4 text-sky-600 shrink-0" />
-                                        <div>
-                                            <div className="text-xs font-bold text-slate-900">
-                                                {isVi ? 'Chuyển khoản' : 'Bank Transfer'}
-                                            </div>
-                                            <div className="text-[10px] text-slate-500">
-                                                Internet Banking / QR
-                                            </div>
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setTxForm((prev) => ({ ...prev, method: 'CASH' }))}
-                                        className={`p-3 rounded-xl border flex items-center gap-2.5 text-left cursor-pointer ${txForm.method === 'CASH'
-                                                ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/20'
-                                                : 'border-slate-200 hover:border-slate-300'
-                                            }`}
-                                    >
-                                        <Banknote className="w-4 h-4 text-emerald-600 shrink-0" />
-                                        <div>
-                                            <div className="text-xs font-bold text-slate-900">
-                                                {isVi ? 'Tiền mặt' : 'Cash'}
-                                            </div>
-                                            <div className="text-[10px] text-slate-500">
-                                                {isVi ? 'Thu trực tiếp tại VP' : 'Direct cash receipt'}
-                                            </div>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        {isVi ? 'Số tiền thanh toán (₫)' : 'Amount (₫)'}{' '}
-                                        <span className="text-rose-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={txForm.amount}
-                                        onChange={(e) => {
-                                            setTxForm((prev) => ({
-                                                ...prev,
-                                                amount: e.target.value.replace(/\D/g, '').slice(0, 10)
-                                            }));
-                                            if (payError) setPayError('');
-                                        }}
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold text-emerald-700 outline-none focus:border-sky-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        {isVi ? 'Ngày giao dịch' : 'Transaction Date'}
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={txForm.paidAt}
-                                        onChange={(e) =>
-                                            setTxForm((prev) => ({ ...prev, paidAt: e.target.value }))
-                                        }
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono outline-none focus:border-sky-500"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        {txForm.method === 'BANK_TRANSFER'
-                                            ? isVi
-                                                ? 'Mã giao dịch ngân hàng'
-                                                : 'Bank Transaction ID'
-                                            : isVi
-                                                ? 'Mã phiếu thu tiền mặt'
-                                                : 'Cash Receipt ID'}{' '}
-                                        <span className="text-rose-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={txForm.transactionCode}
-                                        onChange={(e) => {
-                                            setTxForm((prev) => ({
-                                                ...prev,
-                                                transactionCode: e.target.value.toUpperCase()
-                                            }));
-                                            if (payError) setPayError('');
-                                        }}
-                                        placeholder={
-                                            txForm.method === 'BANK_TRANSFER' ? 'VD: FT263209812' : 'VD: PT-TM-012'
-                                        }
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono uppercase outline-none focus:border-sky-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        {isVi ? 'Số chứng từ / Biên lai' : 'Voucher / Receipt No.'}{' '}
-                                        <span className="text-rose-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={txForm.voucherCode}
-                                        onChange={(e) => {
-                                            setTxForm((prev) => ({
-                                                ...prev,
-                                                voucherCode: e.target.value.toUpperCase()
-                                            }));
-                                            if (payError) setPayError('');
-                                        }}
-                                        placeholder="UNC-2026-001"
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono uppercase outline-none focus:border-sky-500"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1">
-                                    {isVi
-                                        ? 'Đính kèm ảnh chứng từ / Ủy nhiệm chi (tùy chọn)'
-                                        : 'Attach Voucher Image (optional)'}
-                                </label>
-                                <div className="flex items-center gap-3">
-                                    <label className="px-3.5 py-2 rounded-lg border border-dashed border-slate-300 hover:border-sky-400 bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-2 cursor-pointer">
-                                        <Upload className="w-3.5 h-3.5 text-sky-600" />
-                                        <span>{isVi ? 'Chọn ảnh chứng từ...' : 'Choose image...'}</span>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handleVoucherImageUpload}
-                                            className="hidden"
-                                        />
-                                    </label>
-                                    {txForm.voucherImage && (
-                                        <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
-                                            <CheckCircle2 className="w-3.5 h-3.5" />
-                                            {isVi ? 'Đã tải ảnh chứng từ' : 'Image attached'}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1">
-                                    {isVi ? 'Ghi chú đối soát' : 'Reconciliation Note'}
-                                </label>
-                                <input
-                                    type="text"
-                                    value={txForm.note}
-                                    onChange={(e) =>
-                                        setTxForm((prev) => ({ ...prev, note: e.target.value }))
-                                    }
-                                    placeholder={
-                                        isVi
-                                            ? 'VD: Đã đối chiếu sao kê ngân hàng Vietcombank...'
-                                            : 'Bank statement verified...'
-                                    }
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-sky-500"
-                                />
-                            </div>
-
-                            <label className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={txForm.verifyNow}
-                                    onChange={(e) =>
-                                        setTxForm((prev) => ({ ...prev, verifyNow: e.target.checked }))
-                                    }
-                                    className="w-4 h-4 accent-emerald-600"
-                                />
-                                <span className="text-xs font-semibold text-emerald-900">
-                                    {isVi
-                                        ? 'Xác nhận thanh toán hợp lệ ngay (cộng trực tiếp vào số tiền đã thanh toán và tự mở khóa dịch vụ nếu hết nợ)'
-                                        : 'Confirm payment immediately (deduct debt & unlock service if paid in full)'}
-                                </span>
-                            </label>
-
-                            <div className="pt-2 flex items-center justify-end gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setPayModalInvoice(null)}
-                                    className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-                                >
-                                    {isVi ? 'Hủy' : 'Cancel'}
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                                >
-                                    <FileCheck2 className="w-4 h-4" />
-                                    <span>
-                                        {txForm.verifyNow
-                                            ? isVi
-                                                ? 'Lưu & Xác nhận thanh toán'
-                                                : 'Save & Confirm'
-                                            : isVi
-                                                ? 'Lưu chờ xác nhận'
-                                                : 'Save as Pending'}
-                                    </span>
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL 3: XEM CHI TIẾT CHỨNG TỪ & XÁC NHẬN THANH TOÁN */}
-            {detailInvoice && (
-                <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-                            <div>
-                                <h3 className="text-base font-bold text-slate-900">
-                                    {isVi ? 'Chi tiết Công nợ & Chứng từ' : 'Invoice Vouchers & History'} •{' '}
-                                    <span className="font-mono text-sky-700">{detailInvoice.invoiceCode}</span>
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    {detailInvoice.tenantName} ({detailInvoice.tenantCode}) • Kỳ{' '}
-                                    {detailInvoice.billingPeriod}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setDetailInvoiceId(null)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <div className="p-6 overflow-y-auto space-y-5">
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                                    <div className="text-[11px] font-bold text-slate-500 uppercase">
-                                        {isVi ? 'Tổng phải trả' : 'Total Due'}
-                                    </div>
-                                    <div className="text-base font-mono font-bold text-slate-900 mt-1">
-                                        {detailInvoice.totalAmount.toLocaleString('vi-VN')} ₫
-                                    </div>
-                                </div>
-                                <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
-                                    <div className="text-[11px] font-bold text-emerald-700 uppercase">
-                                        {isVi ? 'Đã xác nhận' : 'Confirmed Paid'}
-                                    </div>
-                                    <div className="text-base font-mono font-bold text-emerald-700 mt-1">
-                                        {detailInvoice.paidAmount.toLocaleString('vi-VN')} ₫
-                                    </div>
-                                </div>
-                                <div className="p-3.5 rounded-xl bg-rose-50/70 border border-rose-200">
-                                    <div className="text-[11px] font-bold text-rose-700 uppercase">
-                                        {isVi ? 'Công nợ còn lại' : 'Remaining Debt'}
-                                    </div>
-                                    <div className="text-base font-mono font-bold text-rose-700 mt-1">
-                                        {Math.max(
-                                            0,
-                                            detailInvoice.totalAmount - detailInvoice.paidAmount
-                                        ).toLocaleString('vi-VN')}{' '}
-                                        ₫
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-                                    {isVi
-                                        ? `Lịch sử giao dịch & chứng từ (${detailInvoice.transactions.length})`
-                                        : `Payment Transactions (${detailInvoice.transactions.length})`}
-                                </h4>
-
-                                {detailInvoice.transactions.length === 0 ? (
-                                    <div className="p-8 text-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
-                                        {isVi
-                                            ? 'Chưa có giao dịch thanh toán nào được ghi nhận cho kỳ cước này.'
-                                            : 'No transactions recorded yet.'}
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {detailInvoice.transactions.map((tx) => (
-                                            <div
-                                                key={tx.id}
-                                                className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5"
-                                            >
-                                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2">
-                                                        {tx.method === 'BANK_TRANSFER' ? (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[11px] font-bold">
-                                                                <CreditCard className="w-3 h-3" />
-                                                                {isVi ? 'Chuyển khoản' : 'Bank Transfer'}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
-                                                                <Banknote className="w-3 h-3" />
-                                                                {isVi ? 'Tiền mặt' : 'Cash'}
-                                                            </span>
-                                                        )}
-                                                        <span className="text-sm font-mono font-bold text-slate-900">
-                                                            +{tx.amount.toLocaleString('vi-VN')} ₫
-                                                        </span>
-                                                    </div>
-
-                                                    {tx.verifyStatus === 'CONFIRMED' ? (
-                                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                                                            <CheckCircle2 className="w-3.5 h-3.5" />
-                                                            {isVi ? 'Đã xác nhận' : 'Confirmed'}
-                                                        </span>
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                handleConfirmPendingTransaction(detailInvoice.id, tx.id)
-                                                            }
-                                                            className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold cursor-pointer"
-                                                        >
-                                                            <FileCheck2 className="w-3.5 h-3.5" />
-                                                            <span>
-                                                                {isVi ? 'Xác nhận thanh toán này' : 'Confirm This Payment'}
-                                                            </span>
-                                                        </button>
-                                                    )}
-                                                </div>
-
-                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg">
-                                                    <div>
-                                                        <span className="text-slate-400">Mã GD: </span>
-                                                        <strong className="font-mono text-slate-800">
-                                                            {tx.transactionCode}
-                                                        </strong>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-400">Chứng từ: </span>
-                                                        <strong className="font-mono text-slate-800">
-                                                            {tx.voucherCode}
-                                                        </strong>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-400">Ngày TT: </span>
-                                                        <strong className="font-mono text-slate-800">
-                                                            {formatDateVN(tx.paidAt)}
-                                                        </strong>
-                                                    </div>
-                                                </div>
-
-                                                {tx.note && (
-                                                    <div className="flex items-start gap-1.5 text-xs text-slate-500">
-                                                        <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                                                        <span>{tx.note}</span>
-                                                    </div>
-                                                )}
-
-                                                {tx.verifiedBy && (
-                                                    <div className="text-[11px] text-emerald-700 font-medium">
-                                                        {isVi
-                                                            ? `Người xác nhận: ${tx.verifiedBy} (${formatDateVN(tx.verifiedAt)})`
-                                                            : `Verified by: ${tx.verifiedBy}`}
-                                                    </div>
-                                                )}
-
-                                                {tx.voucherImage && (
-                                                    <div className="pt-1">
-                                                        <img
-                                                            src={tx.voucherImage}
-                                                            alt={tx.voucherCode}
-                                                            className="max-h-48 rounded-lg border border-slate-200 object-contain"
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-                            {Math.max(0, detailInvoice.totalAmount - detailInvoice.paidAmount) > 0 ? (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const target = detailInvoice;
-                                        setDetailInvoiceId(null);
-                                        openRecordPaymentModal(target);
-                                    }}
-                                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>{isVi ? 'Ghi nhận thanh toán mới' : 'Record New Payment'}</span>
-                                </button>
-                            ) : (
-                                <span />
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={() => setDetailInvoiceId(null)}
-                                className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
-                            >
-                                {isVi ? 'Đóng' : 'Close'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+      !t.advanceNextCycleAmount &&
+      (t.paidAmount ?? 0) > 0 &&
+      (t.remainingAmount ?? 0) > 0
     );
+  });
+
+  const newTenantsList = tenants.filter(
+    (t) => t.activatedAt && t.activatedAt >= thirtyDaysAgoStr
+  );
+
+  const totalVehicles = tenants.reduce(
+    (sum, t) => sum + (vehicleCountMap[t.id] || 0),
+    0
+  );
+
+  const totalPackageValue = activeTenants.reduce(
+    (sum, t) => sum + (t.packagePrice || 0),
+    0
+  );
+
+  // Quy đổi doanh thu từng gói đang hoạt động theo số tháng kỳ hạn (6 hoặc 12 tháng)
+  const monthlyPackageRevenue = activeTenants.reduce((sum, t) => {
+    const months: PackageDuration = t.plan === 'PKG_12M' ? 12 : 6;
+    const pkgVal =
+      typeof t.packagePrice === 'number' && t.packagePrice > 0
+        ? t.packagePrice
+        : getPackagePrice(t.tier || 'PRO', months);
+    return sum + Math.round(pkgVal / months);
+  }, 0);
+
+  const arpu =
+    activeTenants.length > 0 ? Math.round(totalPackageValue / activeTenants.length) : 0;
+
+  const activeTenantIds = new Set(activeTenants.map((t) => t.id));
+  const activeTenantCodes = new Set(
+    activeTenants.map((t) => t.code.toUpperCase())
+  );
+
+  const currentCycleInvoices = invoices.filter((inv) => !inv.isAdvanceForNextCycle);
+  const advanceNextCycleInvoices = invoices.filter((inv) =>
+    Boolean(inv.isAdvanceForNextCycle)
+  );
+
+  const overdueInvoices = currentCycleInvoices.filter(
+    (inv) => getInvoicePaymentState(inv, todayStr) === 'OVERDUE'
+  );
+
+  const currentPartialInvoices = currentCycleInvoices.filter(
+    (inv) => getInvoicePaymentState(inv, todayStr) === 'PARTIAL'
+  );
+
+  const currentCycleDebtInvoices = currentCycleInvoices.filter((inv) => {
+    const st = getInvoicePaymentState(inv, todayStr);
+    return st === 'OVERDUE' || st === 'PARTIAL';
+  });
+
+  const totalOverdueDebt = overdueInvoices.reduce(
+    (sum, inv) => sum + getOverdueAmountForInvoice(inv),
+    0
+  );
+
+  const totalCurrentPartialRemaining = currentPartialInvoices.reduce(
+    (sum, inv) => sum + Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0)),
+    0
+  );
+
+  const totalRemainingAll = currentCycleInvoices.reduce(
+    (sum, inv) => sum + getReceivableAmountForInvoice(inv, todayStr),
+    0
+  );
+
+  const totalAdvancePaidNextCycle = advanceNextCycleInvoices.reduce(
+    (sum, inv) => sum + Math.max(0, inv.paidAmount || 0),
+    0
+  );
+
+  const totalAdvanceRemainingNextCycle = advanceNextCycleInvoices.reduce(
+    (sum, inv) => sum + Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0)),
+    0
+  );
+
+  const activeInvoices = invoices.filter(
+    (inv) =>
+      activeTenantIds.has(inv.tenantId) ||
+      activeTenantCodes.has(inv.tenantCode.toUpperCase())
+  );
+
+  const totalCommittedInvoices = activeInvoices.reduce(
+    (sum, inv) => sum + (inv.totalAmount || 0),
+    0
+  );
+
+  const totalCollected = activeInvoices.reduce(
+    (sum, inv) => sum + (inv.paidAmount || 0),
+    0
+  );
+
+  const count6M = invoices.filter((item) => item.duration === 6).length;
+  const count12M = invoices.filter((item) => item.duration === 12).length;
+
+  const totalDevices = devices.length;
+  const inUseDevices = devices.filter((d) => d.status === 'Đang sử dụng').length;
+  const inStockDevices = devices.filter((d) => d.status === 'Tồn kho').length;
+  const issueDevices = devices.filter((d) =>
+    ['Lỗi', 'Bảo hành', 'Lỗi/Bảo hành'].includes(d.status)
+  ).length;
+  const cameraCount = devices.filter((d) => d.type === 'Camera').length;
+  const gpsCount = devices.filter((d) => d.type !== 'Camera').length;
+
+  return {
+    totalTenants,
+    activeCount: activeTenants.length,
+    suspendedCount: suspendedTenants.length,
+    expiringSoonCount: expiringSoonTenants.length,
+    partialCount: partialTenants.length,
+    newTenantsList,
+    newTenantsCount: newTenantsList.length,
+    totalVehicles,
+    totalPackageValue,
+    monthlyPackageRevenue,
+    arpu,
+    activeTenants,
+    currentCycleDebtInvoices,
+    overdueInvoices,
+    currentPartialInvoices,
+    advanceNextCycleInvoices,
+    totalOverdueDebt,
+    totalCurrentPartialRemaining,
+    totalRemainingAll,
+    totalAdvancePaidNextCycle,
+    totalAdvanceRemainingNextCycle,
+    totalCommittedInvoices,
+    totalCollected,
+    count6M,
+    count12M,
+    totalDevices,
+    inUseDevices,
+    inStockDevices,
+    issueDevices,
+    cameraCount,
+    gpsCount
+  };
+};
+
+export const commitUnifiedPlatformData = (
+  nextTenants: UnifiedTenantRecord[],
+  nextInvoices: BillingInvoice[]
+): {
+  tenants: UnifiedTenantRecord[];
+  invoices: BillingInvoice[];
+} => {
+  localStorage.setItem(TENANTS_STORAGE_KEY, JSON.stringify(nextTenants));
+  localStorage.setItem(BILLING_STORAGE_KEY, JSON.stringify(nextInvoices));
+  const synced = syncUnifiedPlatformData();
+  localStorage.setItem(TENANTS_STORAGE_KEY, JSON.stringify(synced.tenants));
+  localStorage.setItem(BILLING_STORAGE_KEY, JSON.stringify(synced.invoices));
+  window.dispatchEvent(new CustomEvent(PLATFORM_SYNC_EVENT));
+  window.dispatchEvent(new Event('storage'));
+  return synced;
+};
+
+export const settleTenantRemainingBalance = (tenantId: string): boolean => {
+  try {
+    const synced = syncUnifiedPlatformData();
+    const targetTenant = synced.tenants.find((t) => t.id === tenantId);
+    if (!targetTenant) return false;
+
+    const nowIso = new Date().toISOString();
+    const nextTenants = synced.tenants.map((t) => {
+      if (t.id !== targetTenant.id) return t;
+      const lifecycle = evaluateTenantLifecycle({
+        rawStatus: 'ACTIVE',
+        expiresAt: t.expiresAt,
+        totalAmount: t.packagePrice,
+        paidAmount: t.packagePrice,
+        remainingDueDate: undefined,
+        isAdvanceForNextCycle: false,
+      });
+      return {
+        ...t,
+        status: lifecycle.status,
+        lifecycleStatus: lifecycle.lifecycleStatus,
+        isPartialPayment: false,
+        paidAmount: t.packagePrice,
+        remainingAmount: 0,
+        remainingDueDate: undefined,
+        advanceNextCycleAmount: 0,
+        advanceNextCycleDueDate: undefined,
+        daysUntilExpiry: lifecycle.daysUntilExpiry,
+        updatedAt: nowIso,
+      };
+    });
+
+    const tenantInvoices = synced.invoices.filter(
+      (inv) =>
+        inv.tenantId === targetTenant.id ||
+        inv.tenantCode.toUpperCase() === targetTenant.code.toUpperCase()
+    );
+    const latestInv = tenantInvoices.reduce<BillingInvoice | undefined>(
+      (acc, cur) => pickLatestInvoice(acc, cur),
+      undefined
+    );
+
+    const nextInvoices = synced.invoices.map((inv) => {
+      if (!latestInv || inv.id !== latestInv.id) return inv;
+      return {
+        ...inv,
+        paidAmount: inv.totalAmount,
+        remainingDueDate: undefined,
+        isAdvanceForNextCycle: false,
+        updatedAt: nowIso,
+      };
+    });
+
+    commitUnifiedPlatformData(nextTenants, nextInvoices);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const applyRenewalCycleShared = (params: ExecuteRenewalParams): {
+  tenants: UnifiedTenantRecord[];
+  invoices: BillingInvoice[];
+  newInvoice: BillingInvoice;
+} => {
+  const synced = syncUnifiedPlatformData();
+  const nowIso = new Date().toISOString();
+
+  const totalAmount = getPackagePrice(params.tier, params.duration);
+  const paidAmount = Math.min(totalAmount, Math.max(0, params.paidAmount));
+  const remainingAmount = Math.max(0, totalAmount - paidAmount);
+  const isAdvanceForNextCycle = paidAmount > 0 && remainingAmount > 0;
+  const remainingDueDate = isAdvanceForNextCycle ? params.remainingDueDate : undefined;
+  const computedEndDate = calculateEndDate(params.startDate, params.duration);
+  const tierOpt = SERVICE_TIERS[params.tier];
+  const pkg = params.duration === 12 ? RENTAL_PACKAGES[1] : RENTAL_PACKAGES[0];
+  const cleanCode = params.tenantCode.trim().toUpperCase();
+
+  const newInvoice: BillingInvoice = {
+    id: `inv-${Date.now()}`,
+    invoiceCode: `INV-2026-${String(synced.invoices.length + 1).padStart(3, '0')}`,
+    tenantId: params.tenantId,
+    tenantName: params.tenantName.trim(),
+    tenantCode: cleanCode,
+    tier: params.tier,
+    tierName: tierOpt.label,
+    packageId: pkg.id,
+    packageName: pkg.name,
+    duration: params.duration,
+    totalAmount,
+    paidAmount,
+    remainingDueDate,
+    isAdvanceForNextCycle,
+    startDate: params.startDate,
+    endDate: computedEndDate,
+    dueDate: params.dueDate || addDays(params.startDate, 7),
+    paymentMethod: params.paymentMethod,
+    proofImage: params.proofImage,
+    note:
+      params.note?.trim() ||
+      `Gia hạn kỳ mới ${pkg.name} (${formatDateVN(params.startDate)} → ${formatDateVN(computedEndDate)})`,
+    updatedAt: nowIso,
+  };
+
+  const nextInvoices = [newInvoice, ...synced.invoices];
+
+  const renewalEvidence: ContractEvidenceItem = {
+    id: `ev-${Date.now()}`,
+    type: 'RENEWAL',
+    title: `Minh chứng gia hạn (${newInvoice.invoiceCode})`,
+    tierLabel: tierOpt.label,
+    packageName: pkg.name,
+    amount: totalAmount,
+    startDate: params.startDate,
+    endDate: computedEndDate,
+    imageUrl: params.proofImage,
+    uploadedAt: nowIso,
+    note: params.note?.trim() || undefined,
+  };
+
+  const nextTenants = synced.tenants.map((t) => {
+    const isMatch =
+      t.id === params.tenantId || t.code.toUpperCase() === cleanCode;
+    if (!isMatch) return t;
+
+    const nextExpiresAt = computedEndDate;
+    const nextLifecycle = evaluateTenantLifecycle({
+      rawStatus: 'ACTIVE',
+      expiresAt: nextExpiresAt,
+      totalAmount,
+      paidAmount,
+      remainingDueDate,
+      isAdvanceForNextCycle,
+    });
+
+    return {
+      ...t,
+      tier: params.tier,
+      plan: pkg.planKey,
+      packagePrice: totalAmount,
+      monthlyFee: Math.round(totalAmount / params.duration),
+      activatedAt: params.startDate,
+      expiresAt: nextExpiresAt,
+      status: nextLifecycle.status,
+      lifecycleStatus: nextLifecycle.lifecycleStatus,
+      isPartialPayment: nextLifecycle.isPartialPayment,
+      paidAmount: isAdvanceForNextCycle ? t.paidAmount : paidAmount,
+      remainingAmount: isAdvanceForNextCycle ? 0 : remainingAmount,
+      remainingDueDate: isAdvanceForNextCycle ? undefined : remainingDueDate,
+      advanceNextCycleAmount: isAdvanceForNextCycle ? paidAmount : 0,
+      advanceNextCycleDueDate: isAdvanceForNextCycle ? remainingDueDate : undefined,
+      daysUntilExpiry: nextLifecycle.daysUntilExpiry,
+      evidenceHistory: [renewalEvidence, ...(t.evidenceHistory || [])],
+      updatedAt: nowIso,
+    };
+  });
+
+  const committed = commitUnifiedPlatformData(nextTenants, nextInvoices);
+  return {
+    tenants: committed.tenants,
+    invoices: committed.invoices,
+    newInvoice,
+  };
+};
+
+// ==========================================
+// 3. SHARED RENEWAL MODAL
+// ==========================================
+
+export interface SharedRenewalModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  tenantId: string;
+  tenantName: string;
+  tenantCode: string;
+  currentExpiresAt?: string;
+  initialTier?: ServiceTier;
+  initialDuration?: PackageDuration;
+  sourceInvoiceCode?: string;
+  onCompleted: (result: {
+    tenants: UnifiedTenantRecord[];
+    invoices: BillingInvoice[];
+    newInvoice: BillingInvoice;
+  }) => void;
 }
+
+export const SharedRenewalModal: React.FC<SharedRenewalModalProps> = ({
+  isOpen,
+  onClose,
+  tenantId,
+  tenantName,
+  tenantCode,
+  currentExpiresAt,
+  initialTier = 'PRO',
+  initialDuration = 6,
+  sourceInvoiceCode,
+  onCompleted,
+}) => {
+  const [adminLang, setAdminLang] = useState<AdminLang>(() => readAdminLang());
+  const tr = (key: string, params?: Record<string, string | number>) =>
+    translateFromViEn(adminLang, key, params);
+
+  useEffect(() => {
+    const onLang = () => setAdminLang(readAdminLang());
+    window.addEventListener(ADMIN_LANG_CHANGE_EVENT, onLang);
+    window.addEventListener('storage', onLang);
+    return () => {
+      window.removeEventListener(ADMIN_LANG_CHANGE_EVENT, onLang);
+      window.removeEventListener('storage', onLang);
+    };
+  }, []);
+
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const defaultStart = useMemo(
+    () =>
+      currentExpiresAt && currentExpiresAt > todayStr
+        ? currentExpiresAt
+        : todayStr,
+    [currentExpiresAt, todayStr]
+  );
+
+  const [step, setStep] = useState<'SELECT' | 'PORTAL'>('SELECT');
+  const [channel, setChannel] = useState<RenewalChannel>('QR_TRANSFER');
+
+  const [selectedTier, setSelectedTier] = useState<ServiceTier>(initialTier);
+  const [selectedDuration, setSelectedDuration] =
+    useState<PackageDuration>(initialDuration);
+  const [startDate, setStartDate] = useState<string>(defaultStart);
+  const [paymentMode, setPaymentMode] = useState<'FULL' | 'PARTIAL' | 'UNPAID'>(
+    'FULL'
+  );
+  const [partialPaidInput, setPartialPaidInput] = useState<string>('3000000');
+  const [remainingDueDateInput, setRemainingDueDateInput] = useState<string>(() =>
+    addDays(todayStr, 14)
+  );
+
+  const [portalRefCode, setPortalRefCode] = useState<string>('');
+  const [contractNumber, setContractNumber] = useState<string>('');
+  const [counterStaffName, setCounterStaffName] = useState<string>('');
+  const [proofImage, setProofImage] = useState<string>('');
+  const [note, setNote] = useState<string>('');
+  const [formError, setFormError] = useState<string>('');
+  const [copiedField, setCopiedField] = useState<'CODE' | 'CONTENT' | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const start =
+      currentExpiresAt && currentExpiresAt > todayStr
+        ? currentExpiresAt
+        : todayStr;
+    const end = calculateEndDate(start, initialDuration);
+    const max14 = addDays(todayStr, 14);
+    const stamp = Date.now().toString().slice(-6);
+    const cleanCode = (tenantCode || 'DN').toUpperCase();
+    const adminSession =
+      sessionStorage.getItem('sys_core_admin_name') || 'Nguyễn Nhật Long';
+
+    setStep('SELECT');
+    setChannel('QR_TRANSFER');
+    setSelectedTier(initialTier);
+    setSelectedDuration(initialDuration);
+    setStartDate(start);
+    setPaymentMode('FULL');
+    setPartialPaidInput('3000000');
+    setRemainingDueDateInput(end && end < max14 ? end : max14);
+    setPortalRefCode(`DLQR${stamp}`);
+    setContractNumber(`HDGH-${cleanCode}-${stamp}`);
+    setCounterStaffName(adminSession);
+    setProofImage('');
+    setNote(sourceInvoiceCode ? `Gia hạn kỳ mới (${sourceInvoiceCode})` : '');
+    setFormError('');
+    setCopiedField(null);
+  }, [
+    isOpen,
+    currentExpiresAt,
+    initialTier,
+    initialDuration,
+    sourceInvoiceCode,
+    tenantCode,
+    todayStr,
+  ]);
+
+  const activePackage = useMemo(() => {
+    const basePkg =
+      RENTAL_PACKAGES.find((pkg) => pkg.duration === selectedDuration) ||
+      RENTAL_PACKAGES[0];
+    return {
+      ...basePkg,
+      price: getPackagePrice(selectedTier, selectedDuration),
+    };
+  }, [selectedTier, selectedDuration]);
+
+  const computedEndDate = useMemo(
+    () => calculateEndDate(startDate, selectedDuration),
+    [startDate, selectedDuration]
+  );
+
+  const maxAllowedPartialDate = useMemo(() => {
+    const policyMax = addDays(todayStr, MAX_PARTIAL_SETTLE_DAYS);
+    if (computedEndDate && computedEndDate < policyMax) {
+      return computedEndDate;
+    }
+    return policyMax;
+  }, [todayStr, computedEndDate]);
+
+  const financialSummary = useMemo(() => {
+    let paidAmount = activePackage.price;
+    if (paymentMode === 'UNPAID') {
+      paidAmount = 0;
+    } else if (paymentMode === 'PARTIAL') {
+      const parsed = Number(partialPaidInput.replace(/[^0-9]/g, '')) || 0;
+      paidAmount = Math.min(activePackage.price, Math.max(0, parsed));
+    }
+    const remainingAmount = Math.max(0, activePackage.price - paidAmount);
+    return {
+      totalAmount: activePackage.price,
+      paidAmount,
+      remainingAmount,
+    };
+  }, [activePackage.price, paymentMode, partialPaidInput]);
+
+  if (!isOpen) return null;
+
+  const transferContent = `GIAHAN ${tenantCode} ${selectedDuration}T ${portalRefCode}`;
+
+  const handleCopyText = (text: string, field: 'CODE' | 'CONTENT') => {
+    navigator.clipboard?.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 1800);
+  };
+
+  const validateSelectionStep = (): boolean => {
+    if (!startDate) {
+      setFormError(
+        adminLang === 'en'
+          ? 'Please select a start date.'
+          : 'Vui lòng chọn ngày bắt đầu hiệu lực kỳ mới.'
+      );
+      return false;
+    }
+    if (paymentMode === 'PARTIAL') {
+      if (
+        financialSummary.paidAmount <= 0 ||
+        financialSummary.paidAmount >= financialSummary.totalAmount
+      ) {
+        setFormError(
+          adminLang === 'en'
+            ? `Partial amount must be between 1 and ${formatVND(financialSummary.totalAmount)}.`
+            : `Số tiền trả trước phải lớn hơn 0 và nhỏ hơn ${formatVND(financialSummary.totalAmount)}.`
+        );
+        return false;
+      }
+      const dueErr = validatePartialDueDate(
+        remainingDueDateInput,
+        computedEndDate,
+        todayStr
+      );
+      if (dueErr) {
+        setFormError(dueErr);
+        return false;
+      }
+    }
+    setFormError('');
+    return true;
+  };
+
+  const handleGoToPortal = () => {
+    if (!validateSelectionStep()) return;
+    setStep('PORTAL');
+  };
+
+  const handleProofUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const compressed = await compressImageToDataURL(file);
+    setProofImage(compressed);
+    if (formError) setFormError('');
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateSelectionStep()) {
+      setStep('SELECT');
+      return;
+    }
+
+    if (channel === 'QR_TRANSFER' && !portalRefCode.trim()) {
+      setFormError(
+        adminLang === 'en'
+          ? 'Please enter a payment reference code.'
+          : 'Vui lòng nhập hoặc giữ mã thanh toán để đối soát.'
+      );
+      return;
+    }
+
+    if (channel === 'COUNTER_CONTRACT' && !contractNumber.trim()) {
+      setFormError(
+        adminLang === 'en'
+          ? 'Please enter a counter contract number.'
+          : 'Vui lòng nhập số hợp đồng / phụ lục gia hạn tại quầy.'
+      );
+      return;
+    }
+
+    if (!proofImage) {
+      setFormError(
+        adminLang === 'en'
+          ? 'Please upload proof image.'
+          : 'Vui lòng tải lên ảnh minh chứng.'
+      );
+      return;
+    }
+
+    const remainingDueDate =
+      paymentMode === 'PARTIAL' && financialSummary.remainingAmount > 0
+        ? remainingDueDateInput
+        : undefined;
+
+    const channelPrefix =
+      channel === 'COUNTER_CONTRACT'
+        ? `[Tại quầy · Hợp đồng: ${contractNumber.trim().toUpperCase()}${counterStaffName.trim() ? ` · Nhân viên: ${counterStaffName.trim()}` : ''
+        }]`
+        : `[Chuyển khoản · Mã thanh toán: ${portalRefCode.trim().toUpperCase()}]`;
+
+    const combinedNote = `${channelPrefix} ${note.trim()}`.trim();
+
+    const result = applyRenewalCycleShared({
+      tenantId,
+      tenantName,
+      tenantCode,
+      sourceInvoiceCode,
+      tier: selectedTier,
+      duration: selectedDuration,
+      startDate,
+      dueDate: addDays(startDate, 7),
+      paymentMethod: channel === 'COUNTER_CONTRACT' ? 'INVOICE' : 'BANK_TRANSFER',
+      paidAmount: financialSummary.paidAmount,
+      remainingDueDate,
+      proofImage,
+      note: combinedNote,
+    });
+
+    onCompleted(result);
+    onClose();
+  };
+
+  const getTierTitle = (tier: ServiceTier) => {
+    if (tier === 'BASIC') return tr('admin.tierBasic');
+    if (tier === 'ENTERPRISE') return tr('admin.tierEnterprise');
+    return tr('admin.tierPro');
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+      <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-rose-600" />
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                {step === 'SELECT'
+                  ? adminLang === 'en'
+                    ? 'Renew Rental Cycle'
+                    : 'Gia hạn kỳ thuê mới'
+                  : channel === 'COUNTER_CONTRACT'
+                    ? adminLang === 'en'
+                      ? 'Counter Renewal Contract Portal'
+                      : 'Cổng tạo hợp đồng gia hạn tại quầy'
+                    : adminLang === 'en'
+                      ? 'Payment Reference Portal'
+                      : 'Cổng mã thanh toán chuyển khoản'}
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                {tenantName} ({tenantCode})
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-700 cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
+          {formError && (
+            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs font-medium text-rose-700">
+              {formError}
+            </div>
+          )}
+
+          {step === 'SELECT' ? (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  {adminLang === 'en' ? 'Service Tier' : 'Hạng gói dịch vụ'}
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {Object.values(SERVICE_TIERS).map((tierOpt) => {
+                    const isSelected = selectedTier === tierOpt.key;
+                    return (
+                      <button
+                        key={tierOpt.key}
+                        type="button"
+                        onClick={() => setSelectedTier(tierOpt.key)}
+                        className={`py-2 px-3 rounded-lg border text-xs font-semibold transition-colors cursor-pointer ${isSelected
+                            ? 'bg-[#0B1324] text-white border-[#0B1324]'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                          }`}
+                      >
+                        <div>{getTierTitle(tierOpt.key)}</div>
+                        <div
+                          className={`text-[10px] font-normal mt-0.5 tabular-nums ${isSelected ? 'text-slate-300' : 'text-slate-500'
+                            }`}
+                        >
+                          {formatVND(tierOpt.prices[selectedDuration])}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  {adminLang === 'en' ? 'Rental Duration' : 'Chọn gói thời hạn'}
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {RENTAL_PACKAGES.map((pkg) => {
+                    const isSelected = pkg.duration === selectedDuration;
+                    const tierPkgPrice = getPackagePrice(selectedTier, pkg.duration);
+                    return (
+                      <button
+                        key={pkg.id}
+                        type="button"
+                        onClick={() => setSelectedDuration(pkg.duration)}
+                        className={`p-3.5 rounded-xl border text-left transition-colors cursor-pointer ${isSelected
+                            ? 'border-rose-600 bg-rose-50/40 ring-1 ring-rose-600'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                      >
+                        <div className="text-sm font-bold text-slate-900">
+                          {pkg.duration === 12 ? tr('admin.pkg12m') : tr('admin.pkg6m')}
+                        </div>
+                        <div className="text-sm font-bold text-rose-600 mt-1 tabular-nums">
+                          {formatVND(tierPkgPrice)}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {adminLang === 'en' ? 'Start Date' : 'Ngày bắt đầu hiệu lực'}
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-10 w-full px-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {adminLang === 'en' ? 'Channel' : 'Hình thức thực hiện'}
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setChannel('QR_TRANSFER')}
+                      className={`h-10 px-2 rounded-lg border text-xs font-semibold inline-flex items-center justify-center gap-1 cursor-pointer ${channel === 'QR_TRANSFER'
+                          ? 'bg-[#0B1324] text-white border-[#0B1324]'
+                          : 'bg-white text-slate-700 border-slate-300'
+                        }`}
+                    >
+                      <CreditCard className="w-3.5 h-3.5 shrink-0" />
+                      <span>{adminLang === 'en' ? 'Payment Code' : 'Mã thanh toán'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChannel('COUNTER_CONTRACT')}
+                      className={`h-10 px-2 rounded-lg border text-xs font-semibold inline-flex items-center justify-center gap-1 cursor-pointer ${channel === 'COUNTER_CONTRACT'
+                          ? 'bg-[#0B1324] text-white border-[#0B1324]'
+                          : 'bg-white text-slate-700 border-slate-300'
+                        }`}
+                    >
+                      <Store className="w-3.5 h-3.5 shrink-0" />
+                      <span>{adminLang === 'en' ? 'At Counter' : 'Tại quầy'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <label className="block text-xs font-semibold text-slate-700">
+                  {adminLang === 'en' ? 'Payment Status' : 'Tình trạng thanh toán'}
+                </label>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode('FULL')}
+                    className={`py-2 px-2.5 rounded-lg border font-semibold cursor-pointer ${paymentMode === 'FULL'
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-white text-slate-700 border-slate-300'
+                      }`}
+                  >
+                    {adminLang === 'en' ? 'Paid in Full' : 'Trả đủ trọn gói'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode('PARTIAL')}
+                    className={`py-2 px-2.5 rounded-lg border font-semibold cursor-pointer ${paymentMode === 'PARTIAL'
+                        ? 'bg-amber-600 text-white border-amber-600'
+                        : 'bg-white text-slate-700 border-slate-300'
+                      }`}
+                  >
+                    {adminLang === 'en' ? 'Partial Payment' : 'Trả trước 1 phần'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode('UNPAID')}
+                    className={`py-2 px-2.5 rounded-lg border font-semibold cursor-pointer ${paymentMode === 'UNPAID'
+                        ? 'bg-slate-800 text-white border-slate-800'
+                        : 'bg-white text-slate-700 border-slate-300'
+                      }`}
+                  >
+                    {adminLang === 'en' ? 'Unpaid' : 'Chưa thanh toán'}
+                  </button>
+                </div>
+
+                {paymentMode === 'PARTIAL' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        {adminLang === 'en' ? 'Prepaid Amount *' : 'Số tiền trả trước *'}
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={activePackage.price - 1}
+                        value={partialPaidInput}
+                        onChange={(e) => {
+                          setPartialPaidInput(e.target.value);
+                          if (formError) setFormError('');
+                        }}
+                        className="h-10 w-full px-3 text-sm font-semibold border border-slate-300 rounded-lg bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        {adminLang === 'en'
+                          ? `Settlement Due (max ${MAX_PARTIAL_SETTLE_DAYS}d) *`
+                          : `Ngày hẹn trả đủ (tối đa ${MAX_PARTIAL_SETTLE_DAYS} ngày) *`}
+                      </label>
+                      <input
+                        type="date"
+                        min={todayStr}
+                        max={maxAllowedPartialDate}
+                        value={remainingDueDateInput}
+                        onChange={(e) => {
+                          setRemainingDueDateInput(e.target.value);
+                          if (formError) setFormError('');
+                        }}
+                        className="h-10 w-full px-3 text-sm border border-slate-300 rounded-lg bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  {tr('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGoToPortal}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>{tr('common.confirm')}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormError('');
+                    setStep('SELECT');
+                  }}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-rose-600 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>{adminLang === 'en' ? 'Back' : 'Quay lại'}</span>
+                </button>
+              </div>
+
+              {channel === 'QR_TRANSFER' ? (
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                      <QrCode className="w-8 h-8 text-slate-800" />
+                    </div>
+                    <div className="flex-1 min-w-0 text-xs space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <code className="px-2 py-0.5 rounded bg-white border border-slate-300 font-bold text-slate-900">
+                          {portalRefCode}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(portalRefCode, 'CODE')}
+                          className="p-1 rounded border border-slate-200 bg-white text-slate-600 cursor-pointer"
+                        >
+                          {copiedField === 'CODE' ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
+                      <div className="text-slate-600 truncate">{transferContent}</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">
+                      {contractNumber}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>{tr('contracts.printPdf')}</span>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      value={contractNumber}
+                      onChange={(e) => setContractNumber(e.target.value.toUpperCase())}
+                      className="h-10 px-3 text-sm font-semibold uppercase border border-slate-300 rounded-lg bg-white"
+                    />
+                    <input
+                      type="text"
+                      value={counterStaffName}
+                      onChange={(e) => setCounterStaffName(e.target.value)}
+                      className="h-10 px-3 text-sm border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                {proofImage ? (
+                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center gap-3">
+                    <img
+                      src={proofImage}
+                      alt="Proof"
+                      className="w-16 h-16 rounded-lg object-cover border border-slate-200 bg-white shrink-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setProofImage('')}
+                      className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
+                    >
+                      {tr('common.delete')}
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-300 hover:border-rose-400 bg-slate-50/70 transition-colors cursor-pointer text-center">
+                    <Upload className="w-5 h-5 text-slate-400 mb-1.5" />
+                    <span className="text-xs font-semibold text-slate-700">
+                      {adminLang === 'en'
+                        ? 'Upload proof image *'
+                        : 'Tải lên ảnh minh chứng *'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProofUpload}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  {tr('common.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 cursor-pointer"
+                >
+                  {tr('common.save')}
+                </button>
+              </div>
+            </>
+          )}
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 4. MAIN COMPONENT: AdminBillingManagement
+// ==========================================
+
+export const AdminBillingManagement: React.FC = () => {
+  const [adminLang, setAdminLang] = useState<AdminLang>(() => readAdminLang());
+  const tr = (key: string, params?: Record<string, string | number>) =>
+    translateFromViEn(adminLang, key, params);
+
+  useEffect(() => {
+    const onLang = () => setAdminLang(readAdminLang());
+    window.addEventListener(ADMIN_LANG_CHANGE_EVENT, onLang);
+    window.addEventListener('storage', onLang);
+    return () => {
+      window.removeEventListener(ADMIN_LANG_CHANGE_EVENT, onLang);
+      window.removeEventListener('storage', onLang);
+    };
+  }, []);
+
+  const [invoices, setInvoices] = useState<BillingInvoice[]>(
+    () => syncUnifiedPlatformData().invoices
+  );
+  const [tenantList, setTenantList] = useState<UnifiedTenantRecord[]>(
+    () => syncUnifiedPlatformData().tenants
+  );
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [durationFilter, setDurationFilter] = useState<'ALL' | PackageDuration>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | InvoicePaymentState>('ALL');
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [renewalTargetInv, setRenewalTargetInv] = useState<BillingInvoice | null>(null);
+  const [previewProofImage, setPreviewProofImage] = useState<{
+    title: string;
+    subtitle: string;
+    imageUrl: string;
+  } | null>(null);
+
+  const [partialTopUpInv, setPartialTopUpInv] = useState<BillingInvoice | null>(null);
+  const [topUpAmountInput, setTopUpAmountInput] = useState<string>('');
+  const [topUpNextDueDate, setTopUpNextDueDate] = useState<string>('');
+  const [topUpError, setTopUpError] = useState<string>('');
+
+  const [selectedTenantId, setSelectedTenantId] = useState<string>('CUSTOM');
+  const [tenantName, setTenantName] = useState('');
+  const [tenantCode, setTenantCode] = useState('');
+  const [selectedTier, setSelectedTier] = useState<ServiceTier>('PRO');
+  const [selectedDuration, setSelectedDuration] = useState<PackageDuration>(6);
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState<string>(() =>
+    addDays(new Date().toISOString().split('T')[0], 7)
+  );
+  const [paymentMethod, setPaymentMethod] = useState<'BANK_TRANSFER' | 'INVOICE'>('BANK_TRANSFER');
+  const [proofImage, setProofImage] = useState<string>('');
+
+  const [paymentMode, setPaymentMode] = useState<'FULL' | 'PARTIAL' | 'UNPAID'>('FULL');
+  const [partialPaidInput, setPartialPaidInput] = useState<string>('5000000');
+  const [remainingDueDateInput, setRemainingDueDateInput] = useState<string>(() =>
+    addDays(new Date().toISOString().split('T')[0], 14)
+  );
+
+  const [note, setNote] = useState('');
+  const [formError, setFormError] = useState('');
+
+  const adminName = sessionStorage.getItem('sys_core_admin_name') || 'Nguyễn Nhật Long';
+  const adminUsername = sessionStorage.getItem('sys_core_username') || '';
+
+  const logBillingAction = (action: string, details: string) => {
+    recordAdminAction(
+      action,
+      details,
+      adminUsername ? { username: adminUsername, fullName: adminName } : undefined
+    );
+  };
+
+  useEffect(() => {
+    const handleSync = () => {
+      const synced = syncUnifiedPlatformData();
+      setInvoices(synced.invoices);
+      setTenantList(synced.tenants);
+    };
+    window.addEventListener(PLATFORM_SYNC_EVENT, handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener(PLATFORM_SYNC_EVENT, handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
+  const persistAll = (nextInvoices: BillingInvoice[], nextTenants: UnifiedTenantRecord[]) => {
+    const synced = commitUnifiedPlatformData(nextTenants, nextInvoices);
+    setInvoices(synced.invoices);
+    setTenantList(synced.tenants);
+  };
+
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  const activePackage = useMemo(() => {
+    const basePkg =
+      RENTAL_PACKAGES.find((pkg) => pkg.duration === selectedDuration) ||
+      RENTAL_PACKAGES[0];
+    return {
+      ...basePkg,
+      price: getPackagePrice(selectedTier, selectedDuration),
+    };
+  }, [selectedDuration, selectedTier]);
+
+  const computedEndDate = useMemo(
+    () => calculateEndDate(startDate, selectedDuration),
+    [startDate, selectedDuration]
+  );
+
+  const maxAllowedPartialDate = useMemo(() => {
+    const policyMax = addDays(todayStr, MAX_PARTIAL_SETTLE_DAYS);
+    if (computedEndDate && computedEndDate < policyMax) {
+      return computedEndDate;
+    }
+    return policyMax;
+  }, [todayStr, computedEndDate]);
+
+  const unifiedMetrics = useMemo(
+    () => computeUnifiedPlatformMetrics(tenantList, invoices),
+    [tenantList, invoices]
+  );
+
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((item) => {
+      const matchesSearch =
+        item.tenantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.invoiceCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.tenantCode.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesDuration = durationFilter === 'ALL' || item.duration === durationFilter;
+      const itemState = getInvoicePaymentState(item, todayStr);
+      const matchesStatus = statusFilter === 'ALL' || itemState === statusFilter;
+      return matchesSearch && matchesDuration && matchesStatus;
+    });
+  }, [invoices, searchTerm, durationFilter, statusFilter, todayStr]);
+
+  const handleOpenCreateModal = () => {
+    const today = new Date().toISOString().split('T')[0];
+
+    if (tenantList.length > 0) {
+      const first = tenantList[0];
+      setSelectedTenantId(first.id);
+      setTenantName(first.name);
+      setTenantCode(first.code);
+      setSelectedTier(first.tier || 'PRO');
+    } else {
+      setSelectedTenantId('CUSTOM');
+      setTenantName('');
+      setTenantCode('');
+      setSelectedTier('PRO');
+    }
+
+    setSelectedDuration(6);
+    setStartDate(today);
+    setDueDate(addDays(today, 7));
+    setPaymentMethod('BANK_TRANSFER');
+    setProofImage('');
+    setPaymentMode('FULL');
+    setPartialPaidInput('5000000');
+    setRemainingDueDateInput(addDays(today, 14));
+    setNote('');
+    setFormError('');
+    setIsModalOpen(true);
+  };
+
+  const handleSelectExistingTenant = (value: string) => {
+    setSelectedTenantId(value);
+    if (value === 'CUSTOM') {
+      setTenantName('');
+      setTenantCode('');
+      setSelectedTier('PRO');
+      return;
+    }
+    const found = tenantList.find((t) => t.id === value);
+    if (found) {
+      setTenantName(found.name);
+      setTenantCode(found.code);
+      setSelectedTier(found.tier || 'PRO');
+    }
+  };
+
+  const handleProofImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const compressed = await compressImageToDataURL(file);
+    setProofImage(compressed);
+    if (formError) setFormError('');
+  };
+
+  const resolvePaidAmountFromForm = (pkgPrice: number): {
+    paidAmount: number;
+    remainingDueDate?: string;
+    error?: string;
+  } => {
+    if (paymentMode === 'FULL') {
+      return { paidAmount: pkgPrice, remainingDueDate: undefined };
+    }
+    if (paymentMode === 'UNPAID') {
+      return { paidAmount: 0, remainingDueDate: undefined };
+    }
+    const parsedPartial = Number(partialPaidInput.replace(/[^0-9]/g, ''));
+    if (!parsedPartial || parsedPartial <= 0) {
+      return {
+        paidAmount: 0,
+        error:
+          adminLang === 'en'
+            ? 'Please enter a valid prepaid amount.'
+            : 'Vui lòng nhập số tiền trả trước hợp lệ (lớn hơn 0).',
+      };
+    }
+    if (parsedPartial >= pkgPrice) {
+      return {
+        paidAmount: 0,
+        error:
+          adminLang === 'en'
+            ? 'Prepaid amount must be less than package total.'
+            : `Số tiền trả trước phải nhỏ hơn giá trọn gói (${formatVND(pkgPrice)}).`,
+      };
+    }
+    const dueErr = validatePartialDueDate(
+      remainingDueDateInput,
+      computedEndDate,
+      todayStr
+    );
+    if (dueErr) {
+      return { paidAmount: 0, error: dueErr };
+    }
+    return {
+      paidAmount: parsedPartial,
+      remainingDueDate: remainingDueDateInput,
+    };
+  };
+
+  const handleSaveInvoice = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tenantName.trim()) {
+      setFormError(
+        adminLang === 'en' ? 'Please enter enterprise name.' : 'Vui lòng nhập tên doanh nghiệp.'
+      );
+      return;
+    }
+    if (!tenantCode.trim()) {
+      setFormError(
+        adminLang === 'en' ? 'Please enter enterprise code.' : 'Vui lòng nhập mã doanh nghiệp.'
+      );
+      return;
+    }
+    if (!startDate) {
+      setFormError(
+        adminLang === 'en' ? 'Please select start date.' : 'Vui lòng chọn ngày bắt đầu hiệu lực.'
+      );
+      return;
+    }
+    if (!proofImage) {
+      setFormError(
+        adminLang === 'en' ? 'Please upload proof image.' : 'Vui lòng tải lên hình ảnh minh chứng.'
+      );
+      return;
+    }
+
+    const paymentCheck = resolvePaidAmountFromForm(activePackage.price);
+    if (paymentCheck.error) {
+      setFormError(paymentCheck.error);
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const { paidAmount, remainingDueDate } = paymentCheck;
+    const remainingAmount = Math.max(0, activePackage.price - paidAmount);
+    const tierOpt = SERVICE_TIERS[selectedTier];
+    const cleanCode = tenantCode.trim().toUpperCase();
+    const resolvedTenantId =
+      selectedTenantId !== 'CUSTOM' ? selectedTenantId : `COMPANY_${Date.now()}`;
+
+    const newEvidence: ContractEvidenceItem = {
+      id: `ev-${Date.now()}`,
+      type: 'INITIAL',
+      title: 'Hợp đồng đăng ký gói thuê',
+      tierLabel: tierOpt.label,
+      packageName: activePackage.name,
+      amount: activePackage.price,
+      startDate,
+      endDate: computedEndDate,
+      imageUrl: proofImage,
+      uploadedAt: nowIso,
+      note: note.trim() || undefined,
+    };
+
+    const lifecycle = evaluateTenantLifecycle({
+      rawStatus: 'ACTIVE',
+      expiresAt: computedEndDate,
+      totalAmount: activePackage.price,
+      paidAmount,
+      remainingDueDate,
+      isAdvanceForNextCycle: false,
+    });
+
+    const newCode = `INV-2026-${String(invoices.length + 1).padStart(3, '0')}`;
+    const newInvoice: BillingInvoice = {
+      id: `inv-${Date.now()}`,
+      invoiceCode: newCode,
+      tenantId: resolvedTenantId,
+      tenantName: tenantName.trim(),
+      tenantCode: cleanCode,
+      tier: selectedTier,
+      tierName: tierOpt.label,
+      packageId: activePackage.id,
+      packageName: activePackage.name,
+      duration: activePackage.duration,
+      totalAmount: activePackage.price,
+      paidAmount,
+      remainingDueDate,
+      isAdvanceForNextCycle: false,
+      startDate,
+      endDate: computedEndDate,
+      dueDate: dueDate || addDays(startDate, 7),
+      paymentMethod,
+      proofImage,
+      note: note.trim() || undefined,
+      updatedAt: nowIso,
+    };
+    const nextInvoices = [newInvoice, ...invoices];
+
+    const tenantExists = tenantList.some(
+      (t) => t.id === resolvedTenantId || t.code.toUpperCase() === cleanCode
+    );
+    const nextTenants = tenantExists
+      ? tenantList.map((t) =>
+        t.id === resolvedTenantId || t.code.toUpperCase() === cleanCode
+          ? {
+            ...t,
+            tier: selectedTier,
+            plan: activePackage.planKey,
+            status: lifecycle.status,
+            lifecycleStatus: lifecycle.lifecycleStatus,
+            isPartialPayment: lifecycle.isPartialPayment,
+            paidAmount,
+            remainingAmount,
+            remainingDueDate,
+            daysUntilExpiry: lifecycle.daysUntilExpiry,
+            packagePrice: activePackage.price,
+            monthlyFee: Math.round(activePackage.price / activePackage.duration),
+            activatedAt: startDate,
+            expiresAt: computedEndDate,
+            evidenceHistory: [newEvidence, ...(t.evidenceHistory || [])],
+            updatedAt: nowIso,
+          }
+          : t
+      )
+      : [
+        ...tenantList,
+        {
+          id: resolvedTenantId,
+          name: tenantName.trim(),
+          code: cleanCode,
+          ownerName: 'Chưa cập nhật',
+          phone: '',
+          email: '',
+          address: 'Chưa cập nhật',
+          status: lifecycle.status,
+          lifecycleStatus: lifecycle.lifecycleStatus,
+          isPartialPayment: lifecycle.isPartialPayment,
+          paidAmount,
+          remainingAmount,
+          remainingDueDate,
+          daysUntilExpiry: lifecycle.daysUntilExpiry,
+          tier: selectedTier,
+          plan: activePackage.planKey,
+          packagePrice: activePackage.price,
+          monthlyFee: Math.round(activePackage.price / activePackage.duration),
+          activatedAt: startDate,
+          expiresAt: computedEndDate,
+          evidenceHistory: [newEvidence],
+          notes: '',
+          updatedAt: nowIso,
+        },
+      ];
+
+    persistAll(nextInvoices, nextTenants);
+    logBillingAction(
+      adminLang === 'en' ? 'BILLING' : 'THANH TOÁN',
+      `Lập phiếu ${newCode} cho ${tenantName.trim()}`
+    );
+    setIsModalOpen(false);
+  };
+
+  const handleConfirmPaid = (inv: BillingInvoice) => {
+    const nowIso = new Date().toISOString();
+    const pkg = inv.duration === 12 ? RENTAL_PACKAGES[1] : RENTAL_PACKAGES[0];
+    const pkgPrice = inv.totalAmount || getPackagePrice(inv.tier || 'PRO', inv.duration);
+    const nextInvoices = invoices.map((item) =>
+      item.id === inv.id
+        ? {
+          ...item,
+          totalAmount: pkgPrice,
+          paidAmount: pkgPrice,
+          remainingDueDate: undefined,
+          isAdvanceForNextCycle: false,
+          updatedAt: nowIso,
+        }
+        : item
+    );
+
+    const lifecycle = evaluateTenantLifecycle({
+      rawStatus: 'ACTIVE',
+      expiresAt: inv.endDate,
+      totalAmount: pkgPrice,
+      paidAmount: pkgPrice,
+      remainingDueDate: undefined,
+      isAdvanceForNextCycle: false,
+    });
+
+    const nextTenants = tenantList.map((t) => {
+      if (
+        t.id !== inv.tenantId &&
+        t.code.toUpperCase() !== inv.tenantCode.toUpperCase()
+      ) {
+        return t;
+      }
+      return {
+        ...t,
+        tier: inv.tier || t.tier || 'PRO',
+        plan: pkg.planKey,
+        status: lifecycle.status,
+        lifecycleStatus: lifecycle.lifecycleStatus,
+        isPartialPayment: false,
+        paidAmount: pkgPrice,
+        remainingAmount: 0,
+        remainingDueDate: undefined,
+        advanceNextCycleAmount: 0,
+        advanceNextCycleDueDate: undefined,
+        daysUntilExpiry: lifecycle.daysUntilExpiry,
+        packagePrice: pkgPrice,
+        monthlyFee: Math.round(pkgPrice / pkg.duration),
+        expiresAt: inv.endDate,
+        updatedAt: nowIso,
+      };
+    });
+
+    persistAll(nextInvoices, nextTenants);
+    logBillingAction(
+      adminLang === 'en' ? 'COLLECT' : 'THU TIỀN',
+      `Xác nhận thu đủ ${formatVND(pkgPrice)} (${inv.invoiceCode}) từ ${inv.tenantName}`
+    );
+  };
+
+  const openPartialTopUpModal = (inv: BillingInvoice) => {
+    const rem = Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0));
+    const defaultNext =
+      inv.endDate && inv.endDate < addDays(todayStr, 7)
+        ? inv.endDate
+        : addDays(todayStr, 7);
+    setPartialTopUpInv(inv);
+    setTopUpAmountInput(String(rem));
+    setTopUpNextDueDate(inv.remainingDueDate || defaultNext);
+    setTopUpError('');
+  };
+
+  const handleConfirmPartialTopUp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!partialTopUpInv) return;
+
+    const currentRemaining = Math.max(
+      0,
+      (partialTopUpInv.totalAmount || 0) - (partialTopUpInv.paidAmount || 0)
+    );
+    const addPaid = Number(topUpAmountInput.replace(/[^0-9]/g, ''));
+
+    if (!addPaid || addPaid <= 0) {
+      setTopUpError(
+        adminLang === 'en'
+          ? 'Enter a valid amount.'
+          : 'Vui lòng nhập số tiền thanh toán thêm lớn hơn 0.'
+      );
+      return;
+    }
+    if (addPaid > currentRemaining) {
+      setTopUpError(
+        adminLang === 'en'
+          ? `Amount cannot exceed remaining balance (${formatVND(currentRemaining)}).`
+          : `Số tiền thu thêm không được vượt quá số còn nợ (${formatVND(currentRemaining)}).`
+      );
+      return;
+    }
+
+    const nextPaidAmount = Math.min(
+      partialTopUpInv.totalAmount,
+      (partialTopUpInv.paidAmount || 0) + addPaid
+    );
+    const nextRemaining = Math.max(0, partialTopUpInv.totalAmount - nextPaidAmount);
+    const nextRemainingDueDate =
+      nextRemaining > 0 ? topUpNextDueDate : undefined;
+
+    if (nextRemaining > 0) {
+      const dueErr = validatePartialDueDate(
+        nextRemainingDueDate || '',
+        partialTopUpInv.endDate,
+        todayStr
+      );
+      if (dueErr) {
+        setTopUpError(dueErr);
+        return;
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+    const pkgPrice =
+      partialTopUpInv.totalAmount ||
+      getPackagePrice(partialTopUpInv.tier || 'PRO', partialTopUpInv.duration);
+
+    const nextInvoices = invoices.map((item) =>
+      item.id === partialTopUpInv.id
+        ? {
+          ...item,
+          paidAmount: nextPaidAmount,
+          remainingDueDate: nextRemainingDueDate,
+          isAdvanceForNextCycle:
+            nextRemaining > 0 ? Boolean(item.isAdvanceForNextCycle) : false,
+          updatedAt: nowIso,
+        }
+        : item
+    );
+
+    const lifecycle = evaluateTenantLifecycle({
+      rawStatus: 'ACTIVE',
+      expiresAt: partialTopUpInv.endDate,
+      totalAmount: partialTopUpInv.totalAmount,
+      paidAmount: nextPaidAmount,
+      remainingDueDate: nextRemainingDueDate,
+      isAdvanceForNextCycle: Boolean(partialTopUpInv.isAdvanceForNextCycle),
+    });
+
+    const nextTenants = tenantList.map((t) => {
+      if (
+        t.id !== partialTopUpInv.tenantId &&
+        t.code.toUpperCase() !== partialTopUpInv.tenantCode.toUpperCase()
+      ) {
+        return t;
+      }
+      return {
+        ...t,
+        status: lifecycle.status,
+        lifecycleStatus: lifecycle.lifecycleStatus,
+        isPartialPayment: lifecycle.isPartialPayment,
+        paidAmount: nextPaidAmount,
+        remainingAmount: nextRemaining,
+        remainingDueDate: nextRemainingDueDate,
+        daysUntilExpiry: lifecycle.daysUntilExpiry,
+        packagePrice: pkgPrice,
+        monthlyFee: Math.round(pkgPrice / partialTopUpInv.duration),
+        updatedAt: nowIso,
+      };
+    });
+
+    persistAll(nextInvoices, nextTenants);
+    logBillingAction(
+      adminLang === 'en' ? 'COLLECT' : 'THU TIỀN',
+      `Thu thêm ${formatVND(addPaid)} cho ${partialTopUpInv.tenantName} (${partialTopUpInv.invoiceCode})`
+    );
+    setPartialTopUpInv(null);
+  };
+
+  const handleDeleteInvoice = (inv: BillingInvoice) => {
+    const sameTenantInvoices = invoices.filter(
+      (item) =>
+        item.tenantId === inv.tenantId ||
+        item.tenantCode.toUpperCase() === inv.tenantCode.toUpperCase()
+    );
+    const isLastInvoiceOfTenant = sameTenantInvoices.length <= 1;
+
+    const confirmMsg =
+      adminLang === 'en'
+        ? `Delete invoice ${inv.invoiceCode} for ${inv.tenantName}?`
+        : `Xác nhận xóa phiếu ${inv.invoiceCode} của ${inv.tenantName}?`;
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    const nextInvoices = invoices.filter((item) => item.id !== inv.id);
+    const nextTenants = isLastInvoiceOfTenant
+      ? tenantList.filter(
+        (t) =>
+          t.id !== inv.tenantId &&
+          t.code.toUpperCase() !== inv.tenantCode.toUpperCase()
+      )
+      : tenantList;
+
+    persistAll(nextInvoices, nextTenants);
+    logBillingAction(
+      adminLang === 'en' ? 'DELETE' : 'XÓA',
+      `Xóa phiếu ${inv.invoiceCode} của ${inv.tenantName}`
+    );
+  };
+
+  const renderStatusBadge = (inv: BillingInvoice) => {
+    const state = getInvoicePaymentState(inv, todayStr);
+    if (state === 'PAID') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          {adminLang === 'en' ? 'Paid' : 'Đã thanh toán'}
+        </span>
+      );
+    }
+    if (state === 'PARTIAL') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+          <Wallet className="w-3.5 h-3.5 text-amber-600" />
+          {inv.isAdvanceForNextCycle
+            ? adminLang === 'en'
+              ? 'Paid Ahead Next Cycle'
+              : 'Trả trước kỳ mới'
+            : tr('admin.statusPartial')}
+        </span>
+      );
+    }
+    if (state === 'EXPIRING_SOON') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+          <Clock className="w-3.5 h-3.5 text-sky-600" />
+          {tr('admin.statusExpiring')}
+        </span>
+      );
+    }
+    if (state === 'OVERDUE') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700">
+          <AlertCircle className="w-3.5 h-3.5" />
+          {adminLang === 'en' ? 'Overdue' : 'Quá hạn'}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+        <Clock className="w-3.5 h-3.5" />
+        {adminLang === 'en' ? 'Pending' : 'Chờ thanh toán'}
+      </span>
+    );
+  };
+
+  return (
+    <main className="flex-1 max-w-[1440px] w-full mx-auto px-6 lg:px-8 py-6 space-y-5 text-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">
+            {adminLang === 'en'
+              ? 'Rental Plans & Billing Management'
+              : 'Quản lý gói thuê & thanh toán'}
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5 tabular-nums">
+            {tr('admin.cardMonthlyPkg')}: {formatVND(unifiedMetrics.monthlyPackageRevenue)} ·{' '}
+            {adminLang === 'en' ? 'Active Plan Value' : 'Tổng giá trị gói'}:{' '}
+            {formatVND(unifiedMetrics.totalPackageValue)}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleOpenCreateModal}
+          className="h-9 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          <span>
+            {adminLang === 'en' ? 'Register New Plan' : 'Đăng ký gói thuê mới'}
+          </span>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white px-5 py-4 rounded-xl border border-slate-200">
+          <span className="text-xs font-medium text-slate-500">
+            {adminLang === 'en' ? 'Collected' : 'Đã thực thu'}
+          </span>
+          <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+            {formatVND(unifiedMetrics.totalCollected)}
+          </p>
+          <span className="text-xs text-slate-500 mt-1 block tabular-nums">
+            {adminLang === 'en' ? 'Remaining' : 'Còn phải thu'}:{' '}
+            {formatVND(unifiedMetrics.totalRemainingAll)}
+          </span>
+        </div>
+
+        <div className="bg-white px-5 py-4 rounded-xl border border-slate-200">
+          <span className="text-xs font-medium text-slate-500">
+            {tr('admin.cardMonthlyPkg')}
+          </span>
+          <p className="text-2xl font-bold text-emerald-600 mt-1 tabular-nums">
+            {formatVND(unifiedMetrics.monthlyPackageRevenue)}
+          </p>
+          <span className="text-xs text-slate-500 mt-1 block tabular-nums">
+            {unifiedMetrics.count6M} × 6M · {unifiedMetrics.count12M} × 12M
+          </span>
+        </div>
+
+        <div className="bg-white px-5 py-4 rounded-xl border border-slate-200">
+          <span className="text-xs font-medium text-slate-500">
+            {adminLang === 'en' ? 'Active Plan Value' : 'Tổng giá trị gói hoạt động'}
+          </span>
+          <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+            {formatVND(unifiedMetrics.totalPackageValue)}
+          </p>
+          <span className="text-xs text-slate-500 mt-1 block tabular-nums">
+            {unifiedMetrics.activeCount} {tr('admin.statusActive').toLowerCase()}
+          </span>
+        </div>
+
+        <div className="bg-white px-5 py-4 rounded-xl border border-slate-200">
+          <span className="text-xs font-medium text-slate-500">
+            {adminLang === 'en' ? 'Overdue Debt' : 'Công nợ quá hạn'}
+          </span>
+          <p
+            className={`text-2xl font-bold mt-1 tabular-nums ${unifiedMetrics.totalOverdueDebt > 0 ? 'text-rose-600' : 'text-slate-900'
+              }`}
+          >
+            {formatVND(unifiedMetrics.totalOverdueDebt)}
+          </p>
+          <span className="text-xs text-slate-500 mt-1 block tabular-nums">
+            {unifiedMetrics.overdueInvoices.length}{' '}
+            {adminLang === 'en' ? 'overdue invoice(s)' : 'phiếu quá hạn'}
+          </span>
+        </div>
+      </div>
+
+      <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder={tr('common.search')}
+            className="h-9 w-full pl-9 pr-3 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-rose-500"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={durationFilter}
+            onChange={(e) =>
+              setDurationFilter(
+                e.target.value === 'ALL'
+                  ? 'ALL'
+                  : (Number(e.target.value) as PackageDuration)
+              )
+            }
+            className="h-9 px-3 text-xs font-medium border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:border-rose-500"
+          >
+            <option value="ALL">{tr('admin.filterAllPlans')}</option>
+            <option value={6}>{tr('admin.pkg6m')}</option>
+            <option value={12}>{tr('admin.pkg12m')}</option>
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as 'ALL' | InvoicePaymentState)}
+            className="h-9 px-3 text-xs font-medium border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:border-rose-500"
+          >
+            <option value="ALL">{tr('fleet.filterAllStatus')}</option>
+            <option value="PAID">{adminLang === 'en' ? 'Paid' : 'Đã thanh toán'}</option>
+            <option value="PARTIAL">{tr('admin.statusPartial')}</option>
+            <option value="EXPIRING_SOON">{tr('admin.statusExpiring')}</option>
+            <option value="PENDING">{adminLang === 'en' ? 'Pending' : 'Chờ thanh toán'}</option>
+            <option value="OVERDUE">{adminLang === 'en' ? 'Overdue' : 'Quá hạn'}</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1000px] text-left border-collapse text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                <th className="py-3.5 px-5">{adminLang === 'en' ? 'Invoice' : 'Mã phiếu'}</th>
+                <th className="py-3.5 px-4">{tr('admin.colTenant')}</th>
+                <th className="py-3.5 px-4">{tr('admin.colTierPlan')}</th>
+                <th className="py-3.5 px-4">{adminLang === 'en' ? 'Term & Due' : 'Hiệu lực & Hẹn trả đủ'}</th>
+                <th className="py-3.5 px-4 text-right">{adminLang === 'en' ? 'Paid / Total' : 'Đã trả / Tổng gói'}</th>
+                <th className="py-3.5 px-4">{adminLang === 'en' ? 'Proof' : 'Minh chứng'}</th>
+                <th className="py-3.5 px-4">{tr('common.status')}</th>
+                <th className="py-3.5 px-5 text-right">{tr('admin.colActions')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredInvoices.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-10 text-center text-slate-500 text-sm">
+                    {tr('common.noData')}
+                  </td>
+                </tr>
+              ) : (
+                filteredInvoices.map((inv) => {
+                  const invState = getInvoicePaymentState(inv, todayStr);
+                  const remaining = getReceivableAmountForInvoice(inv, todayStr);
+                  const isUnpaid = remaining > 0;
+                  const isPartial =
+                    invState === 'PARTIAL' ||
+                    ((inv.paidAmount || 0) > 0 &&
+                      Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0)) > 0);
+                  const tierLabel =
+                    inv.tier === 'BASIC'
+                      ? tr('admin.tierBasic')
+                      : inv.tier === 'ENTERPRISE'
+                        ? tr('admin.tierEnterprise')
+                        : tr('admin.tierPro');
+
+                  return (
+                    <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3.5 px-5 font-mono text-xs font-semibold text-slate-700">
+                        {inv.invoiceCode}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-semibold text-slate-900">{inv.tenantName}</div>
+                        <div className="text-xs text-slate-500">{inv.tenantCode}</div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-[#0B1324] text-white">
+                            {tierLabel}
+                          </span>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                            {inv.duration === 12 ? tr('admin.pkg12m') : tr('admin.pkg6m')}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-xs text-slate-600 tabular-nums">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          <span>
+                            {formatDateVN(inv.startDate)} → {formatDateVN(inv.endDate)}
+                          </span>
+                        </div>
+                        {isPartial && inv.remainingDueDate && (
+                          <div className="text-[11px] font-semibold text-amber-700 mt-0.5">
+                            {adminLang === 'en' ? 'Due full' : 'Hẹn trả đủ'}: {formatDateVN(inv.remainingDueDate)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-right tabular-nums">
+                        <div className="font-bold text-slate-900">
+                          {formatVND(inv.paidAmount)} / {formatVND(inv.totalAmount)}
+                        </div>
+                        {remaining > 0 && (
+                          <div className="text-[11px] font-semibold text-rose-600 mt-0.5">
+                            {adminLang === 'en' ? 'Balance' : 'Còn nợ'}: {formatVND(remaining)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        {inv.proofImage ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPreviewProofImage({
+                                title: `${inv.tenantName} · ${inv.invoiceCode}`,
+                                subtitle: `${tierLabel} · ${inv.duration === 12 ? tr('admin.pkg12m') : tr('admin.pkg6m')}`,
+                                imageUrl: inv.proofImage!,
+                              })
+                            }
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-rose-600" />
+                            <span>{adminLang === 'en' ? 'View' : 'Xem ảnh'}</span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">{tr('admin.noContractImg')}</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4">{renderStatusBadge(inv)}</td>
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-center justify-end gap-2 flex-wrap">
+                          {isPartial && (
+                            <button
+                              type="button"
+                              onClick={() => openPartialTopUpModal(inv)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 transition-colors cursor-pointer"
+                            >
+                              {adminLang === 'en' ? 'Collect Part' : 'Thu thêm'}
+                            </button>
+                          )}
+                          {isUnpaid && (
+                            <button
+                              type="button"
+                              onClick={() => handleConfirmPaid(inv)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer"
+                            >
+                              {tr('admin.settleDebtBtn')}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setRenewalTargetInv(inv)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>{tr('admin.renewBtn')}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteInvoice(inv)}
+                            title={tr('common.delete')}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* MODAL GIA HẠN DÙNG CHUNG */}
+      <SharedRenewalModal
+        isOpen={Boolean(renewalTargetInv)}
+        onClose={() => setRenewalTargetInv(null)}
+        tenantId={renewalTargetInv?.tenantId || ''}
+        tenantName={renewalTargetInv?.tenantName || ''}
+        tenantCode={renewalTargetInv?.tenantCode || ''}
+        currentExpiresAt={renewalTargetInv?.endDate}
+        initialTier={renewalTargetInv?.tier || 'PRO'}
+        initialDuration={renewalTargetInv?.duration || 6}
+        sourceInvoiceCode={renewalTargetInv?.invoiceCode}
+        onCompleted={({ tenants: nextTenants, invoices: nextInvoices, newInvoice }) => {
+          setTenantList(nextTenants);
+          setInvoices(nextInvoices);
+          logBillingAction(
+            adminLang === 'en' ? 'RENEW' : 'GIA HẠN',
+            `Tạo phiếu ${newInvoice.invoiceCode} gia hạn cho ${newInvoice.tenantName}`
+          );
+        }}
+      />
+
+      {/* MODAL ĐĂNG KÝ GÓI THUÊ MỚI */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-rose-600" />
+                <h3 className="text-base font-bold text-slate-900">
+                  {adminLang === 'en' ? 'Register New Plan' : 'Đăng ký gói thuê dịch vụ'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInvoice} className="p-6 overflow-y-auto space-y-4">
+              {formError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs font-medium text-rose-700">
+                  {formError}
+                </div>
+              )}
+
+              {tenantList.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {tr('admin.colTenant')}
+                  </label>
+                  <select
+                    value={selectedTenantId}
+                    onChange={(e) => handleSelectExistingTenant(e.target.value)}
+                    className="h-10 w-full px-3 text-sm border border-slate-300 rounded-lg bg-white"
+                  >
+                    {tenantList.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.code})
+                      </option>
+                    ))}
+                    <option value="CUSTOM">+ {tr('admin.addNewBtn')}</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {adminLang === 'en' ? 'Enterprise Name *' : 'Tên doanh nghiệp *'}
+                  </label>
+                  <div className="relative">
+                    <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      disabled={selectedTenantId !== 'CUSTOM'}
+                      value={tenantName}
+                      onChange={(e) => setTenantName(e.target.value)}
+                      className="h-10 w-full pl-9 pr-3 text-sm border border-slate-300 rounded-lg disabled:bg-slate-100"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {adminLang === 'en' ? 'Code *' : 'Mã doanh nghiệp *'}
+                  </label>
+                  <input
+                    type="text"
+                    disabled={selectedTenantId !== 'CUSTOM'}
+                    value={tenantCode}
+                    onChange={(e) => setTenantCode(e.target.value.toUpperCase())}
+                    className="h-10 w-full px-3 text-sm border border-slate-300 rounded-lg uppercase font-semibold disabled:bg-slate-100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  {adminLang === 'en' ? 'Service Tier' : 'Hạng gói dịch vụ'}
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {Object.values(SERVICE_TIERS).map((tierOpt) => {
+                    const isSelected = selectedTier === tierOpt.key;
+                    const label =
+                      tierOpt.key === 'BASIC'
+                        ? tr('admin.tierBasic')
+                        : tierOpt.key === 'ENTERPRISE'
+                          ? tr('admin.tierEnterprise')
+                          : tr('admin.tierPro');
+                    return (
+                      <button
+                        key={tierOpt.key}
+                        type="button"
+                        onClick={() => setSelectedTier(tierOpt.key)}
+                        className={`py-2 px-3 rounded-lg border text-xs font-semibold transition-colors cursor-pointer ${isSelected
+                            ? 'bg-[#0B1324] text-white border-[#0B1324]'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                          }`}
+                      >
+                        <div>{label}</div>
+                        <div
+                          className={`text-[10px] font-normal mt-0.5 tabular-nums ${isSelected ? 'text-slate-300' : 'text-slate-500'
+                            }`}
+                        >
+                          {formatVND(tierOpt.prices[selectedDuration])}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  {adminLang === 'en' ? 'Rental Duration' : 'Chọn gói thời hạn'}
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {RENTAL_PACKAGES.map((pkg) => {
+                    const isSelected = pkg.duration === selectedDuration;
+                    const tierPkgPrice = getPackagePrice(selectedTier, pkg.duration);
+                    return (
+                      <button
+                        key={pkg.id}
+                        type="button"
+                        onClick={() => setSelectedDuration(pkg.duration)}
+                        className={`p-3.5 rounded-xl border text-left transition-colors cursor-pointer ${isSelected
+                            ? 'border-rose-600 bg-rose-50/40 ring-1 ring-rose-600'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                      >
+                        <div className="text-sm font-bold text-slate-900">
+                          {pkg.duration === 12 ? tr('admin.pkg12m') : tr('admin.pkg6m')}
+                        </div>
+                        <div className="text-sm font-bold text-rose-600 mt-1 tabular-nums">
+                          {formatVND(tierPkgPrice)}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {adminLang === 'en' ? 'Start Date' : 'Ngày bắt đầu hiệu lực'}
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setDueDate(addDays(e.target.value, 7));
+                    }}
+                    className="h-10 w-full px-3 text-sm border border-slate-300 rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {adminLang === 'en' ? 'Payment Method' : 'Hình thức thanh toán'}
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) =>
+                      setPaymentMethod(e.target.value as 'BANK_TRANSFER' | 'INVOICE')
+                    }
+                    className="h-10 w-full px-3 text-sm border border-slate-300 rounded-lg bg-white"
+                  >
+                    <option value="BANK_TRANSFER">
+                      {adminLang === 'en' ? 'Bank Transfer' : 'Chuyển khoản ngân hàng'}
+                    </option>
+                    <option value="INVOICE">
+                      {adminLang === 'en' ? 'Credit Invoice' : 'Xuất hóa đơn công nợ'}
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <label className="block text-xs font-semibold text-slate-700">
+                  {adminLang === 'en' ? 'Payment Status' : 'Tình trạng thanh toán'}
+                </label>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode('FULL')}
+                    className={`py-2 px-2.5 rounded-lg border font-semibold cursor-pointer ${paymentMode === 'FULL'
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-white text-slate-700 border-slate-300'
+                      }`}
+                  >
+                    {adminLang === 'en' ? 'Paid in Full' : 'Trả đủ trọn gói'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode('PARTIAL')}
+                    className={`py-2 px-2.5 rounded-lg border font-semibold cursor-pointer ${paymentMode === 'PARTIAL'
+                        ? 'bg-amber-600 text-white border-amber-600'
+                        : 'bg-white text-slate-700 border-slate-300'
+                      }`}
+                  >
+                    {adminLang === 'en' ? 'Partial Payment' : 'Trả trước 1 phần'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode('UNPAID')}
+                    className={`py-2 px-2.5 rounded-lg border font-semibold cursor-pointer ${paymentMode === 'UNPAID'
+                        ? 'bg-slate-800 text-white border-slate-800'
+                        : 'bg-white text-slate-700 border-slate-300'
+                      }`}
+                  >
+                    {adminLang === 'en' ? 'Unpaid' : 'Chưa thanh toán'}
+                  </button>
+                </div>
+
+                {paymentMode === 'PARTIAL' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        {adminLang === 'en' ? 'Prepaid Amount *' : 'Số tiền trả trước *'}
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={activePackage.price - 1}
+                        value={partialPaidInput}
+                        onChange={(e) => {
+                          setPartialPaidInput(e.target.value);
+                          if (formError) setFormError('');
+                        }}
+                        className="h-10 w-full px-3 text-sm font-semibold border border-slate-300 rounded-lg bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        {adminLang === 'en'
+                          ? `Settlement Due (max ${MAX_PARTIAL_SETTLE_DAYS}d) *`
+                          : `Ngày hẹn trả đủ (tối đa ${MAX_PARTIAL_SETTLE_DAYS} ngày) *`}
+                      </label>
+                      <input
+                        type="date"
+                        min={todayStr}
+                        max={maxAllowedPartialDate}
+                        value={remainingDueDateInput}
+                        onChange={(e) => {
+                          setRemainingDueDateInput(e.target.value);
+                          if (formError) setFormError('');
+                        }}
+                        className="h-10 w-full px-3 text-sm border border-slate-300 rounded-lg bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                {proofImage ? (
+                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center gap-3">
+                    <img
+                      src={proofImage}
+                      alt="Proof"
+                      className="w-16 h-16 rounded-lg object-cover border border-slate-200 bg-white shrink-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setProofImage('')}
+                      className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
+                    >
+                      {tr('common.delete')}
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-300 hover:border-rose-400 bg-slate-50/70 transition-colors cursor-pointer text-center">
+                    <Upload className="w-5 h-5 text-slate-400 mb-1.5" />
+                    <span className="text-xs font-semibold text-slate-700">
+                      {adminLang === 'en'
+                        ? 'Upload proof image *'
+                        : 'Tải lên ảnh minh chứng hợp đồng *'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProofImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  {tr('common.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 cursor-pointer"
+                >
+                  {tr('common.save')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {partialTopUpInv && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-md shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900">
+                {partialTopUpInv.tenantName}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setPartialTopUpInv(null)}
+                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmPartialTopUp} className="p-6 space-y-4">
+              {topUpError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs font-medium text-rose-700">
+                  {topUpError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {adminLang === 'en' ? 'Amount to Collect *' : 'Số tiền thanh toán đợt này *'}
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={topUpAmountInput}
+                  onChange={(e) => {
+                    setTopUpAmountInput(e.target.value);
+                    if (topUpError) setTopUpError('');
+                  }}
+                  className="h-10 w-full px-3 text-sm font-bold border border-slate-300 rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {adminLang === 'en'
+                    ? `Next Settlement Due (max ${MAX_PARTIAL_SETTLE_DAYS}d)`
+                    : `Ngày hẹn trả đủ phần còn lại (tối đa ${MAX_PARTIAL_SETTLE_DAYS} ngày)`}
+                </label>
+                <input
+                  type="date"
+                  min={todayStr}
+                  max={
+                    partialTopUpInv.endDate &&
+                      partialTopUpInv.endDate < addDays(todayStr, MAX_PARTIAL_SETTLE_DAYS)
+                      ? partialTopUpInv.endDate
+                      : addDays(todayStr, MAX_PARTIAL_SETTLE_DAYS)
+                  }
+                  value={topUpNextDueDate}
+                  onChange={(e) => {
+                    setTopUpNextDueDate(e.target.value);
+                    if (topUpError) setTopUpError('');
+                  }}
+                  className="h-10 w-full px-3 text-sm border border-slate-300 rounded-lg"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPartialTopUpInv(null)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  {tr('common.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
+                >
+                  {tr('common.confirm')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {previewProofImage && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/75 flex items-center justify-center p-4"
+          onClick={() => setPreviewProofImage(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-rose-600" />
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">
+                    {previewProofImage.title}
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    {previewProofImage.subtitle}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewProofImage(null)}
+                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 bg-slate-100 flex items-center justify-center max-h-[78vh] overflow-auto">
+              <img
+                src={previewProofImage.imageUrl}
+                alt={previewProofImage.title}
+                className="max-w-full max-h-[72vh] rounded-lg object-contain shadow-sm"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+};
+
+export default AdminBillingManagement;

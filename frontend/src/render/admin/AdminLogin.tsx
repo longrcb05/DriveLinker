@@ -11,39 +11,16 @@ import {
 import { useLanguage } from '../../context/LanguageContext';
 import { getAdminAccounts, saveAdminAccounts } from './adminAccounts';
 import { recordAdminAction } from './adminAudit';
+import {
+  syncUnifiedPlatformData,
+  PLATFORM_SYNC_EVENT
+} from './AdminBillingManagement';
 
 // Danh sách ảnh ô tô cho thuê độ phân giải cao (tự động chuyển ảnh kế tiếp nếu lỗi mạng)
 const CAR_RENTAL_IMAGES = [
   'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=1920&q=85',
   'https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&w=1920&q=85',
   'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1920&q=85'
-];
-
-const DEFAULT_TENANTS = [
-  {
-    id: 'COMPANY_A',
-    name: 'Demo CTY A',
-    code: 'CTYA26',
-    ownerName: 'Trần Văn A',
-    phone: '0901234567',
-    address: '123 Nguyễn Văn Linh, Đà Nẵng'
-  },
-  {
-    id: 'COMPANY_B',
-    name: 'Demo CTY B',
-    code: 'CTYB26',
-    ownerName: 'Lê Thị B',
-    phone: '0912345678',
-    address: '456 Lê Duẩn, Hà Nội'
-  },
-  {
-    id: 'COMPANY_C',
-    name: 'Demo CTY C',
-    code: 'CTYC26',
-    ownerName: 'Phạm Văn C',
-    phone: '0987654321',
-    address: '789 Nguyễn Huệ, TP. HCM'
-  }
 ];
 
 export default function AdminLogin() {
@@ -76,7 +53,7 @@ export default function AdminLogin() {
     setCapsLockOn(e.getModifierState('CapsLock'));
   };
 
-  // Đối chiếu tài khoản mẫu, từ chối tài khoản bị khóa và lưu thông tin phiên khi đăng nhập.
+  // Đối chiếu tài khoản mẫu, từ chối tài khoản bị khóa, đồng bộ dữ liệu nền tảng và lưu thông tin phiên khi đăng nhập.
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;
@@ -86,29 +63,47 @@ export default function AdminLogin() {
 
     setTimeout(() => {
       let accounts;
-      try { accounts = getAdminAccounts(); } catch {
+      try {
+        accounts = getAdminAccounts();
+      } catch {
         setError('Không thể đọc dữ liệu tài khoản trên trình duyệt.');
         setIsLoading(false);
         return;
       }
-      const account = accounts.find(item => item.username.toLowerCase() === username.trim().toLowerCase() && item.password === password);
+
+      const account = accounts.find(
+        (item) =>
+          item.username.toLowerCase() === username.trim().toLowerCase() &&
+          item.password === password
+      );
 
       if (account?.status === 'LOCKED') {
-        setError(language === 'vi' ? 'Tài khoản đã bị khóa.' : 'This account is locked.');
+        setError(
+          language === 'vi'
+            ? 'Tài khoản đã bị khóa.'
+            : 'This account is locked.'
+        );
         setIsLoading(false);
         return;
       }
 
       if (account) {
-        if (!localStorage.getItem('sys_tenants')) {
-          localStorage.setItem('sys_tenants', JSON.stringify(DEFAULT_TENANTS));
-        }
-
-        try { saveAdminAccounts(accounts.map(item => item.username === account.username ? { ...item, lastLogin: new Date().toLocaleString('vi-VN') } : item)); } catch {
-          setError('Không thể lưu dữ liệu tài khoản trên trình duyệt.');
+        try {
+          syncUnifiedPlatformData();
+          window.dispatchEvent(new CustomEvent(PLATFORM_SYNC_EVENT));
+          saveAdminAccounts(
+            accounts.map((item) =>
+              item.username === account.username
+                ? { ...item, lastLogin: new Date().toLocaleString('vi-VN') }
+                : item
+            )
+          );
+        } catch {
+          setError('Không thể lưu dữ liệu tài khoản hoặc đồng bộ hệ thống trên trình duyệt.');
           setIsLoading(false);
           return;
         }
+
         sessionStorage.setItem('sys_core_role', account.role);
         sessionStorage.setItem('sys_core_admin_name', account.fullName);
         sessionStorage.setItem('sys_core_username', account.username);

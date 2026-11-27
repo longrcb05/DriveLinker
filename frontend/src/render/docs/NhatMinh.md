@@ -10,15 +10,17 @@
 
 | Phân hệ / Màn hình | File tác động | Nội dung chính thực hiện |
 | :--- | :--- | :--- |
-| **Cổng Quản trị Tối cao** | `src/render/admin/AdminLogin.tsx` | Nâng cấp UI Dark/Luxury, hiệu ứng ảnh nền xe tự động, cảnh báo Caps Lock, gợi ý tài khoản mẫu. |
-| **Bàn Điều hành Bản vá** | `src/render/admin/AdminDashboard.tsx` | Xây dựng Module Quản trị Bản vá (Staged Patches), quy trình Deploy 3 pha, Nhật ký kiểm toán Core. |
-| **Quản trị Gói cước & Đối tác** | `src/render/admin/AdminTenantList.tsx` | Quản lý vòng đời Tenant (Trial, Active, Suspended), gia hạn & nâng cấp 4 gói thuê bao (Starter, Pro, Enterprise). |
-| **Bàn Thu phí & Hóa đơn SaaS** | `src/render/admin/AdminBillingManagement.tsx` | Quản lý hóa đơn định kỳ, tính phí theo gói hoặc theo đầu xe (150.000đ/xe), đối soát thanh toán & ủy nhiệm chi. |
+| **Cổng Quản trị Tối cao** | `src/render/admin/AdminLogin.tsx` | Nâng cấp UI Dark/Luxury, hiệu ứng ảnh nền xe tự động, cảnh báo Caps Lock, liên kết dữ liệu `adminAccounts.ts`. |
+| **Bàn Điều hành Bản vá** | `src/render/admin/AdminDashboard.tsx` | Module Quản trị Bản vá (Staged Patches), quy trình Deploy 3 pha, Nhật ký kiểm toán Core. |
+| **Quản trị Gói cước & Đối tác** | `src/render/admin/AdminTenantList.tsx` | Quản lý vòng đời Tenant (Trial, Active, Suspended), gia hạn & nâng cấp 4 gói thuê bao, liên kết Tài khoản Admin. |
+| **Bàn Thu phí & Hóa đơn SaaS** | `src/render/admin/AdminBillingManagement.tsx` | Quản lý hóa đơn định kỳ, cước bậc thang (110k-150k/xe), tính xe vượt hạn mức, quy trình gia hạn 2 bước. |
+| **Quản trị Tài khoản Admin** | `src/render/admin/AdminAccountList.tsx`<br>`adminAccounts.ts`<br>`adminAudit.ts` | Phân hệ Tài khoản Admin: CRUD tài khoản, phân quyền 3 vai trò, khóa/mở khóa an toàn, đổi mật khẩu & ghi audit log. |
 | **Quản lý Hợp đồng** | `src/render/ContractManagement.tsx` | Tối ưu hiệu năng bằng `useCallback`/`useMemo`, thuật toán tính hạn hợp đồng chính xác, giữ chuẩn A4 Viewer. |
 | **Soạn thảo Hợp đồng** | `src/render/CreateContract.tsx` | Validation chặt chẽ (SĐT 10 số, CCCD 12 số, MST), tách `ContractPaperTemplate` chống giật lag, đàm phán giá. |
 | **Bàn Phê duyệt Đơn giá** | `src/render/PriceApprovals.tsx` | Tra cứu $O(1)$ bằng `Map`, Optimistic UI Update, Preview chênh lệch giá (Delta), chống duyệt trùng. |
 | **Cài đặt Doanh nghiệp** | `src/render/Settings.tsx` | Tái cấu trúc 4 tab (General, Accounts, Devices, Logs), phát hiện xung đột IP bất thường, khóa tài khoản tức thời. |
-| **Đồng bộ & CI/CD** | Toàn bộ dự án | Đồng bộ code với nhánh `main`, giải quyết 4 file merge conflicts, kiểm tra build TypeScript & Vite. |
+| **Tìm kiếm & Định tuyến** | `src/App.tsx`<br>`src/services/vehicleService.ts`<br>`FleetManagement.tsx`<br>`LiveTracking.tsx` | Tích hợp thuật toán tìm biển số `matchesPlate` linh hoạt, mở route bảo vệ `/overview/admin/accounts`. |
+| **Đồng bộ & CI/CD** | Toàn bộ dự án | Đồng bộ code với nhánh `main` và nhánh `NgocBang`, giải quyết merge conflicts, kiểm tra build TypeScript & Vite. |
 
 ---
 
@@ -138,38 +140,71 @@
 
 ---
 
-## 2. NÂNG CẤP QUẢN LÝ DOANH NGHIỆP, CÔNG NỢ & ĐỒNG BỘ LỊCH SỬ — 📅22/11/2026
+### 📅 Ngày 22/11/2026: Nâng cấp Quản lý Doanh nghiệp, Công nợ Bậc thang & Kiểm thử Vercel
 
-Các thay đổi dưới đây được tổng hợp từ mã nguồn hiện có trên máy và chưa được commit tại thời điểm ghi nhận.
-
-- **`frontend/src/render/admin/AdminTenantList.tsx`:**
-  - Giữ nguyên thanh tiêu đề `DriveLinker Admin`, thông tin phiên quản trị (`sys_core_admin_name`), luồng nhập vai `handleImpersonate`, luồng đăng xuất `handleLogout` và cấu trúc khóa lưu trữ gốc (`sys_tenants`, `sys_core_audit_logs`).
-  - Bổ sung thanh chuyển đổi tab nội bộ giữa **1. Quản lý Doanh nghiệp (Tenant)** và **2. Công nợ & Thanh toán (Billing)**, kèm nút chuyển chế độ hiển thị giữa **Dạng bảng chi tiết** (`table`) và **Dạng thẻ truy cập nhanh** (`cards`).
-  - Mở rộng mô hình dữ liệu `TenantRecord` với các trường trạng thái vận hành (`ACTIVE`, `TRIAL`, `SUSPENDED`), gói dịch vụ (`TRIAL_14D`, `STARTER`, `PRO`, `ENTERPRISE`), phí gói hàng tháng, hạn mức phương tiện tối đa, ngày kích hoạt và ngày hết hạn (`expiresAt`).
-  - Bổ sung 4 thẻ thống kê KPI (Tổng doanh nghiệp, Doanh thu gói/tháng, Quy mô xe đăng ký, Cảnh báo thời hạn dưới 15 ngày), bộ lọc theo trạng thái / gói dịch vụ và ô tìm kiếm theo tên, ID, mã doanh nghiệp, người đại diện hoặc số điện thoại.
-  - Bổ sung biểu mẫu thêm/sửa doanh nghiệp có kiểm tra ràng buộc dữ liệu (`CODE_REGEX`, `PHONE_REGEX`, kiểm tra trùng mã doanh nghiệp, kiểm tra ngày hết hạn) và cửa sổ **Gia hạn & Nâng cấp gói dịch vụ** (`openRenewModal`, `handleConfirmRenew`).
-
-- **`frontend/src/render/admin/AdminBillingManagement.tsx` (Tệp mới):**
-  - Xây dựng giao diện quản lý công nợ và thanh toán dịch vụ nền tảng lưu trữ qua khóa `sys_platform_billing` trong `localStorage`.
-  - Hỗ trợ lập kỳ cước / hóa đơn theo 2 phương thức tính phí: cố định theo gói dịch vụ (`PACKAGE`) hoặc tính theo số lượng phương tiện đăng ký (`PER_VEHICLE`).
-  - Tự động tính trạng thái công nợ (`PAID`, `UNPAID`, `OVERDUE`) và hiển thị 4 thẻ KPI tài chính (Tổng phải thanh toán, Đã xác nhận thu, Công nợ còn lại, Công nợ quá hạn).
-  - Bổ sung chức năng ghi nhận giao dịch thanh toán (`BANK_TRANSFER`, `CASH`) kèm mã giao dịch, số chứng từ, tải ảnh chứng từ/ủy nhiệm chi, duyệt xác nhận giao dịch chờ (`PENDING` ➔ `CONFIRMED`) và **Khóa / Mở khóa dịch vụ doanh nghiệp** (`SUSPENDED` / `ACTIVE`, tự động mở khóa khi doanh nghiệp tất toán đủ 100% công nợ).
-
-### Bổ sung: đồng bộ nhật ký thao tác hệ thống (`sys_core_audit_logs`)
-
-- Kết nối các thao tác phát sinh bên phân hệ Công nợ & Thanh toán (`LẬP KỲ CƯỚC`, `THANH TOÁN`, `XÁC NHẬN TT`, `KHÓA DỊCH VỤ`, `MỞ DỊCH VỤ`) và phân hệ Quản lý Doanh nghiệp (`THÊM MỚI`, `CẬP NHẬT`, `TRẠNG THÁI`, `GIA HẠN`, `XÓA`, `TRUY CẬP`, `ĐĂNG XUẤT`) vào chung khóa `sys_core_audit_logs`.
-- Phát sự kiện `storage` mỗi khi cập nhật dữ liệu để đồng bộ tức thì số lượng bản ghi trên nút **Lịch sử** và trạng thái hoạt động của doanh nghiệp giữa 2 tab.
-
-**Ghi chú:** Các thay đổi trên chưa được commit tại thời điểm tổng hợp. Mục này ghi nhận kết quả đối chiếu mã nguồn trên nhánh `NhatMinh`, không khẳng định đã kiểm thử toàn bộ kịch bản trên môi trường Backend thực tế.
+* **Mở rộng giao diện & nghiệp vụ `AdminTenantList.tsx`:**
+  * Bổ sung thanh chuyển đổi tab nội bộ giữa **1. Quản lý Doanh nghiệp (Tenant)** và **2. Công nợ & Thanh toán (Billing)**, kèm nút chuyển chế độ hiển thị giữa **Dạng bảng chi tiết** (`table`) và **Dạng thẻ truy cập nhanh** (`cards`).
+  * Mở rộng mô hình dữ liệu `TenantRecord` với các trường trạng thái vận hành (`ACTIVE`, `TRIAL`, `SUSPENDED`), gói dịch vụ, phí gói hàng tháng, hạn mức phương tiện tối đa, ngày kích hoạt và ngày hết hạn (`expiresAt`).
+  * Bổ sung 4 thẻ thống kê KPI (Tổng doanh nghiệp, Doanh thu gói/tháng, Quy mô xe đăng ký, Cảnh báo thời hạn dưới 15 ngày), bộ lọc trạng thái / gói và ô tìm kiếm đa tiêu chí.
+* **Nâng cấp tính toán cước sâu trong `AdminBillingManagement.tsx`:**
+  * Bổ sung biểu phí bậc thang theo quy mô đội xe thực tế (`getPerVehicleTierRate`): Bậc 1 (1–10 xe: 150.000 đ/xe), Bậc 2 (11–30 xe: 130.000 đ/xe), Bậc 3 (trên 30 xe: 110.000 đ/xe).
+  * Tích hợp cơ chế tính phí vượt hạn mức (`OVERAGE_RATE_PER_VEHICLE` = 120.000 đ/xe vượt hạn mức/tháng).
+  * Bổ sung chính sách chiết khấu theo kỳ hạn thanh toán: 3 tháng (giảm 5%), 6 tháng (giảm 10%), 12 tháng (giảm 15%).
+  * Quy trình gia hạn 2 bước trực quan: Bước 1 chọn gói & kỳ hạn; Bước 2 chuyển tiếp sang cổng thanh toán đối soát.
+* **Đồng bộ nhật ký thao tác hệ thống (`sys_core_audit_logs`):**
+  * Kết nối toàn bộ các thao tác phát sinh từ cả 2 phân hệ vào chung khóa lưu trữ `sys_core_audit_logs`.
+  * Phát sự kiện `storage` mỗi khi cập nhật dữ liệu để đồng bộ tức thì số lượng bản ghi trên nút **Lịch sử**.
+* **Xác minh CI/CD & Deploy Vercel:**
+  * Phân tích và làm rõ cảnh báo từ Vercel Bot: Xác định rõ ràng dấu X đỏ là do cơ chế bảo mật preview của Vercel (`Git author NhatMinh2004 must have access to the project on Vercel`), hoàn toàn không phải do lỗi code.
 
 ---
 
-## 3. BẢNG TỔNG HỢP KIỂM THỬ XÁC MINH NGHIỆP VỤ (LOCAL)
+### 📅 Ngày 23/11/2026: Tích hợp Toàn diện Tài khoản Admin, Xử lý Pull Request & Đồng bộ Nhánh Ngọc Bằng
 
-| Kịch bản kiểm thử | Thao tác thực hiện | Kết quả hiển thị Frontend | Dữ liệu lưu trữ (`localStorage`) |
-| :--- | :--- | :--- | :--- |
-| **Quản lý gói & trạng thái DN** | Tạo mới hoặc chỉnh sửa doanh nghiệp, chọn gói `PRO` / `STARTER` / `TRIAL_14D`, chuyển đổi `ACTIVE` / `SUSPENDED`. | Cập nhật lại 4 thẻ KPI, thanh tiến độ số xe đăng ký và cảnh báo thời hạn còn dưới 15 ngày. | Cập nhật mảng đối tượng trong khóa `sys_tenants`. |
-| **Gia hạn gói dịch vụ** | Bấm nút **Gia hạn** trên dòng doanh nghiệp, chọn gói và thời hạn 1 / 6 / 12 tháng. | Cộng nối tiếp ngày hết hạn (`expiresAt`), chuyển trạng thái sang `ACTIVE` và tính tổng phí gia hạn. | Cập nhật `sys_tenants` và ghi bản ghi `GIA HẠN` vào `sys_core_audit_logs`. |
-| **Lập kỳ cước & Thu tiền** | Chuyển sang tab **2. Công nợ & Thanh toán**, lập hóa đơn mới và ghi nhận giao dịch chuyển khoản/tiền mặt. | Cập nhật số tiền đã trả, công nợ còn lại và chuyển trạng thái hóa đơn sang `PAID` khi thanh toán đủ. | Lưu hóa đơn vào `sys_platform_billing` và ghi log `LẬP KỲ CƯỚC`, `XÁC NHẬN TT` vào `sys_core_audit_logs`. |
-| **Khóa / Mở dịch vụ theo công nợ** | Bấm **Khóa dịch vụ DN** hoặc xác nhận thanh toán tất toán toàn bộ hóa đơn của doanh nghiệp đang bị khóa. | Trạng thái doanh nghiệp chuyển sang `SUSPENDED` khi khóa và tự động mở lại `ACTIVE` khi tất toán đủ. | Đồng bộ trạng thái giữa `sys_platform_billing`, `sys_tenants` và `sys_core_audit_logs`. |
-| **Đối chiếu Nhật ký Lịch sử** | Bấm nút **Lịch sử** trên thanh tiêu đề `DriveLinker Admin`. | Mở bảng nhật ký 4 cột hiển thị đầy đủ thao tác từ cả 2 phân hệ theo thứ tự mới nhất lên đầu. | Đọc và hợp nhất dữ liệu từ khóa `sys_core_audit_logs`. |
+#### 1. Tích hợp Phân hệ Quản trị Tài khoản Admin (`AdminAccountList.tsx`):
+* **Tiếp nhận và chuẩn hóa mã nguồn từ commit `8e9a270` của Ngọc Bằng:**
+  * Trích xuất và phục hồi toàn bộ các file tính năng thực tế sau khi phát hiện commit revert trên remote:
+    * `AdminAccountList.tsx`: Màn hình danh sách tài khoản quản trị hệ thống (/overview/admin/accounts).
+    * `adminAccounts.ts`: Mock dữ liệu 4 tài khoản quản trị (`adminlong`, `adminan`, `support.bang`, `billing.minh`) lưu trữ trong `localStorage`.
+    * `adminAudit.ts`: Hệ thống tiện ích ghi vết hành động quản trị (`recordAdminAction`) và format thời gian.
+    * `bang.md`: Nhật ký kỹ thuật của bạn Ngọc Bằng ở thư mục gốc.
+* **Liên kết hệ thống & Bảo mật:**
+  * Mở Route `/overview/admin/accounts` có bảo vệ bằng middleware `RequireAdminAuth` trong `App.tsx`.
+  * Bổ sung nút liên kết nhanh `Tài khoản Admin` trên thanh công cụ của `AdminTenantList.tsx`.
+  * Tích hợp ghi vết hành động khi đăng xuất, cấu hình hoặc đồng bộ trong `DashboardLayout.tsx`.
+  * Đồng bộ cơ chế đăng nhập của `AdminLogin.tsx` với danh sách tài khoản `adminAccounts.ts`.
+
+#### 2. Tối ưu hóa Tìm kiếm Biển số xe Linh hoạt (`matchesPlate`):
+* Tích hợp hàm `matchesPlate` trong `vehicleService.ts`: Tự động loại bỏ dấu chấm, dấu gạch ngang, ký tự đặc biệt và khoảng trắng, cho phép tìm kiếm biển số xe không phân biệt chữ hoa/thường (ví dụ: gõ `43A11222` vẫn tìm thấy `43A-112.22`).
+* Áp dụng thuật toán tìm kiếm mới vào `FleetManagement.tsx` và `LiveTracking.tsx`.
+* Thắt chặt validation số điện thoại tài xế trong modal thêm/sửa xe (`^0\d{9}$`).
+
+#### 3. Chuẩn hóa & Tối ưu Pull Request #4 trên GitHub:
+* Cập nhật tiêu đề PR chuẩn Conventional Commits:  
+  `feat(core): Tối ưu hiệu năng Hợp đồng, Duyệt giá, Cài đặt & Bổ sung phân hệ Thu phí SaaS, Quản lý gói cước`
+* Soạn thảo và cập nhật mô tả PR chuyên nghiệp với đầy đủ phân mục tính năng và kiểm tra chất lượng code.
+* Khảo sát chi tiết PR #1 và #2 của Long để đảm bảo tính kế thừa kiến trúc nền tảng.
+* Đồng bộ nhánh `NgocBang` vào nhánh `NhatMinh`, đưa trạng thái Git về:  
+  ✅ **`MERGEABLE: True` (Mergeable state: Clean, không còn conflict)**.
+* Chạy kiểm thử tự động toàn diện: `tsc -b && vite build` ➔ **Thành công 100% (0 lỗi TypeScript, 0 lỗi Vite Build)**.
+
+---
+
+## 3. BẢNG TỔNG HỢP KIỂM CHỨNG CHỨC NĂNG (VERIFICATION MATRIX)
+
+| STT | Luồng kiểm thử | Thao tác thực hiện | Kết quả ghi nhận | Dữ liệu lưu trữ |
+| :---: | :--- | :--- | :--- | :--- |
+| 1 | **Đăng nhập Super Admin** | Nhập tài khoản Root trên `AdminLogin.tsx` | Nhận diện đúng Caps Lock; chuyển hướng mượt vào Admin Dashboard; lưu session an toàn. | `sessionStorage` & `sys_demo_admin_accounts` |
+| 2 | **Tạo bản vá Staged Patch** | Thêm mới bản vá module GPS trên `AdminDashboard.tsx` | Bản vá hiển thị trong Staging list; quy trình deploy 3 pha hoạt động tuần tự; ghi audit log. | `sys_core_audit_logs` |
+| 3 | **Validation Form Hợp đồng** | Nhập SĐT 9 số hoặc CCCD 10 số trên `CreateContract.tsx` | Hiển thị cảnh báo màu đỏ tức thì; khóa nút Lưu cho đến khi nhập đúng định dạng chuẩn. | `sys_contract_drafts` |
+| 4 | **Ký số & In Hợp đồng** | Vẽ chữ ký số trên Canvas và bấm Xem trước PDF | Chữ ký kết xuất chuẩn Base64 PNG; hiển thị sắc nét trên bản in A4 độc lập; không bị nhảy trang. | Canvas toDataURL |
+| 5 | **Phê duyệt đơn giá Manager** | Quản lý bấm Duyệt yêu cầu đổi giá trên `PriceApprovals.tsx` | Giá mới hiển thị màu xanh; cập nhật $O(1)$ vào hợp đồng; chuyển yêu cầu sang tab Lịch sử. | `sys_price_requests` & `sys_e_contracts` |
+| 6 | **Phát hiện IP bất thường** | 2 tài khoản đăng nhập từ cùng 1 IP lạ trên `Settings.tsx` | Cột trạng thái hiển thị cờ đỏ cảnh báo xung đột IP; hỗ trợ Khóa thiết bị tức thì. | `sys_access_devices` |
+| 7 | **Thu phí & Hóa đơn SaaS** | Lập kỳ cước, tính bậc thang và thanh toán trên `AdminBillingManagement.tsx` | Tính đúng công nợ theo gói hoặc đầu xe; ghi nhận giao dịch kèm ảnh ủy nhiệm chi; khóa/mở cước. | `sys_platform_billing` |
+| 8 | **Gia hạn gói dịch vụ DN** | Bấm **Gia hạn** trên `AdminTenantList.tsx`, chọn gói và thời hạn | Quy trình 2 bước: cộng dồn ngày hết hạn, chiết khấu kỳ hạn và chuyển tiếp sang thanh toán. | `sys_tenants` & `sys_core_audit_logs` |
+| 9 | **Quản lý Tài khoản Admin** | Mở `/overview/admin/accounts`, thêm tài khoản, khóa/mở khóa | Kiểm tra quyền Super Admin; không tự khóa mình; đổi mật khẩu và cập nhật tức thời. | `sys_demo_admin_accounts` |
+| 10 | **Tìm kiếm Biển số linh hoạt** | Nhập `43A11222` không dấu trên Fleet & Live Tracking | Nhận diện chính xác xe mang biển số `43A-112.22`. | `vehicleService.ts` (`matchesPlate`) |
+| 11 | **Kiểm tra Build Toàn diện** | Chạy lệnh `npm run build` | Lệnh `tsc -b && vite build` hoàn thành với mã thoát 0 (Exit Code 0). | Thư mục `dist/` |
+
+---
+*Tài liệu được cập nhật hoàn chỉnh tại `frontend/src/render/docs/NhatMinh.md` phục vụ công tác bàn giao và lưu trữ kỹ thuật của dự án DriveLinker.*

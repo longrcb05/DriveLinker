@@ -1,7 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import DashboardLayout from './UI/DashboardLayout';
-import AdminLayout from './UI/AdminLayout';
-import AdminDevices from './render/admin/AdminDevices';
 
 import Login from './render/Login';
 import Overview from './render/Overview';
@@ -16,6 +14,7 @@ import FleetManagement from './render/FleetManagement';
 import AdminLogin from './render/admin/AdminLogin';
 import AdminTenantList from './render/admin/AdminTenantList';
 import AdminAccountList from './render/admin/AdminAccountList';
+import AdminDevices from './render/admin/AdminDevices';
 import { LanguageProvider } from './context/LanguageContext';
 
 // Middleware bảo vệ Core Admin - SỬ DỤNG SESSION_STORAGE ĐỂ BẢO MẬT TỐI ĐA
@@ -43,11 +42,16 @@ export default function App() {
               Phải đặt bên ngoài DashboardLayout để không dính Sidebar
               ========================================================= */}
           <Route path="/overview/admin/login" element={<AdminLogin />} />
-          <Route element={<RequireAdminAuth><AdminLayout /></RequireAdminAuth>}>
-            <Route path="/overview/admin" element={<AdminTenantList />} />
-            <Route path="/overview/admin/accounts" element={<AdminAccountList />} />
-            <Route path="/overview/admin/devices" element={<AdminDevices />} />
-          </Route>
+          <Route path="/overview/admin/accounts" element={<RequireAdminAuth><AdminAccountList /></RequireAdminAuth>} />
+          <Route path="/overview/admin/devices" element={<RequireAdminAuth><AdminDevices /></RequireAdminAuth>} />
+          <Route
+            path="/overview/admin"
+            element={
+              <RequireAdminAuth>
+                <AdminTenantList />
+              </RequireAdminAuth>
+            }
+          />
 
           {/* =========================================================
               KHU VỰC 2: GIAO DIỆN KHÁCH HÀNG (Manager, Staff, Admin nhập vai)
