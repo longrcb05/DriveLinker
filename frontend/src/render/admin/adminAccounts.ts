@@ -58,7 +58,7 @@ export const formatLastLogin = (value?: string | null): string => {
 
   // Dạng "HH:mm:ss DD/MM/YYYY" hoặc "HH:mm DD/MM/YYYY" (từ toLocaleString vi-VN)
   const timeFirstMatch = trimmed.match(
-    /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+    /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*,?\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/
   );
   if (timeFirstMatch) {
     const [, hh, min, , dd, mm, yyyy] = timeFirstMatch;
@@ -104,8 +104,9 @@ export const formatLastLogin = (value?: string | null): string => {
   return trimmed;
 };
 
-const normalizeAccountRecord = (acc: AdminAccount): AdminAccount => ({
+const normalizeAccountRecord = (acc: AdminAccount & { status?: 'ACTIVE' | 'LOCKED' }): AdminAccount => ({
   ...acc,
+  isLocked: typeof acc.isLocked === 'boolean' ? acc.isLocked : acc.status === 'LOCKED',
   lastLogin: formatLastLogin(acc.lastLogin)
 });
 

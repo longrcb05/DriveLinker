@@ -592,19 +592,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
             )}
 
             <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <span className="font-semibold text-[#0B1324]">{tr('admin.tabDashboard')}</span>
-                        <span className="text-slate-300">/</span>
-                        <span>{currentRoleLabel}</span>
-                    </div>
-                    <h1 className="text-xl font-bold tracking-tight text-slate-900 mt-0.5">
-                        {adminLang === 'en'
-                            ? 'Operations & Growth Overview'
-                            : 'Tổng quan vận hành & tăng trưởng'}
-                    </h1>
-                </div>
-
                 <div className="flex items-center gap-2">
                     <button
                         type="button"

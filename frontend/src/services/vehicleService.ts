@@ -39,11 +39,11 @@ export interface VehicleFilter {
   search?: string;
 }
 
-// Bỏ ký tự ngoài chữ và số, không phân biệt chữ hoa/thường; chuỗi rỗng không tự khớp.
+// Tìm biển số không phân biệt chữ hoa, chữ thường và dấu phân cách.
 export function matchesPlate(plate: string, search: string): boolean {
-  const normalize = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const query = normalize(search);
-  return query.length > 0 && normalize(plate).includes(query);
+  const normalizedPlate = plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const query = search.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return query.length > 0 && normalizedPlate.includes(query);
 }
 
 const STORAGE_KEY = 'sys_vehicles';

@@ -2605,18 +2605,6 @@ export const AdminBillingManagement: React.FC = () => {
   return (
     <main className="flex-1 max-w-[1440px] w-full mx-auto px-6 lg:px-8 py-6 space-y-5 text-slate-800">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">
-            {adminLang === 'en'
-              ? 'Rental Plans & Billing Management'
-              : 'Quản lý gói thuê & thanh toán'}
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5 tabular-nums">
-            {tr('admin.cardMonthlyPkg')}: {formatVND(unifiedMetrics.monthlyPackageRevenue)} ·{' '}
-            {adminLang === 'en' ? 'Active Plan Value' : 'Tổng giá trị gói'}:{' '}
-            {formatVND(unifiedMetrics.totalPackageValue)}
-          </p>
-        </div>
         <button
           type="button"
           onClick={handleOpenCreateModal}

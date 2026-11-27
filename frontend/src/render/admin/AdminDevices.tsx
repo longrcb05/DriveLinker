@@ -98,15 +98,22 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
             window.removeEventListener('storage', syncAll);
         };
     }, []);
-
-    const tenantName = (id: string) => tenants.find(t => t.id === id)?.name || (id ? `Doanh nghiệp ${id}` : 'Chưa liên kết');
+    // tìm tên doanh nghiệp theo id
+    const tenantName = (id: string) => {
+        const tenant = tenants.find(item => item.id === id);
+        return tenant?.name || (id ? `Doanh nghiệp ${id}` : 'Chưa liên kết');
+    };
     const selectedDevice = devices.find(d => d.id === selected);
-    const filtered = devices.filter(d =>
-        [d.imei, d.serial, d.vehicle].some(v => v.toLowerCase().includes(search.trim().toLowerCase())) &&
-        (type === 'ALL' || d.type === type) &&
-        (status === 'ALL' || d.status === status) &&
-        (tenant === 'ALL' || d.tenantId === tenant)
-    );
+    const searchText = search.trim().toLowerCase();
+    // Tìm thiết bị theo IMEI, Serial Number hoặc biển số và áp dụng các bộ lọc.
+    const filtered = devices.filter(device => {
+        const matchesSearch = [device.imei, device.serial, device.vehicle]
+            .some(value => value.toLowerCase().includes(searchText));
+        return matchesSearch &&
+            (type === 'ALL' || device.type === type) &&
+            (status === 'ALL' || device.status === status) &&
+            (tenant === 'ALL' || device.tenantId === tenant);
+    });
 
     const save = (next: Device[], message: string, audit: string) => {
         try {
@@ -122,27 +129,36 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
             return false;
         }
     };
-
+// Kiểm tra IMEI, Serial Number và thêm thiết bị vào danh sách.
     const add = (event: FormEvent) => {
         event.preventDefault();
         const imei = form.imei.trim();
         const serial = form.serial.trim();
-        if (!/^\d{15}$/.test(imei)) { setError('IMEI phải gồm 15 chữ số.'); return; }
-        if (!serial) { setError('Vui lòng nhập Serial Number.'); return; }
-        if (devices.some(d => d.imei === imei || d.serial.toLowerCase() === serial.toLowerCase())) { setError('IMEI hoặc Serial Number đã tồn tại.'); return; }
+        if (!/^\d{15}$/.test(imei)) {
+            setError('IMEI phải gồm 15 chữ số.');
+            return;
+        }
+        if (!serial) {
+            setError('Vui lòng nhập Serial Number.');
+            return;
+        }
+        if (devices.some(d => d.imei === imei || d.serial.toLowerCase() === serial.toLowerCase())) {
+            setError('IMEI hoặc Serial Number đã tồn tại.');
+            return;
+        }
         const entry: Device = { ...form, imei, serial, id: `device-${Date.now()}-${Math.random().toString(36).slice(2)}`, history: [{ time: new Date().toISOString(), detail: `Nhập thiết bị · trạng thái ${form.status}` }] };
         if (save([entry, ...devices], 'Đã thêm thiết bị.', `Thêm thiết bị ${serial}`)) {
             setAdding(false);
             setForm(blank);
         }
     };
-
+// Cập nhật trạng thái và ghi lại lịch sử thay đổi của thiết bị.
     const changeStatus = (device: Device, next: Status) => {
         if (next === device.status) return;
         const detail = `Chuyển trạng thái: ${device.status} → ${next}`;
         save(devices.map(d => d.id === device.id ? { ...d, status: next, history: [{ time: new Date().toISOString(), detail }, ...d.history] } : d), 'Đã cập nhật trạng thái.', `${device.serial}: ${detail}`);
     };
-
+// Liên kết hoặc tháo liên kết thiết bị với doanh nghiệp và phương tiện.
     const updateLink = (event: FormEvent) => {
         event.preventDefault();
         const device = devices.find(d => d.id === linkTarget);
@@ -178,10 +194,10 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
                 </>
             )}
             <div className={`${embedded ? '' : 'mt-3'} flex flex-wrap items-end justify-between gap-4`}>
-                <div>
+                {!embedded && <div>
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">Camera & Định vị</h1>
                     <p className="mt-2 text-sm text-slate-500">Quản lý kho Camera và DL GPS.</p>
-                </div>
+                </div>}
                 <button
                     type="button"
                     onClick={() => { setAdding(true); setError(''); setNotice(''); }}
@@ -291,7 +307,15 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
                             <label className="text-sm font-semibold">IMEI<input required inputMode="numeric" maxLength={15} className={`${input} mt-1`} value={form.imei} onChange={e => setForm({ ...form, imei: e.target.value })} /></label>
                             <label className="text-sm font-semibold">Serial Number<input required className={`${input} mt-1`} value={form.serial} onChange={e => setForm({ ...form, serial: e.target.value })} /></label>
                             <label className="text-sm font-semibold">Loại thiết bị<select className={`${input} mt-1`} value={form.type} onChange={e => setForm({ ...form, type: e.target.value as DeviceType })}><option>Camera</option><option>DL GPS</option></select></label>
-                            <label className="text-sm font-semibold">Ngày nhập<input required type="date" className={`${input} mt-1`} value={form.received} onChange={e => setForm({ ...form, received: e.target.value })} /></label>
+                            <label className="text-sm font-semibold">
+                                Ngày nhập
+                                <span className="relative mt-1 block">
+                                    <input required type="date" className={input} value={form.received} onChange={e => setForm({ ...form, received: e.target.value })} />
+                                    <span aria-hidden="true" className={`pointer-events-none absolute inset-y-px left-px right-10 flex items-center rounded-l-lg bg-white pl-3 text-sm font-normal ${form.received ? 'text-slate-700' : 'text-slate-400'}`}>
+                                        {form.received ? form.received.split('-').reverse().join('/') : 'dd/mm/yyyy'}
+                                    </span>
+                                </span>
+                            </label>
                             <label className="text-sm font-semibold">Trạng thái<select className={`${input} mt-1`} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Status })}>{statuses.map(s => <option key={s}>{s}</option>)}</select></label>
                         </div>
                         <div className="mt-6 flex gap-3">
