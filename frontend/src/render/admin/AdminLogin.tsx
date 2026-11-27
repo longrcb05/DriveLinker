@@ -80,8 +80,8 @@ export default function AdminLogin() {
           item.username.toLowerCase() === username.trim().toLowerCase() &&
           item.password === password
       );
-
-      if (account?.status === 'LOCKED') {
+// Không cho tài khoản đã bị khóa đăng nhập vào hệ thống.
+      if (account?.isLocked) {
         setError(
           language === 'vi'
             ? 'Tài khoản đã bị khóa.'

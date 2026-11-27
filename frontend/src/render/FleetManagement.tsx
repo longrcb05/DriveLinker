@@ -114,7 +114,7 @@ export default function FleetManagement() {
     return counts;
   }, [vehicles]);
 
-  // Kết hợp trạng thái với tìm kiếm biển số( lọc ds xe theo biển số); matchesPlate bỏ qua dấu phân cách.
+  // Lọc danh sách xe theo biển số và trạng thái được chọn.
   const filteredVehicles = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
     return vehicles.filter(v => {
