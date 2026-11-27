@@ -25,7 +25,10 @@ import {
   LayoutGrid,
   Receipt,
   BarChart3,
-  Globe
+  Globe,
+  ShieldCheck,
+  Info,
+  TrendingUp
 } from 'lucide-react';
 import {
   readAdminAuditLogs,
@@ -33,9 +36,9 @@ import {
   formatAuditTime
 } from './adminAudit';
 import type { AdminAuditLog } from './adminAudit';
+import { getAdminAccounts } from './adminAccounts';
 import type { AdminRole } from './adminAccounts';
 import AdminBillingManagement, {
-  SharedRenewalModal,
   syncUnifiedPlatformData,
   commitUnifiedPlatformData,
   computeUnifiedPlatformMetrics,
@@ -91,6 +94,16 @@ interface PackageConfig {
   description: string;
 }
 
+interface AdminSessionGroup {
+  sessionId: string;
+  sessionIndex: number;
+  adminLabel: string;
+  loginLog: AdminAuditLog;
+  logoutLog: AdminAuditLog | null;
+  changeLogs: AdminAuditLog[];
+  isEnded: boolean;
+}
+
 const INVENTORY_STORAGE_KEY = 'sys_admin_inventory_demo_v1';
 
 const DEFAULT_DEMO_DEVICES: LinkedInventoryDevice[] = [
@@ -139,7 +152,10 @@ const DEFAULT_DEMO_DEVICES: LinkedInventoryDevice[] = [
 const readInventoryDevices = (): LinkedInventoryDevice[] => {
   try {
     const raw = localStorage.getItem(INVENTORY_STORAGE_KEY);
-    if (!raw) return DEFAULT_DEMO_DEVICES;
+    if (!raw) {
+      localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(DEFAULT_DEMO_DEVICES));
+      return DEFAULT_DEMO_DEVICES;
+    }
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.map((d: any) => ({
@@ -241,6 +257,48 @@ const getEffectiveLifecycle = (
   return 'ACTIVE';
 };
 
+const parseAuditTimeMs = (log: AdminAuditLog): number => {
+  const formatted = formatAuditTime(log).trim();
+  const match = formatted.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/
+  );
+  if (match) {
+    const [, dd, mm, yyyy, hh, min, ss = '0'] = match;
+    return new Date(
+      Number(yyyy),
+      Number(mm) - 1,
+      Number(dd),
+      Number(hh),
+      Number(min),
+      Number(ss)
+    ).getTime();
+  }
+  const rawAny = log as AdminAuditLog & { timestamp?: string | number; time?: string };
+  if (rawAny.timestamp) {
+    const t = new Date(rawAny.timestamp).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  return 0;
+};
+
+const isLoginAction = (action?: string): boolean => {
+  const act = (action || '').trim().toUpperCase();
+  return act.includes('ĐĂNG NHẬP') || act.includes('LOGIN');
+};
+
+const isLogoutAction = (action?: string): boolean => {
+  const act = (action || '').trim().toUpperCase();
+  return act.includes('ĐĂNG XUẤT') || act.includes('LOGOUT');
+};
+
+const broadcastPlatformSync = () => {
+  try {
+    window.dispatchEvent(new CustomEvent(PLATFORM_SYNC_EVENT));
+  } catch {
+    // Bỏ qua nếu môi trường không hỗ trợ CustomEvent
+  }
+};
+
 export default function AdminTenantList() {
   const navigate = useNavigate();
 
@@ -267,8 +325,13 @@ export default function AdminTenantList() {
   const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
   const [vehicleCountMap, setVehicleCountMap] = useState<Record<string, number>>({});
   const [devices, setDevices] = useState<LinkedInventoryDevice[]>([]);
+  const [adminAccountsVersion, setAdminAccountsVersion] = useState(0);
 
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const [auditAdminFilter, setAuditAdminFilter] = useState('ALL');
+  const [auditDateFilter, setAuditDateFilter] = useState('');
+  const [auditActionFilter, setAuditActionFilter] = useState('ALL');
   const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
   const [lightboxImage, setLightboxImage] = useState<{
@@ -319,8 +382,6 @@ export default function AdminTenantList() {
     notes: ''
   });
 
-  const [renewTenant, setRenewTenant] = useState<TenantRecord | null>(null);
-
   const adminName = sessionStorage.getItem('sys_core_admin_name') || 'Nguyễn Nhật Long';
   const adminUsername = sessionStorage.getItem('sys_core_username') || '';
   const rawSessionRole = sessionStorage.getItem('sys_core_role') as AdminRole | null;
@@ -331,6 +392,7 @@ export default function AdminTenantList() {
       : roleMap.SUPER_ADMIN;
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const currentMonthKey = useMemo(() => todayStr.slice(0, 7), [todayStr]);
 
   const getTierDisplayName = (tier: ServiceTier) => {
     if (tier === 'BASIC') return tr('admin.tierBasic');
@@ -348,17 +410,26 @@ export default function AdminTenantList() {
       adminUsername ? { username: adminUsername, fullName: adminName } : undefined
     );
     setAuditLogs(readAdminAuditLogs());
-    window.dispatchEvent(new CustomEvent(PLATFORM_SYNC_EVENT));
+    broadcastPlatformSync();
   };
 
   const loadData = () => {
     const synced = syncUnifiedPlatformData();
+    const devList = readInventoryDevices();
     setTenants(synced.tenants);
     setInvoices(synced.invoices);
+    setDevices(devList);
 
     setSelectedTenant((prev) =>
       prev ? synced.tenants.find((t) => t.id === prev.id) || null : null
     );
+
+    const linkedDeviceCountByTenant: Record<string, number> = {};
+    devList.forEach((dev) => {
+      if (!dev.tenantId) return;
+      linkedDeviceCountByTenant[dev.tenantId] =
+        (linkedDeviceCountByTenant[dev.tenantId] || 0) + 1;
+    });
 
     const counts: Record<string, number> = {};
     synced.tenants.forEach((tenant) => {
@@ -371,7 +442,7 @@ export default function AdminTenantList() {
           counts[tenant.id] = 0;
         }
       } else {
-        counts[tenant.id] =
+        const fallbackCount =
           tenant.id === 'COMPANY_A'
             ? 5
             : tenant.id === 'COMPANY_B'
@@ -379,11 +450,15 @@ export default function AdminTenantList() {
               : tenant.id === 'COMPANY_C'
                 ? 1
                 : 0;
+        counts[tenant.id] = Math.max(
+          fallbackCount,
+          linkedDeviceCountByTenant[tenant.id] || 0
+        );
       }
     });
     setVehicleCountMap(counts);
-    setDevices(readInventoryDevices());
     setAuditLogs(readAdminAuditLogs());
+    setAdminAccountsVersion((v) => v + 1);
   };
 
   useEffect(() => {
@@ -411,6 +486,7 @@ export default function AdminTenantList() {
     const synced = commitUnifiedPlatformData(nextTenants, nextInvoices);
     setTenants(synced.tenants);
     setInvoices(synced.invoices);
+    broadcastPlatformSync();
   };
 
   const handleImpersonate = (tenantId: string, tenantName: string) => {
@@ -425,6 +501,7 @@ export default function AdminTenantList() {
     localStorage.setItem('tenantId', tenantId);
     localStorage.setItem('tenantName', tenantName);
     localStorage.setItem('userRole', 'SUPER_ADMIN_VIEW');
+    broadcastPlatformSync();
     navigate('/overview');
   };
 
@@ -468,6 +545,64 @@ export default function AdminTenantList() {
     };
   }, [tenants, invoices, vehicleCountMap, devices]);
 
+  const currentMonthRevenueDetails = useMemo(() => {
+    const monthInvoices = invoices.filter((inv) => {
+      const dateRef = inv.startDate || inv.updatedAt || '';
+      return dateRef.startsWith(currentMonthKey);
+    });
+
+    const sourceList =
+      monthInvoices.length > 0
+        ? monthInvoices
+        : tenants.map((t) => {
+          const total =
+            t.packagePrice || getTierPlanPrice(t.tier || 'PRO', t.plan);
+          const paid =
+            typeof t.paidAmount === 'number'
+              ? t.paidAmount
+              : t.status === 'SUSPENDED'
+                ? 0
+                : total;
+          return {
+            id: `fallback-${t.id}`,
+            invoiceCode: t.code,
+            tenantId: t.id,
+            tenantName: t.name,
+            tenantCode: t.code,
+            tier: t.tier || 'PRO',
+            tierName: SERVICE_TIERS[t.tier || 'PRO'].label,
+            packageId: PACKAGE_CONFIGS[t.plan].packageId,
+            packageName: PACKAGE_CONFIGS[t.plan].label,
+            duration: PACKAGE_CONFIGS[t.plan].durationMonths,
+            totalAmount: total,
+            paidAmount: paid,
+            startDate: t.activatedAt || todayStr,
+            endDate: t.expiresAt || todayStr,
+            dueDate: t.expiresAt || todayStr,
+            paymentMethod: 'BANK_TRANSFER' as const,
+            updatedAt: t.updatedAt || todayStr
+          };
+        });
+
+    const totalBooked = sourceList.reduce(
+      (sum, item) => sum + (item.totalAmount || 0),
+      0
+    );
+    const totalCollected = sourceList.reduce(
+      (sum, item) => sum + Math.min(item.totalAmount || 0, item.paidAmount || 0),
+      0
+    );
+    const totalPending = Math.max(0, totalBooked - totalCollected);
+
+    return {
+      monthLabel: `${currentMonthKey.split('-')[1]}/${currentMonthKey.split('-')[0]}`,
+      items: sourceList,
+      totalBooked,
+      totalCollected,
+      totalPending
+    };
+  }, [invoices, tenants, currentMonthKey, todayStr]);
+
   const filteredTenants = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return tenants.filter((t) => {
@@ -501,6 +636,171 @@ export default function AdminTenantList() {
       );
     });
   }, [tenants, searchQuery, statusFilter, planFilter]);
+
+  const adminAccountsMap = useMemo(() => {
+    try {
+      const list = getAdminAccounts();
+      const map: Record<
+        string,
+        { fullName: string; username: string; email: string; role: AdminRole }
+      > = {};
+      list.forEach((acc) => {
+        map[acc.fullName.trim().toLowerCase()] = acc;
+        map[acc.username.trim().toLowerCase()] = acc;
+      });
+      return map;
+    } catch {
+      return {};
+    }
+  }, [isHistoryModalOpen, adminAccountsVersion]);
+
+  const formatAuditAdminLabel = (log: AdminAuditLog): string => {
+    const rawAdmin = (log.admin || adminName || '').trim();
+    if (!rawAdmin) return adminName;
+    if (rawAdmin.includes('(') && rawAdmin.includes(')')) return rawAdmin;
+    const rawWithUsername = log as AdminAuditLog & { username?: string };
+    if (rawWithUsername.username) {
+      return `${rawAdmin} (${rawWithUsername.username})`;
+    }
+    const matched = adminAccountsMap[rawAdmin.toLowerCase()];
+    if (matched) {
+      return `${matched.fullName} (${matched.username})`;
+    }
+    return rawAdmin;
+  };
+
+  const uniqueAuditAdmins = useMemo(() => {
+    const set = new Set<string>();
+    try {
+      getAdminAccounts().forEach((acc) => {
+        set.add(`${acc.fullName} (${acc.username})`);
+      });
+    } catch {
+      // Giữ lại danh sách từ lịch sử nếu không đọc được tài khoản
+    }
+    auditLogs.forEach((log) => {
+      const label = formatAuditAdminLabel(log);
+      if (label) set.add(label);
+    });
+    return Array.from(set);
+  }, [auditLogs, adminAccountsMap, isHistoryModalOpen, adminAccountsVersion]);
+
+  const loginSessions = useMemo<AdminSessionGroup[]>(() => {
+    const byAdmin: Record<
+      string,
+      { item: AdminAuditLog; origIdx: number; timeMs: number }[]
+    > = {};
+
+    auditLogs.forEach((item, origIdx) => {
+      const label = formatAuditAdminLabel(item);
+      if (!byAdmin[label]) byAdmin[label] = [];
+      byAdmin[label].push({ item, origIdx, timeMs: parseAuditTimeMs(item) });
+    });
+
+    const sessions: AdminSessionGroup[] = [];
+
+    Object.entries(byAdmin).forEach(([adminLabel, entries]) => {
+      const sortedAsc = [...entries].sort((a, b) =>
+        a.timeMs !== b.timeMs ? a.timeMs - b.timeMs : b.origIdx - a.origIdx
+      );
+
+      let activeLogin: AdminAuditLog | null = null;
+      let activeLogout: AdminAuditLog | null = null;
+      let activeChanges: AdminAuditLog[] = [];
+      let adminSessionCount = 0;
+
+      const pushCompletedSession = (endedByLogout: boolean) => {
+        if (!activeLogin) return;
+        adminSessionCount += 1;
+        sessions.push({
+          sessionId: `${String(activeLogin.id)}__${adminSessionCount}`,
+          sessionIndex: adminSessionCount,
+          adminLabel,
+          loginLog: activeLogin,
+          logoutLog: activeLogout,
+          changeLogs: [...activeChanges],
+          isEnded: endedByLogout
+        });
+      };
+
+      for (const { item } of sortedAsc) {
+        if (isLoginAction(item.action)) {
+          if (activeLogin) {
+            pushCompletedSession(false);
+          }
+          activeLogin = item;
+          activeLogout = null;
+          activeChanges = [];
+        } else if (isLogoutAction(item.action)) {
+          if (activeLogin) {
+            activeLogout = item;
+            pushCompletedSession(true);
+            activeLogin = null;
+            activeLogout = null;
+            activeChanges = [];
+          }
+        } else if (activeLogin) {
+          activeChanges.push(item);
+        }
+      }
+
+      if (activeLogin) {
+        pushCompletedSession(false);
+      }
+    });
+
+    return sessions.sort(
+      (a, b) => parseAuditTimeMs(b.loginLog) - parseAuditTimeMs(a.loginLog)
+    );
+  }, [auditLogs, adminAccountsMap]);
+
+  const uniqueAuditActions = useMemo(() => {
+    const set = new Set<string>();
+    loginSessions.forEach((s) => {
+      if (s.loginLog?.action) set.add(s.loginLog.action);
+      s.changeLogs.forEach((c) => {
+        if (c.action) set.add(c.action);
+      });
+    });
+    return Array.from(set);
+  }, [loginSessions]);
+
+  const filteredLoginSessions = useMemo(() => {
+    const targetDateVN = auditDateFilter
+      ? auditDateFilter.split('-').reverse().join('/')
+      : '';
+
+    return loginSessions.filter((session) => {
+      if (auditAdminFilter !== 'ALL' && session.adminLabel !== auditAdminFilter) {
+        return false;
+      }
+      if (targetDateVN) {
+        const loginFormatted = formatAuditTime(session.loginLog);
+        if (!loginFormatted.startsWith(targetDateVN)) {
+          return false;
+        }
+      }
+      if (auditActionFilter !== 'ALL') {
+        const matchesLogin = session.loginLog?.action === auditActionFilter;
+        const matchesChangeInSession = session.changeLogs.some(
+          (c) => c.action === auditActionFilter
+        );
+        if (!matchesLogin && !matchesChangeInSession) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [loginSessions, auditAdminFilter, auditDateFilter, auditActionFilter]);
+
+  const openHistoryModal = () => {
+    loadData();
+    setAuditAdminFilter('ALL');
+    setAuditDateFilter('');
+    setAuditActionFilter('ALL');
+    setExpandedSessionId(null);
+    setIsHistoryModalOpen(true);
+  };
 
   const openCreateModal = () => {
     setEditingTenant(null);
@@ -894,6 +1194,7 @@ export default function AdminTenantList() {
     const ok = settleTenantRemainingBalance(tenant.id);
     if (ok) {
       loadData();
+      broadcastPlatformSync();
       logAction(
         adminLang === 'en' ? 'PAYMENT' : 'THU TIỀN',
         `Thu đủ phần còn lại ${remaining.toLocaleString('vi-VN')} ₫ cho ${tenant.name} • ${tenant.code}`
@@ -1224,16 +1525,13 @@ export default function AdminTenantList() {
 
               <button
                 type="button"
-                onClick={() => {
-                  setAuditLogs(readAdminAuditLogs());
-                  setIsHistoryModalOpen(true);
-                }}
+                onClick={openHistoryModal}
                 className="h-9 px-3.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 inline-flex items-center gap-2 transition-colors cursor-pointer shadow-2xs"
               >
                 <History className="w-3.5 h-3.5 text-slate-500" />
                 <span>{tr('admin.historyBtn')}</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-[11px] text-slate-600 tabular-nums">
-                  {auditLogs.length}
+                  {loginSessions.length}
                 </span>
               </button>
 
@@ -1306,138 +1604,272 @@ export default function AdminTenantList() {
             <AdminDevices embedded />
           ) : activeSection === 'overview' ? (
             <main className="space-y-5">
-              <section className="space-y-3">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">
-                    {tr('admin.sectionOverview')}
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {tr('admin.sectionOverviewSub')}
-                  </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('tenants')}
+                  className="bg-white rounded-xl border border-slate-200/90 p-5 text-left hover:border-rose-300 transition-colors cursor-pointer shadow-2xs flex flex-col justify-between min-h-[118px]"
+                >
+                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <span>{tr('admin.cardTenants')}</span>
+                    <span className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                      <Building2 className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">
+                    {metrics.total}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {tr('admin.cardTenantsSub')}
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={openHistoryModal}
+                  className="bg-white rounded-xl border border-slate-200/90 p-5 text-left hover:border-emerald-300 transition-colors cursor-pointer shadow-2xs flex flex-col justify-between min-h-[118px]"
+                >
+                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <span>{tr('admin.cardActivity')}</span>
+                    <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <Clock className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">
+                    {loginSessions.length}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {tr('admin.cardActivitySub')}
+                  </div>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs flex flex-col justify-between min-h-[124px]">
+                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <span>{tr('admin.cardTotalTenants')}</span>
+                    <span className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                      <Building2 className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">
+                    {metrics.total}
+                  </div>
+                  <div className="text-xs mt-1.5 flex items-center gap-2 flex-wrap">
+                    <span className="text-emerald-600 font-semibold">
+                      {metrics.active} {tr('admin.statusActive').toLowerCase()}
+                    </span>
+                    <span className="text-slate-300">·</span>
+                    <span className="text-amber-700 font-medium">
+                      {metrics.partialCount} {tr('admin.statusPartial').toLowerCase()}
+                    </span>
+                    <span className="text-slate-300">·</span>
+                    <span className="text-rose-600 font-medium">
+                      {metrics.suspended} {tr('admin.statusSuspended').toLowerCase()}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setActiveSection('tenants')}
-                    className="bg-white rounded-xl border border-slate-200/90 p-5 text-left hover:border-slate-300 transition-colors cursor-pointer shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      <span>{tr('admin.cardTenants')}</span>
-                      <span className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-                        <Building2 className="w-3.5 h-3.5" />
-                      </span>
-                    </div>
-                    <div className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">
-                      {metrics.total}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      {tr('admin.cardTenantsSub')}
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuditLogs(readAdminAuditLogs());
-                      setIsHistoryModalOpen(true);
-                    }}
-                    className="bg-white rounded-xl border border-slate-200/90 p-5 text-left hover:border-slate-300 transition-colors cursor-pointer shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      <span>{tr('admin.cardActivity')}</span>
-                      <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <Clock className="w-3.5 h-3.5" />
-                      </span>
-                    </div>
-                    <div className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">
-                      {auditLogs.length}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      {tr('admin.cardActivitySub')}
-                    </div>
-                  </button>
+                <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs flex flex-col justify-between min-h-[124px]">
+                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <span>{tr('admin.cardMonthlyPkg')}</span>
+                    <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <Wallet className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-emerald-600 mt-2 tabular-nums">
+                    {metrics.monthlyEquivalentTotal.toLocaleString('vi-VN')} ₫
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1.5 tabular-nums">
+                    {tr('admin.cardMonthlyPkgSub', { count: metrics.active })}
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                  <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs">
-                    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      <span>{tr('admin.cardTotalTenants')}</span>
-                      <span className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
-                        <Building2 className="w-3.5 h-3.5" />
-                      </span>
+                <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs flex flex-col justify-between min-h-[124px]">
+                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <span>{tr('admin.cardFleetScale')}</span>
+                    <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                      <Car className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">
+                    {metrics.totalRegisteredVehicles}{' '}
+                    <span className="text-sm font-normal text-slate-400">
+                      / {Math.max(100, metrics.total * 20)}{' '}
+                      {adminLang === 'en' ? 'vehicles' : 'xe'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1.5 tabular-nums">
+                    {adminLang === 'en'
+                      ? `${metrics.linkedDevicesCount} linked device(s) (${metrics.activeLinkedDevicesCount} active)`
+                      : `${metrics.linkedDevicesCount} thiết bị liên kết (${metrics.activeLinkedDevicesCount} đang hoạt động)`}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs flex flex-col justify-between min-h-[124px]">
+                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <span>{tr('admin.cardExpiryWarn')}</span>
+                    <span className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                      <Clock className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-amber-600 mt-2 tabular-nums">
+                    {metrics.expiring15Days}{' '}
+                    <span className="text-sm font-normal text-slate-500">
+                      {adminLang === 'en' ? 'enterprises' : 'đơn vị'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1.5">
+                    {tr('admin.cardExpiryWarnSub')}
+                  </div>
+                </div>
+              </div>
+
+              <section className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                      <TrendingUp className="w-4 h-4" />
                     </div>
-                    <div className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">
-                      {metrics.total}
-                    </div>
-                    <div className="text-xs mt-1.5 flex items-center gap-2 flex-wrap">
-                      <span className="text-emerald-600 font-semibold">
-                        {metrics.active} {tr('admin.statusActive').toLowerCase()}
-                      </span>
-                      <span className="text-slate-300">·</span>
-                      <span className="text-amber-700 font-medium">
-                        {metrics.partialCount} {tr('admin.statusPartial').toLowerCase()}
-                      </span>
-                      <span className="text-slate-300">·</span>
-                      <span className="text-rose-600 font-medium">
-                        {metrics.suspended} {tr('admin.statusSuspended').toLowerCase()}
-                      </span>
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900">
+                        {adminLang === 'en'
+                          ? `Monthly Revenue Details (${currentMonthRevenueDetails.monthLabel})`
+                          : `Theo dõi chi tiết doanh thu tháng này (${currentMonthRevenueDetails.monthLabel})`}
+                      </h2>
+                      <p className="text-xs text-slate-500">
+                        {adminLang === 'en'
+                          ? 'Breakdown of booked contracts, collected cash, and pending balances in the current month'
+                          : 'Chi tiết giá trị hợp đồng phát sinh, tiền đã thu và công nợ còn lại trong tháng hiện tại'}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs">
-                    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      <span>{tr('admin.cardMonthlyPkg')}</span>
-                      <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <Wallet className="w-3.5 h-3.5" />
-                      </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection('billing')}
+                    className="text-xs font-semibold text-rose-600 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>
+                      {adminLang === 'en' ? 'Billing & Debts' : 'Quản lý Công nợ & Thanh toán'}
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                  <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200/70">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      {adminLang === 'en' ? 'Total Monthly Value' : 'Tổng doanh thu gói tháng'}
                     </div>
-                    <div className="text-2xl font-bold text-emerald-600 mt-2 tabular-nums">
-                      {metrics.monthlyEquivalentTotal.toLocaleString('vi-VN')} ₫
+                    <div className="text-xl font-bold text-slate-900 mt-1.5 tabular-nums">
+                      {currentMonthRevenueDetails.totalBooked.toLocaleString('vi-VN')} ₫
                     </div>
-                    <div className="text-xs text-slate-500 mt-1.5 tabular-nums">
-                      {tr('admin.cardMonthlyPkgSub', { count: metrics.active })}
+                    <div className="text-[11px] text-slate-500 mt-1 tabular-nums">
+                      {currentMonthRevenueDetails.items.length}{' '}
+                      {adminLang === 'en' ? 'contract item(s)' : 'hợp đồng / gói dịch vụ'}
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs">
-                    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      <span>{tr('admin.cardFleetScale')}</span>
-                      <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                        <Car className="w-3.5 h-3.5" />
-                      </span>
+                  <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200/70">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                      {adminLang === 'en' ? 'Collected This Month' : 'Đã thu thực tế tháng này'}
                     </div>
-                    <div className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">
-                      {metrics.totalRegisteredVehicles}{' '}
-                      <span className="text-sm font-normal text-slate-400">
-                        / {Math.max(100, metrics.total * 20)}{' '}
-                        {adminLang === 'en' ? 'vehicles' : 'xe'}
-                      </span>
+                    <div className="text-xl font-bold text-emerald-700 mt-1.5 tabular-nums">
+                      {currentMonthRevenueDetails.totalCollected.toLocaleString('vi-VN')} ₫
                     </div>
-                    <div className="text-xs text-slate-500 mt-1.5 tabular-nums">
+                    <div className="text-[11px] text-emerald-700/80 mt-1 tabular-nums">
+                      {currentMonthRevenueDetails.totalBooked > 0
+                        ? `${Math.round(
+                          (currentMonthRevenueDetails.totalCollected /
+                            currentMonthRevenueDetails.totalBooked) *
+                          100
+                        )}% ${adminLang === 'en' ? 'collected' : 'tỷ lệ đã thu'}`
+                        : '0%'}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200/70">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                      {adminLang === 'en' ? 'Uncollected Balance' : 'Chưa thu / Còn lại'}
+                    </div>
+                    <div className="text-xl font-bold text-amber-700 mt-1.5 tabular-nums">
+                      {currentMonthRevenueDetails.totalPending.toLocaleString('vi-VN')} ₫
+                    </div>
+                    <div className="text-[11px] text-amber-700/80 mt-1">
                       {adminLang === 'en'
-                        ? `${metrics.linkedDevicesCount} linked device(s) (${metrics.activeLinkedDevicesCount} active)`
-                        : `${metrics.linkedDevicesCount} thiết bị liên kết (${metrics.activeLinkedDevicesCount} đang hoạt động)`}
+                        ? 'Tracked via billing ledger'
+                        : 'Đối soát trực tiếp tại Công nợ & Thanh toán'}
                     </div>
                   </div>
+                </div>
 
-                  <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs">
-                    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      <span>{tr('admin.cardExpiryWarn')}</span>
-                      <span className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                        <Clock className="w-3.5 h-3.5" />
-                      </span>
-                    </div>
-                    <div className="text-2xl font-bold text-amber-600 mt-2 tabular-nums">
-                      {metrics.expiring15Days}{' '}
-                      <span className="text-sm font-normal text-slate-500">
-                        {adminLang === 'en' ? 'enterprises' : 'đơn vị'}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1.5">
-                      {tr('admin.cardExpiryWarnSub')}
-                    </div>
-                  </div>
+                <div className="overflow-x-auto rounded-xl border border-slate-200/80">
+                  <table className="w-full min-w-[680px] text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        <th className="py-2.5 px-4">
+                          {adminLang === 'en' ? 'Enterprise' : 'Doanh nghiệp'}
+                        </th>
+                        <th className="py-2.5 px-4">
+                          {adminLang === 'en' ? 'Tier & Package' : 'Hạng & Gói thuê'}
+                        </th>
+                        <th className="py-2.5 px-4 text-right">
+                          {adminLang === 'en' ? 'Contract Total' : 'Giá trị gói'}
+                        </th>
+                        <th className="py-2.5 px-4 text-right">
+                          {adminLang === 'en' ? 'Paid' : 'Đã thu'}
+                        </th>
+                        <th className="py-2.5 px-4 text-right">
+                          {adminLang === 'en' ? 'Remaining' : 'Còn lại'}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {currentMonthRevenueDetails.items.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-6 text-center text-slate-400">
+                            {tr('common.noData')}
+                          </td>
+                        </tr>
+                      ) : (
+                        currentMonthRevenueDetails.items.map((row) => {
+                          const rem = Math.max(
+                            0,
+                            (row.totalAmount || 0) - (row.paidAmount || 0)
+                          );
+                          return (
+                            <tr key={row.id} className="hover:bg-slate-50/70">
+                              <td className="py-3 px-4 font-semibold text-slate-900">
+                                {row.tenantName}{' '}
+                                <span className="ml-1.5 px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-medium text-slate-600">
+                                  {row.tenantCode}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-slate-700">
+                                {row.tierName} · {row.packageName}
+                              </td>
+                              <td className="py-3 px-4 text-right font-semibold text-slate-900 tabular-nums">
+                                {(row.totalAmount || 0).toLocaleString('vi-VN')} ₫
+                              </td>
+                              <td className="py-3 px-4 text-right font-semibold text-emerald-700 tabular-nums">
+                                {(row.paidAmount || 0).toLocaleString('vi-VN')} ₫
+                              </td>
+                              <td className="py-3 px-4 text-right font-semibold tabular-nums">
+                                {rem > 0 ? (
+                                  <span className="text-amber-700">
+                                    {rem.toLocaleString('vi-VN')} ₫
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">0 ₫</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </section>
             </main>
@@ -1547,7 +1979,7 @@ export default function AdminTenantList() {
                         </div>
 
                         <div
-                          className={`border-t border-slate-100 bg-slate-50 grid ${isPartial ? 'grid-cols-4' : 'grid-cols-3'
+                          className={`border-t border-slate-100 bg-slate-50 grid ${isPartial ? 'grid-cols-3' : 'grid-cols-2'
                             } divide-x divide-slate-200 text-xs font-semibold`}
                         >
                           <button
@@ -1566,13 +1998,6 @@ export default function AdminTenantList() {
                               {tr('admin.settleDebtBtn')}
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => setRenewTenant(t)}
-                            className="py-2.5 text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                          >
-                            {tr('admin.renewBtn')}
-                          </button>
                           <button
                             type="button"
                             onClick={() => handleImpersonate(t.id, t.name)}
@@ -1721,14 +2146,6 @@ export default function AdminTenantList() {
 
                                     <button
                                       type="button"
-                                      onClick={() => setRenewTenant(tenant)}
-                                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-                                    >
-                                      {tr('admin.renewBtn')}
-                                    </button>
-
-                                    <button
-                                      type="button"
                                       onClick={() => setSelectedTenant(tenant)}
                                       className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
                                     >
@@ -1792,88 +2209,351 @@ export default function AdminTenantList() {
         </div>
       </div>
 
-      {/* MODAL GIA HẠN DÙNG CHUNG */}
-      <SharedRenewalModal
-        isOpen={Boolean(renewTenant)}
-        onClose={() => setRenewTenant(null)}
-        tenantId={renewTenant?.id || ''}
-        tenantName={renewTenant?.name || ''}
-        tenantCode={renewTenant?.code || ''}
-        currentExpiresAt={renewTenant?.expiresAt}
-        initialTier={renewTenant?.tier || 'PRO'}
-        initialDuration={renewTenant?.plan === 'PKG_12M' ? 12 : 6}
-        onCompleted={({ tenants: nextTenants, newInvoice }) => {
-          setTenants(nextTenants);
-          logAction(
-            adminLang === 'en' ? 'RENEW' : 'GIA HẠN',
-            `Tạo phiếu ${newInvoice.invoiceCode} gia hạn kỳ mới ${newInvoice.tierName} · ${newInvoice.packageName} (${newInvoice.totalAmount.toLocaleString('vi-VN')} ₫) cho ${newInvoice.tenantName}`
-          );
-        }}
-      />
-
-      {/* MODAL LỊCH SỬ THAO TÁC */}
+      {/* MODAL LỊCH SỬ THAO TÁC HỆ THỐNG */}
       {isHistoryModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
-              <h2 className="font-bold text-slate-900 text-base">
-                {adminLang === 'en' ? 'System Audit Logs' : 'Lịch sử thao tác hệ thống'}
-              </h2>
+        <div
+          className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setIsHistoryModalOpen(false);
+            setExpandedSessionId(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-5xl max-h-[88vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center gap-3 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <Clock className="w-5 h-5 text-slate-600 shrink-0" />
+                <h2 className="font-bold text-slate-900 text-base">
+                  {adminLang === 'en'
+                    ? 'System Activity History'
+                    : 'Lịch sử Thao tác Hệ thống'}
+                </h2>
+              </div>
               <button
                 type="button"
-                onClick={() => setIsHistoryModalOpen(false)}
+                onClick={() => {
+                  setIsHistoryModalOpen(false);
+                  setExpandedSessionId(null);
+                }}
                 className="text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-200/80 grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
+              <div>
+                <label
+                  htmlFor="audit-filter-admin"
+                  className="block text-xs font-bold text-slate-700 mb-1.5"
+                >
+                  {adminLang === 'en' ? 'Admin' : 'Admin'}
+                </label>
+                <select
+                  id="audit-filter-admin"
+                  value={auditAdminFilter}
+                  onChange={(e) => {
+                    setAuditAdminFilter(e.target.value);
+                    setExpandedSessionId(null);
+                  }}
+                  className="h-10 w-full px-3 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-700 outline-none focus:border-rose-500"
+                >
+                  <option value="ALL">
+                    {adminLang === 'en' ? 'All admins' : 'Tất cả admin'}
+                  </option>
+                  {uniqueAuditAdmins.map((adminLabel) => (
+                    <option key={adminLabel} value={adminLabel}>
+                      {adminLabel}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="audit-filter-date"
+                  className="block text-xs font-bold text-slate-700 mb-1.5"
+                >
+                  {adminLang === 'en' ? 'Date' : 'Ngày'}
+                </label>
+                <input
+                  id="audit-filter-date"
+                  type="date"
+                  value={auditDateFilter}
+                  onChange={(e) => {
+                    setAuditDateFilter(e.target.value);
+                    setExpandedSessionId(null);
+                  }}
+                  className="h-10 w-full px-3 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-700 outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="audit-filter-action"
+                  className="block text-xs font-bold text-slate-700 mb-1.5"
+                >
+                  {adminLang === 'en' ? 'Activity Type' : 'Loại hoạt động'}
+                </label>
+                <select
+                  id="audit-filter-action"
+                  value={auditActionFilter}
+                  onChange={(e) => {
+                    setAuditActionFilter(e.target.value);
+                    setExpandedSessionId(null);
+                  }}
+                  className="h-10 w-full px-3 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-700 outline-none focus:border-rose-500"
+                >
+                  <option value="ALL">
+                    {adminLang === 'en' ? 'All activities' : 'Tất cả hoạt động'}
+                  </option>
+                  {uniqueAuditActions.map((act) => (
+                    <option key={act} value={act}>
+                      {act}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="flex-1 overflow-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 text-xs font-semibold uppercase text-slate-500">
+              <table className="w-full min-w-[780px] text-left border-collapse text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10 text-xs font-bold uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-6 py-3">{adminLang === 'en' ? 'Time' : 'Thời gian'}</th>
-                    <th className="px-6 py-3">{adminLang === 'en' ? 'Admin' : 'Quản trị viên'}</th>
-                    <th className="px-6 py-3">{adminLang === 'en' ? 'Action' : 'Thao tác'}</th>
-                    <th className="px-6 py-3">{tr('common.details')}</th>
+                    <th className="px-6 py-3.5">
+                      {adminLang === 'en' ? 'Time' : 'Thời gian'}
+                    </th>
+                    <th className="px-5 py-3.5">
+                      {adminLang === 'en' ? 'Admin' : 'Admin'}
+                    </th>
+                    <th className="px-5 py-3.5">
+                      {adminLang === 'en' ? 'Action' : 'Hành động'}
+                    </th>
+                    <th className="px-6 py-3.5">
+                      {tr('common.details')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {auditLogs.length === 0 ? (
+                  {filteredLoginSessions.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-10 text-center text-slate-500">
+                      <td colSpan={4} className="px-6 py-12 text-center text-slate-500 text-xs">
                         {tr('common.noData')}
                       </td>
                     </tr>
                   ) : (
-                    auditLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-50">
-                        <td className="px-6 py-3 text-xs text-slate-500 whitespace-nowrap tabular-nums">
-                          {formatAuditTime(log)}
-                        </td>
-                        <td className="px-6 py-3 text-xs font-semibold text-slate-800 whitespace-nowrap">
-                          {log.admin || adminName}
-                        </td>
-                        <td className="px-6 py-3 text-xs whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded bg-slate-100 font-semibold text-slate-700">
-                            {log.action}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3 text-xs text-slate-600">{log.details}</td>
-                      </tr>
-                    ))
+                    filteredLoginSessions.map((session) => {
+                      const isExpanded = expandedSessionId === session.sessionId;
+                      const matchedAcc =
+                        adminAccountsMap[
+                        (session.loginLog.admin || '').trim().toLowerCase()
+                        ];
+
+                      return (
+                        <React.Fragment key={session.sessionId}>
+                          <tr
+                            className={`transition-colors ${isExpanded ? 'bg-sky-50/40' : 'hover:bg-slate-50/90'
+                              }`}
+                          >
+                            <td className="px-6 py-3.5 text-xs text-slate-500 whitespace-nowrap tabular-nums">
+                              <div className="inline-flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span>{formatAuditTime(session.loginLog)}</span>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5 text-xs font-bold text-slate-800 whitespace-nowrap">
+                              {session.adminLabel}
+                            </td>
+                            <td className="px-5 py-3.5 text-xs whitespace-nowrap">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200/80 text-[11px] font-bold uppercase">
+                                {session.loginLog.action}
+                              </span>
+                            </td>
+                            <td className="px-6 py-3 text-xs text-slate-600">
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="leading-relaxed">
+                                  {session.loginLog.details}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedSessionId((prev) =>
+                                      prev === session.sessionId
+                                        ? null
+                                        : session.sessionId
+                                    )
+                                  }
+                                  aria-expanded={isExpanded}
+                                  className={`group inline-flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl shrink-0 transition-all cursor-pointer ${isExpanded
+                                      ? 'bg-sky-50 ring-1 ring-sky-300'
+                                      : 'hover:bg-slate-100/80'
+                                    }`}
+                                >
+                                  <span className="w-8 h-8 rounded-full bg-[#D6EFFF] group-hover:bg-[#BEE5FF] flex items-center justify-center transition-colors">
+                                    <Info className="w-4 h-4 text-[#22C55E] stroke-[2.25]" />
+                                  </span>
+                                  <span className="text-[11px] font-semibold text-slate-800 leading-none">
+                                    {tr('common.details')}
+                                  </span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {isExpanded && (
+                            <tr className="bg-slate-50/90">
+                              <td colSpan={4} className="px-6 py-4">
+                                <div className="rounded-xl border border-sky-200/90 bg-white p-4 shadow-2xs space-y-3.5">
+                                  <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-8 h-8 rounded-full bg-[#D6EFFF] flex items-center justify-center shrink-0">
+                                        <ShieldCheck className="w-4 h-4 text-[#22C55E]" />
+                                      </div>
+                                      <div>
+                                        <div className="text-xs font-bold text-slate-900">
+                                          {adminLang === 'en'
+                                            ? `Working Session #${session.sessionIndex} · ${session.adminLabel}`
+                                            : `Chi tiết phiên làm việc #${session.sessionIndex} · ${session.adminLabel}`}
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-2 tabular-nums">
+                                          <span>
+                                            {adminLang === 'en' ? 'Role' : 'Vai trò'}:{' '}
+                                            <strong className="text-slate-700">
+                                              {matchedAcc
+                                                ? roleMap[matchedAcc.role]
+                                                : roleBadgeText}
+                                            </strong>
+                                          </span>
+                                          <span className="text-slate-300">•</span>
+                                          <span>
+                                            {adminLang === 'en'
+                                              ? 'Logged in'
+                                              : 'Đăng nhập'}
+                                            :{' '}
+                                            <strong className="text-slate-700">
+                                              {formatAuditTime(session.loginLog)}
+                                            </strong>
+                                          </span>
+                                          <span className="text-slate-300">•</span>
+                                          <span>
+                                            {session.isEnded && session.logoutLog ? (
+                                              <>
+                                                {adminLang === 'en'
+                                                  ? 'Logged out (Session ended)'
+                                                  : 'Đã đăng xuất (Kết thúc phiên)'}
+                                                :{' '}
+                                                <strong className="text-rose-700">
+                                                  {formatAuditTime(session.logoutLog)}
+                                                </strong>
+                                              </>
+                                            ) : (
+                                              <>
+                                                {adminLang === 'en'
+                                                  ? 'Session status'
+                                                  : 'Trạng thái phiên'}
+                                                :{' '}
+                                                <strong className="text-emerald-700">
+                                                  {adminLang === 'en'
+                                                    ? 'Active / Not logged out yet'
+                                                    : 'Đang mở / Chưa đăng xuất'}
+                                                </strong>
+                                              </>
+                                            )}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <span className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-700 tabular-nums">
+                                      {session.changeLogs.length}{' '}
+                                      {adminLang === 'en'
+                                        ? 'change(s) in session'
+                                        : 'hoạt động thay đổi trong phiên'}
+                                    </span>
+                                  </div>
+
+                                  {session.changeLogs.length === 0 ? (
+                                    <div className="py-4 px-3 rounded-lg bg-slate-50 border border-dashed border-slate-200 text-xs text-slate-500 text-center">
+                                      {adminLang === 'en'
+                                        ? 'No modification activities occurred during this login session.'
+                                        : 'Không có hoạt động thay đổi nào được thực hiện trong phiên đăng nhập này.'}
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                        {adminLang === 'en'
+                                          ? 'All changes performed during this session'
+                                          : 'Các hoạt động thay đổi đã thực hiện trong phiên này'}
+                                      </div>
+                                      <div className="divide-y divide-slate-100 rounded-lg border border-slate-200/80 overflow-hidden">
+                                        {session.changeLogs.map((chg, idx) => (
+                                          <div
+                                            key={String(chg.id)}
+                                            className="px-3.5 py-2.5 bg-white flex flex-wrap sm:flex-nowrap items-start justify-between gap-3 text-xs"
+                                          >
+                                            <div className="flex items-start gap-2.5 min-w-0">
+                                              <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 tabular-nums">
+                                                {idx + 1}
+                                              </span>
+                                              <div className="min-w-0 flex flex-wrap items-center gap-2">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200/80 text-[10px] font-bold uppercase">
+                                                  {chg.action}
+                                                </span>
+                                                <span className="font-semibold text-slate-800">
+                                                  {chg.details}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <span className="text-[11px] text-slate-500 whitespace-nowrap tabular-nums shrink-0">
+                                              {formatAuditTime(chg)}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
             </div>
 
-            <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 shrink-0 text-right">
+            <div className="px-6 py-3.5 border-t border-slate-200 bg-white shrink-0 flex items-center justify-between">
+              <div className="text-xs text-slate-500">
+                {(auditAdminFilter !== 'ALL' ||
+                  auditDateFilter ||
+                  auditActionFilter !== 'ALL') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuditAdminFilter('ALL');
+                        setAuditDateFilter('');
+                        setAuditActionFilter('ALL');
+                        setExpandedSessionId(null);
+                      }}
+                      className="text-rose-600 font-semibold hover:underline cursor-pointer"
+                    >
+                      {adminLang === 'en' ? 'Clear filters' : 'Xóa bộ lọc'}
+                    </button>
+                  )}
+              </div>
               <button
                 type="button"
-                onClick={() => setIsHistoryModalOpen(false)}
-                className="px-4 py-2 bg-white border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-100 cursor-pointer"
+                onClick={() => {
+                  setIsHistoryModalOpen(false);
+                  setExpandedSessionId(null);
+                }}
+                className="px-4 py-2 bg-white border border-slate-300 text-slate-800 text-xs font-bold rounded-xl hover:bg-slate-50 cursor-pointer"
               >
-                {tr('common.close')}
+                {adminLang === 'en' ? 'Close History' : 'Đóng Lịch sử'}
               </button>
             </div>
           </div>
@@ -1965,17 +2645,6 @@ export default function AdminTenantList() {
                       count: (selectedTenant.evidenceHistory || []).length
                     })}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const target = selectedTenant;
-                      setSelectedTenant(null);
-                      setRenewTenant(target);
-                    }}
-                    className="font-semibold text-rose-600 hover:underline cursor-pointer"
-                  >
-                    + {tr('admin.renewBtn')}
-                  </button>
                 </div>
 
                 {(selectedTenant.evidenceHistory || []).length === 0 ? (

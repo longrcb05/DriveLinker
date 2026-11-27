@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { CircleAlert, MapPin, Package, Search, Plus, History, Warehouse, Wrench, X, Link2, ArrowLeft, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -11,6 +11,7 @@ type Entry = { time: string; detail: string };
 type Device = { id: string; imei: string; serial: string; type: DeviceType; received: string; status: Status; tenantId: string; vehicle: string; history: Entry[] };
 type Tenant = { id: string; name: string };
 const key = 'sys_admin_inventory_demo_v1';
+const PLATFORM_SYNC_EVENT_NAME = 'sys_platform_sync_v1';
 const statuses: Status[] = ['Tồn kho', 'Đang lắp đặt', 'Đang sử dụng', 'Lỗi', 'Bảo hành'];
 const summaryStatuses = ['Tồn kho', 'Đang lắp đặt', 'Đang sử dụng', 'Lỗi/Bảo hành'] as const;
 const statusIcons: Record<(typeof summaryStatuses)[number], typeof Package> = {
@@ -26,6 +27,16 @@ const demo: Device[] = [
 ];
 const input = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500';
 const blank = { imei: '', serial: '', type: 'Camera' as DeviceType, received: '', status: 'Tồn kho' as Status, tenantId: '', vehicle: '' };
+
+const emitPlatformSync = (): void => {
+    try {
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event(PLATFORM_SYNC_EVENT_NAME));
+        }
+    } catch {
+        // Bỏ qua nếu môi trường không hỗ trợ window hoặc Event
+    }
+};
 
 function readDevices(): Device[] {
     const raw = localStorage.getItem(key);
@@ -55,6 +66,7 @@ interface AdminDevicesProps {
 export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
     const { language, toggleLanguage } = useLanguage();
     const [devices, setDevices] = useState<Device[]>(() => { try { return readDevices(); } catch { return []; } });
+    const [tenants, setTenants] = useState<Tenant[]>(() => readTenants());
     const [error, setError] = useState(() => { try { readDevices(); return ''; } catch { return 'Không thể đọc dữ liệu thiết bị trên trình duyệt.'; } });
     const [notice, setNotice] = useState('');
     const [search, setSearch] = useState('');
@@ -68,7 +80,25 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
     const [linkTenant, setLinkTenant] = useState('');
     const [linkVehicle, setLinkVehicle] = useState('');
 
-    const tenants = readTenants();
+    useEffect(() => {
+        const syncAll = () => {
+            setTenants(readTenants());
+            try {
+                setDevices(readDevices());
+                setError('');
+            } catch {
+                // Giữ dữ liệu hiện tại nếu không đọc được
+            }
+        };
+
+        window.addEventListener(PLATFORM_SYNC_EVENT_NAME, syncAll);
+        window.addEventListener('storage', syncAll);
+        return () => {
+            window.removeEventListener(PLATFORM_SYNC_EVENT_NAME, syncAll);
+            window.removeEventListener('storage', syncAll);
+        };
+    }, []);
+
     const tenantName = (id: string) => tenants.find(t => t.id === id)?.name || (id ? `Doanh nghiệp ${id}` : 'Chưa liên kết');
     const selectedDevice = devices.find(d => d.id === selected);
     const filtered = devices.filter(d =>
@@ -85,6 +115,7 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
             setError('');
             setNotice(message);
             recordAdminAction('THIẾT BỊ', audit);
+            emitPlatformSync();
             return true;
         } catch {
             setError('Không thể lưu dữ liệu thiết bị trên trình duyệt.');

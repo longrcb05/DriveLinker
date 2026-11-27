@@ -1,125 +1,177 @@
 export type AdminRole = 'SUPER_ADMIN' | 'SUPPORT_ADMIN' | 'BILLING_ADMIN';
-export type AdminStatus = 'ACTIVE' | 'LOCKED';
 
 export interface AdminAccount {
+  id: string;
   username: string;
+  password: string;
   fullName: string;
   email: string;
-  phone: string;
   role: AdminRole;
-  status: AdminStatus;
-  lastLogin: string | null;
-  password: string;
+  isLocked: boolean;
+  lastLogin?: string;
 }
 
-const STORAGE_KEY = 'sys_demo_admin_accounts';
+const ADMIN_ACCOUNTS_STORAGE_KEY = 'sys_demo_admin_accounts';
+const PLATFORM_SYNC_EVENT_NAME = 'sys_platform_sync_v1';
 
-export function formatLastLogin(value: string | null | undefined): string {
-  if (!value || !value.trim() || value.trim() === 'Chưa đăng nhập') {
-    return 'Chưa đăng nhập';
+const emitAdminPlatformSync = (): void => {
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(PLATFORM_SYNC_EVENT_NAME));
+    }
+  } catch {
+    // Bỏ qua nếu môi trường không hỗ trợ window hoặc Event
   }
+};
 
-  const raw = value.trim();
+const pad2 = (num: number): string => String(num).padStart(2, '0');
 
-  // Chuẩn hóa dạng "HH:mm:ss DD/MM/YYYY" hoặc "HH:mm DD/MM/YYYY" -> "DD/MM/YYYY HH:mm"
-  const timeFirstMatch = raw.match(
-    /^(\d{1,2}:\d{2})(?::\d{2})?\s+(\d{1,2}\/\d{1,2}\/\d{4})$/
+const formatDatePartsToStandard = (
+  year: number,
+  month: number,
+  day: number,
+  hours: number,
+  minutes: number
+): string | null => {
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day) ||
+    Number.isNaN(hours) ||
+    Number.isNaN(minutes)
+  ) {
+    return null;
+  }
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+
+  return `${pad2(day)}/${pad2(month)}/${year} ${pad2(hours)}:${pad2(minutes)}`;
+};
+
+/**
+ * Chuẩn hóa mọi chuỗi ngày giờ đăng nhập về định dạng đồng nhất: DD/MM/YYYY HH:mm
+ */
+export const formatLastLogin = (value?: string | null): string => {
+  if (!value) return 'Chưa đăng nhập';
+  const trimmed = String(value).trim();
+  if (!trimmed || trimmed === 'Chưa đăng nhập') return 'Chưa đăng nhập';
+
+  // Dạng "HH:mm:ss DD/MM/YYYY" hoặc "HH:mm DD/MM/YYYY" (từ toLocaleString vi-VN)
+  const timeFirstMatch = trimmed.match(
+    /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/
   );
   if (timeFirstMatch) {
-    const [, hm, dmy] = timeFirstMatch;
-    const [d, m, y] = dmy.split('/');
-    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y} ${hm.padStart(5, '0')}`;
+    const [, hh, min, , dd, mm, yyyy] = timeFirstMatch;
+    const formatted = formatDatePartsToStandard(
+      Number(yyyy),
+      Number(mm),
+      Number(dd),
+      Number(hh),
+      Number(min)
+    );
+    if (formatted) return formatted;
   }
 
-  // Chuẩn hóa dạng "D/M/YYYY H:mm" hoặc "DD/MM/YYYY HH:mm:ss" -> "DD/MM/YYYY HH:mm"
-  const dateFirstMatch = raw.match(
-    /^(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2})(?::\d{2})?$/
+  // Dạng "DD/MM/YYYY HH:mm:ss" hoặc "DD/MM/YYYY HH:mm" hoặc "D/M/YYYY H:mm"
+  const dateFirstMatch = trimmed.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/
   );
   if (dateFirstMatch) {
-    const [, dmy, hm] = dateFirstMatch;
-    const [d, m, y] = dmy.split('/');
-    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y} ${hm.padStart(5, '0')}`;
+    const [, dd, mm, yyyy, hh = '0', min = '0'] = dateFirstMatch;
+    const formatted = formatDatePartsToStandard(
+      Number(yyyy),
+      Number(mm),
+      Number(dd),
+      Number(hh),
+      Number(min)
+    );
+    if (formatted) return formatted;
   }
 
-  // Chuẩn hóa chuỗi ISO / timestamp hợp lệ
-  const parsed = new Date(raw);
+  // Dạng ISO timestamp hoặc chuỗi ngày giờ hợp lệ của Date
+  const parsed = new Date(trimmed);
   if (!Number.isNaN(parsed.getTime())) {
-    const dd = String(parsed.getDate()).padStart(2, '0');
-    const mm = String(parsed.getMonth() + 1).padStart(2, '0');
-    const yyyy = parsed.getFullYear();
-    const hh = String(parsed.getHours()).padStart(2, '0');
-    const min = String(parsed.getMinutes()).padStart(2, '0');
-    return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+    const formatted = formatDatePartsToStandard(
+      parsed.getFullYear(),
+      parsed.getMonth() + 1,
+      parsed.getDate(),
+      parsed.getHours(),
+      parsed.getMinutes()
+    );
+    if (formatted) return formatted;
   }
 
-  return raw;
-}
+  return trimmed;
+};
+
+const normalizeAccountRecord = (acc: AdminAccount): AdminAccount => ({
+  ...acc,
+  lastLogin: formatLastLogin(acc.lastLogin)
+});
 
 const initialAccounts: AdminAccount[] = [
   {
+    id: 'adm-1',
     username: 'adminlong',
+    password: '123',
     fullName: 'Nguyễn Nhật Long',
-    email: 'long@example.com',
-    phone: '0901 234 567',
+    email: 'nhatlong.admin@drivelinker.vn',
     role: 'SUPER_ADMIN',
-    status: 'ACTIVE',
-    lastLogin: formatLastLogin('20/11/2026 09:30'),
-    password: '123456',
+    isLocked: false,
+    lastLogin: formatLastLogin('2026-11-27T08:30:00')
   },
   {
+    id: 'adm-2',
     username: 'adminan',
+    password: '123',
     fullName: 'Nguyễn Phạm Thiện Ân',
-    email: 'an@example.com',
-    phone: '0902 345 678',
+    email: 'thienan.admin@drivelinker.vn',
     role: 'SUPER_ADMIN',
-    status: 'ACTIVE',
-    lastLogin: formatLastLogin('19/11/2026 14:15'),
-    password: '123456',
+    isLocked: false,
+    lastLogin: formatLastLogin('2026-11-26T17:15:00')
   },
   {
+    id: 'adm-3',
     username: 'support.bang',
+    password: '123',
     fullName: 'Nguyễn Ngọc Bằng',
-    email: 'bang@example.com',
-    phone: '0903 456 789',
+    email: 'ngocbang.support@drivelinker.vn',
     role: 'SUPPORT_ADMIN',
-    status: 'ACTIVE',
-    lastLogin: formatLastLogin('18/11/2026 10:45'),
-    password: '123456',
+    isLocked: false,
+    lastLogin: formatLastLogin('2026-11-27T09:05:00')
   },
   {
+    id: 'adm-4',
     username: 'billing.minh',
+    password: '123',
     fullName: 'Nguyễn Nhật Minh',
-    email: 'minh@example.com',
-    phone: '0904 567 890',
+    email: 'nhatminh.billing@drivelinker.vn',
     role: 'BILLING_ADMIN',
-    status: 'ACTIVE',
-    lastLogin: null,
-    password: '123456',
-  },
+    isLocked: false,
+    lastLogin: formatLastLogin('2026-11-25T14:20:00')
+  }
 ];
 
-// Tài khoản mẫu được lưu trong trình duyệt; khi chưa có dữ liệu thì dùng danh sách ban đầu.
-export function getAdminAccounts(): AdminAccount[] {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) return initialAccounts;
+export const getAdminAccounts = (): AdminAccount[] => {
   try {
-    const parsed: unknown = JSON.parse(saved);
-    if (Array.isArray(parsed)) {
-      return (parsed as AdminAccount[]).map((item) => ({
-        ...item,
-        lastLogin: item.lastLogin ? formatLastLogin(item.lastLogin) : null,
-      }));
+    const raw = localStorage.getItem(ADMIN_ACCOUNTS_STORAGE_KEY);
+    if (!raw) {
+      const seeded = initialAccounts.map(normalizeAccountRecord);
+      localStorage.setItem(ADMIN_ACCOUNTS_STORAGE_KEY, JSON.stringify(seeded));
+      return seeded;
     }
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return initialAccounts.map(normalizeAccountRecord);
+    }
+    return (parsed as AdminAccount[]).map(normalizeAccountRecord);
   } catch {
-    // Preserve unreadable data rather than silently overwriting it.
+    return initialAccounts.map(normalizeAccountRecord);
   }
-  throw new Error('Không thể đọc dữ liệu tài khoản mẫu trên trình duyệt.');
-}
+};
 
-export function saveAdminAccounts(accounts: AdminAccount[]) {
-  const normalized = accounts.map((item) => ({
-    ...item,
-    lastLogin: item.lastLogin ? formatLastLogin(item.lastLogin) : null,
-  }));
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-}
+export const saveAdminAccounts = (accounts: AdminAccount[]): void => {
+  const normalized = accounts.map(normalizeAccountRecord);
+  localStorage.setItem(ADMIN_ACCOUNTS_STORAGE_KEY, JSON.stringify(normalized));
+  emitAdminPlatformSync();
+};

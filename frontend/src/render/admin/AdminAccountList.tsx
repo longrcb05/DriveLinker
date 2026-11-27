@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   getAdminAccounts,
@@ -11,10 +11,32 @@ import { ArrowLeft, Search, ShieldCheck, Users, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 
+type ExtendedAdminAccount = AdminAccount & {
+  phone?: string;
+  status?: 'ACTIVE' | 'LOCKED';
+};
+
 const roleNames: Record<AdminRole, string> = {
   SUPER_ADMIN: 'Quản trị hệ thống',
   SUPPORT_ADMIN: 'Hỗ trợ kỹ thuật',
   BILLING_ADMIN: 'Quản lý thanh toán',
+};
+
+const PLATFORM_SYNC_EVENT_NAME = 'sys_platform_sync_v1';
+
+const emitPlatformSync = (): void => {
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(PLATFORM_SYNC_EVENT_NAME));
+    }
+  } catch {
+    // Bỏ qua nếu môi trường không hỗ trợ window hoặc Event
+  }
+};
+
+const isAccountLocked = (account: ExtendedAdminAccount): boolean => {
+  if (typeof account.isLocked === 'boolean') return account.isLocked;
+  return account.status === 'LOCKED';
 };
 
 interface AdminAccountListProps {
@@ -23,8 +45,8 @@ interface AdminAccountListProps {
 
 export default function AdminAccountList({ embedded = false }: AdminAccountListProps) {
   const { language, toggleLanguage } = useLanguage();
-  const [accounts, setAccounts] = useState<AdminAccount[]>(() => {
-    try { return getAdminAccounts(); } catch { return []; }
+  const [accounts, setAccounts] = useState<ExtendedAdminAccount[]>(() => {
+    try { return getAdminAccounts() as ExtendedAdminAccount[]; } catch { return []; }
   });
   const [error, setError] = useState(() => {
     try { getAdminAccounts(); return ''; } catch { return 'Không thể đọc dữ liệu tài khoản mẫu trên trình duyệt.'; }
@@ -34,27 +56,65 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
   const [passwordTarget, setPasswordTarget] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [form, setForm] = useState({ fullName: '', username: '', email: '', phone: '', role: 'SUPPORT_ADMIN' as AdminRole, password: '' });
+  const [form, setForm] = useState({
+    fullName: '',
+    username: '',
+    email: '',
+    phone: '',
+    role: 'SUPPORT_ADMIN' as AdminRole,
+    password: ''
+  });
   const currentUsername = sessionStorage.getItem('sys_core_username');
   const isSuperAdmin = sessionStorage.getItem('sys_core_role') === 'SUPER_ADMIN';
   const [search, setSearch] = useState('');
   const [role, setRole] = useState('ALL');
   const [status, setStatus] = useState('ALL');
+
+  useEffect(() => {
+    const syncAccounts = () => {
+      try {
+        setAccounts(getAdminAccounts() as ExtendedAdminAccount[]);
+      } catch {
+        // Giữ danh sách hiện tại nếu không đọc được
+      }
+    };
+
+    window.addEventListener(PLATFORM_SYNC_EVENT_NAME, syncAccounts);
+    window.addEventListener('storage', syncAccounts);
+    return () => {
+      window.removeEventListener(PLATFORM_SYNC_EVENT_NAME, syncAccounts);
+      window.removeEventListener('storage', syncAccounts);
+    };
+  }, []);
+
   const filteredAccounts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('vi');
-    return accounts.filter((account) =>
-      [account.fullName, account.username, account.email, account.phone].some((value) => value.toLocaleLowerCase('vi').includes(query)) &&
-      (role === 'ALL' || account.role === role) && (status === 'ALL' || account.status === status),
-    );
+    return accounts.filter((account) => {
+      const locked = isAccountLocked(account);
+      const currentStatus = locked ? 'LOCKED' : 'ACTIVE';
+      const matchesQuery = [
+        account.fullName,
+        account.username,
+        account.email,
+        account.phone || ''
+      ].some((value) => value.toLocaleLowerCase('vi').includes(query));
+
+      return (
+        matchesQuery &&
+        (role === 'ALL' || account.role === role) &&
+        (status === 'ALL' || currentStatus === status)
+      );
+    });
   }, [accounts, search, role, status]);
 
-  const commit = (next: AdminAccount[], message: string) => {
+  const commit = (next: ExtendedAdminAccount[], message: string) => {
     try {
       getAdminAccounts();
-      saveAdminAccounts(next);
+      saveAdminAccounts(next as AdminAccount[]);
       setAccounts(next);
       setError('');
       setNotice(message);
+      emitPlatformSync();
       return true;
     } catch {
       setError('Không thể lưu thay đổi trên trình duyệt. Vui lòng thử lại.');
@@ -65,19 +125,45 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
   const addAccount = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const username = form.username.trim().toLowerCase();
-    if (!form.fullName.trim() || !username || !form.email.trim() || !form.phone.trim()) { setError('Vui lòng nhập đầy đủ thông tin tài khoản.'); return; }
-    if (!/^[a-z0-9._-]+$/.test(username)) { setError('Username chỉ được chứa chữ không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang.'); return; }
-    if (form.password.length < 6) { setError('Mật khẩu phải có ít nhất 6 ký tự.'); return; }
-    if (accounts.some((item) => item.username.toLowerCase() === username || item.email.toLowerCase() === form.email.trim().toLowerCase())) { setError('Username hoặc email đã tồn tại.'); return; }
-    const account: AdminAccount = { ...form, username, fullName: form.fullName.trim(), email: form.email.trim(), phone: form.phone.trim(), status: 'ACTIVE', lastLogin: null };
+    if (!form.fullName.trim() || !username || !form.email.trim() || !form.phone.trim()) {
+      setError('Vui lòng nhập đầy đủ thông tin tài khoản.');
+      return;
+    }
+    if (!/^[a-z0-9._-]+$/.test(username)) {
+      setError('Username chỉ được chứa chữ không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang.');
+      return;
+    }
+    if (form.password.length < 6) {
+      setError('Mật khẩu phải có ít nhất 6 ký tự.');
+      return;
+    }
+    if (accounts.some((item) => item.username.toLowerCase() === username || item.email.toLowerCase() === form.email.trim().toLowerCase())) {
+      setError('Username hoặc email đã tồn tại.');
+      return;
+    }
+
+    const cleanPhone = form.phone.trim();
+    const account: ExtendedAdminAccount = {
+      id: `adm-${Date.now()}`,
+      username,
+      password: form.password,
+      fullName: form.fullName.trim(),
+      email: form.email.trim(),
+      phone: cleanPhone,
+      role: form.role,
+      isLocked: false,
+      lastLogin: 'Chưa đăng nhập'
+    };
+
     if (commit([...accounts, account], 'Đã thêm tài khoản ' + username + '.')) {
       recordAdminAction('THÊM MỚI', `Tạo tài khoản ${username} • ${form.role}`);
+      emitPlatformSync();
       setForm({ fullName: '', username: '', email: '', phone: '', role: 'SUPPORT_ADMIN', password: '' });
       setShowAdd(false);
     }
   };
 
-  const toggleLock = (account: AdminAccount) => {
+  const toggleLock = (account: ExtendedAdminAccount) => {
     if (sessionStorage.getItem('sys_core_role') !== 'SUPER_ADMIN') {
       setError('Chỉ Super Admin có quyền khóa hoặc mở khóa tài khoản.');
       return;
@@ -90,21 +176,41 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
       setError('Bạn không thể khóa tài khoản đang đăng nhập.');
       return;
     }
-    const nextStatus = account.status === 'ACTIVE' ? 'LOCKED' : 'ACTIVE';
-    if (!window.confirm(`${nextStatus === 'LOCKED' ? 'Khóa' : 'Mở khóa'} tài khoản ${account.username}?`)) return;
-    if (commit(accounts.map((item) => item.username === account.username ? { ...item, status: nextStatus } : item), `Đã ${nextStatus === 'LOCKED' ? 'khóa' : 'mở khóa'} tài khoản ${account.username}.`)) {
-      recordAdminAction(nextStatus === 'LOCKED' ? 'KHÓA' : 'MỞ KHÓA', `Tài khoản ${account.username}`);
+
+    const currentlyLocked = isAccountLocked(account);
+    const nextLocked = !currentlyLocked;
+    if (!window.confirm(`${nextLocked ? 'Khóa' : 'Mở khóa'} tài khoản ${account.username}?`)) return;
+
+    const nextAccounts = accounts.map((item) =>
+      item.username === account.username
+        ? { ...item, isLocked: nextLocked }
+        : item
+    );
+
+    if (commit(nextAccounts, `Đã ${nextLocked ? 'khóa' : 'mở khóa'} tài khoản ${account.username}.`)) {
+      recordAdminAction(nextLocked ? 'KHÓA' : 'MỞ KHÓA', `Tài khoản ${account.username}`);
+      emitPlatformSync();
     }
   };
 
   const changePassword = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const signedInUsername = sessionStorage.getItem('sys_core_username');
-    if (!signedInUsername || passwordTarget !== signedInUsername) { setError('Bạn chỉ có thể đổi mật khẩu của chính mình.'); return; }
-    if (newPassword.length < 6) { setError('Mật khẩu phải có ít nhất 6 ký tự.'); return; }
-    if (newPassword !== confirmPassword) { setError('Mật khẩu xác nhận không khớp.'); return; }
+    if (!signedInUsername || passwordTarget !== signedInUsername) {
+      setError('Bạn chỉ có thể đổi mật khẩu của chính mình.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Mật khẩu phải có ít nhất 6 ký tự.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Mật khẩu xác nhận không khớp.');
+      return;
+    }
     if (commit(accounts.map((item) => item.username === passwordTarget ? { ...item, password: newPassword } : item), `Đã đổi mật khẩu cho ${passwordTarget}.`)) {
       recordAdminAction('ĐỔI MẬT KHẨU', `Đổi mật khẩu tài khoản ${signedInUsername}`);
+      emitPlatformSync();
       setPasswordTarget(null); setNewPassword(''); setConfirmPassword('');
     }
   };
@@ -175,32 +281,35 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600"><tr><th scope="col" className="px-5 py-4">Tài khoản</th><th scope="col" className="px-5 py-4">Liên hệ</th><th scope="col" className="px-5 py-4">Vai trò</th><th scope="col" className="px-5 py-4">Trạng thái</th><th scope="col" className="px-5 py-4">Đăng nhập cuối</th><th scope="col" className="px-5 py-4">Thao tác</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredAccounts.map((account) => (
-                <tr key={account.username} className="align-top">
-                  <td className="px-5 py-4"><div className="font-semibold text-slate-900">{account.fullName}</div><div className="mt-1 text-slate-600">{account.username}</div></td>
-                  <td className="px-5 py-4"><div>{account.email}</div><div className="mt-1 text-slate-600">{account.phone}</div></td>
-                  <td className="px-5 py-4"><div className="font-medium">{roleNames[account.role]}</div><div className="mt-1 text-xs text-slate-600">{account.role}</div></td>
-                  <td className="px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${account.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{account.status === 'ACTIVE' ? 'Đang hoạt động' : 'Đã khóa'}</span></td>
-                  <td className="whitespace-nowrap px-5 py-4 text-slate-600">{formatLastLogin(account.lastLogin)}</td>
-                  <td className="px-5 py-4">
-                    <div className="flex flex-col items-start gap-2">
-                      {isSuperAdmin && account.role !== 'SUPER_ADMIN' && (
-                        <button type="button" onClick={() => toggleLock(account)} className="text-sm font-semibold text-rose-700 underline underline-offset-2 cursor-pointer">
-                          {account.status === 'ACTIVE' ? 'Khóa' : 'Mở khóa'}
-                        </button>
-                      )}
-                      {isSuperAdmin && account.role === 'SUPER_ADMIN' && account.username !== currentUsername && (
-                        <span className="text-xs text-slate-400">Không thể khóa</span>
-                      )}
-                      {account.username === currentUsername && (
-                        <button type="button" onClick={() => { setPasswordTarget(account.username); setShowAdd(false); setNewPassword(''); setConfirmPassword(''); setError(''); setNotice(''); }} className="whitespace-nowrap text-sm font-semibold text-slate-700 underline underline-offset-2 cursor-pointer">
-                          Đổi mật khẩu
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filteredAccounts.map((account) => {
+                const locked = isAccountLocked(account);
+                return (
+                  <tr key={account.username} className="align-top">
+                    <td className="px-5 py-4"><div className="font-semibold text-slate-900">{account.fullName}</div><div className="mt-1 text-slate-600">{account.username}</div></td>
+                    <td className="px-5 py-4"><div>{account.email}</div><div className="mt-1 text-slate-600">{account.phone || '--'}</div></td>
+                    <td className="px-5 py-4"><div className="font-medium">{roleNames[account.role]}</div><div className="mt-1 text-xs text-slate-600">{account.role}</div></td>
+                    <td className="px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${!locked ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{!locked ? 'Đang hoạt động' : 'Đã khóa'}</span></td>
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">{formatLastLogin(account.lastLogin)}</td>
+                    <td className="px-5 py-4">
+                      <div className="flex flex-col items-start gap-2">
+                        {isSuperAdmin && account.role !== 'SUPER_ADMIN' && (
+                          <button type="button" onClick={() => toggleLock(account)} className="text-sm font-semibold text-rose-700 underline underline-offset-2 cursor-pointer">
+                            {!locked ? 'Khóa' : 'Mở khóa'}
+                          </button>
+                        )}
+                        {isSuperAdmin && account.role === 'SUPER_ADMIN' && account.username !== currentUsername && (
+                          <span className="text-xs text-slate-400">Không thể khóa</span>
+                        )}
+                        {account.username === currentUsername && (
+                          <button type="button" onClick={() => { setPasswordTarget(account.username); setShowAdd(false); setNewPassword(''); setConfirmPassword(''); setError(''); setNotice(''); }} className="whitespace-nowrap text-sm font-semibold text-slate-700 underline underline-offset-2 cursor-pointer">
+                            Đổi mật khẩu
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredAccounts.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-600">Không tìm thấy tài khoản phù hợp. Hãy thử thay đổi điều kiện lọc.</td></tr>}
             </tbody>
           </table>
