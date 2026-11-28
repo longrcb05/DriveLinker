@@ -26,14 +26,14 @@ import {
   Receipt,
   BarChart3,
   Globe,
-  ShieldCheck,
   Info,
   TrendingUp
 } from 'lucide-react';
 import {
   readAdminAuditLogs,
   recordAdminAction,
-  formatAuditTime
+  formatAuditTime,
+  auditDate
 } from './adminAudit';
 import type { AdminAuditLog } from './adminAudit';
 import { getAdminAccounts } from './adminAccounts';
@@ -92,16 +92,6 @@ interface PackageConfig {
   durationMonths: 6 | 12;
   price: number;
   description: string;
-}
-
-interface AdminSessionGroup {
-  sessionId: string;
-  sessionIndex: number;
-  adminLabel: string;
-  loginLog: AdminAuditLog;
-  logoutLog: AdminAuditLog | null;
-  changeLogs: AdminAuditLog[];
-  isEnded: boolean;
 }
 
 const INVENTORY_STORAGE_KEY = 'sys_admin_inventory_demo_v1';
@@ -257,30 +247,6 @@ const getEffectiveLifecycle = (
   return 'ACTIVE';
 };
 
-const parseAuditTimeMs = (log: AdminAuditLog): number => {
-  const formatted = formatAuditTime(log).trim();
-  const match = formatted.match(
-    /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/
-  );
-  if (match) {
-    const [, dd, mm, yyyy, hh, min, ss = '0'] = match;
-    return new Date(
-      Number(yyyy),
-      Number(mm) - 1,
-      Number(dd),
-      Number(hh),
-      Number(min),
-      Number(ss)
-    ).getTime();
-  }
-  const rawAny = log as AdminAuditLog & { timestamp?: string | number; time?: string };
-  if (rawAny.timestamp) {
-    const t = new Date(rawAny.timestamp).getTime();
-    if (!Number.isNaN(t)) return t;
-  }
-  return 0;
-};
-
 const isLoginAction = (action?: string): boolean => {
   const act = (action || '').trim().toUpperCase();
   return act.includes('ĐĂNG NHẬP') || act.includes('LOGIN');
@@ -328,7 +294,7 @@ export default function AdminTenantList() {
   const [adminAccountsVersion, setAdminAccountsVersion] = useState(0);
 
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | number | null>(null);
   const [auditAdminFilter, setAuditAdminFilter] = useState('ALL');
   const [auditDateFilter, setAuditDateFilter] = useState('');
   const [auditActionFilter, setAuditActionFilter] = useState('ALL');
@@ -537,7 +503,6 @@ export default function AdminTenantList() {
       partialCount: base.partialCount,
       totalRegisteredVehicles: base.totalVehicles,
       totalActivePackageRevenue: base.totalPackageValue,
-      monthlyEquivalentTotal: base.monthlyPackageRevenue,
       count6M: base.count6M,
       count12M: base.count12M,
       linkedDevicesCount: devices.filter((d) => Boolean(d.tenantId)).length,
@@ -685,113 +650,25 @@ export default function AdminTenantList() {
     return Array.from(set);
   }, [auditLogs, adminAccountsMap, isHistoryModalOpen, adminAccountsVersion]);
 
-  const loginSessions = useMemo<AdminSessionGroup[]>(() => {
-    const byAdmin: Record<
-      string,
-      { item: AdminAuditLog; origIdx: number; timeMs: number }[]
-    > = {};
-
-    auditLogs.forEach((item, origIdx) => {
-      const label = formatAuditAdminLabel(item);
-      if (!byAdmin[label]) byAdmin[label] = [];
-      byAdmin[label].push({ item, origIdx, timeMs: parseAuditTimeMs(item) });
-    });
-
-    const sessions: AdminSessionGroup[] = [];
-
-    Object.entries(byAdmin).forEach(([adminLabel, entries]) => {
-      const sortedAsc = [...entries].sort((a, b) =>
-        a.timeMs !== b.timeMs ? a.timeMs - b.timeMs : b.origIdx - a.origIdx
-      );
-
-      let activeLogin: AdminAuditLog | null = null;
-      let activeLogout: AdminAuditLog | null = null;
-      let activeChanges: AdminAuditLog[] = [];
-      let adminSessionCount = 0;
-
-      const pushCompletedSession = (endedByLogout: boolean) => {
-        if (!activeLogin) return;
-        adminSessionCount += 1;
-        sessions.push({
-          sessionId: `${String(activeLogin.id)}__${adminSessionCount}`,
-          sessionIndex: adminSessionCount,
-          adminLabel,
-          loginLog: activeLogin,
-          logoutLog: activeLogout,
-          changeLogs: [...activeChanges],
-          isEnded: endedByLogout
-        });
-      };
-
-      for (const { item } of sortedAsc) {
-        if (isLoginAction(item.action)) {
-          if (activeLogin) {
-            pushCompletedSession(false);
-          }
-          activeLogin = item;
-          activeLogout = null;
-          activeChanges = [];
-        } else if (isLogoutAction(item.action)) {
-          if (activeLogin) {
-            activeLogout = item;
-            pushCompletedSession(true);
-            activeLogin = null;
-            activeLogout = null;
-            activeChanges = [];
-          }
-        } else if (activeLogin) {
-          activeChanges.push(item);
-        }
-      }
-
-      if (activeLogin) {
-        pushCompletedSession(false);
-      }
-    });
-
-    return sessions.sort(
-      (a, b) => parseAuditTimeMs(b.loginLog) - parseAuditTimeMs(a.loginLog)
+  // Bảng lịch sử chính chỉ hiển thị các lần đăng nhập và đăng xuất.
+  const sessionLogs = auditLogs.filter(
+    (log) => isLoginAction(log.action) || isLogoutAction(log.action)
+  );
+  const uniqueAuditActions = Array.from(
+    new Set(sessionLogs.map((log) => log.action).filter(Boolean))
+  );
+  const filteredAuditLogs = sessionLogs.filter(
+    (log) =>
+      (auditAdminFilter === 'ALL' || formatAuditAdminLabel(log) === auditAdminFilter) &&
+      (!auditDateFilter || auditDate(log) === auditDateFilter) &&
+      (auditActionFilter === 'ALL' || log.action === auditActionFilter)
+  );
+  const accountActivity = (log: AdminAuditLog) =>
+    auditLogs.filter((item) =>
+      log.username && item.username
+        ? item.username === log.username
+        : Boolean(log.admin && item.admin === log.admin)
     );
-  }, [auditLogs, adminAccountsMap]);
-
-  const uniqueAuditActions = useMemo(() => {
-    const set = new Set<string>();
-    loginSessions.forEach((s) => {
-      if (s.loginLog?.action) set.add(s.loginLog.action);
-      s.changeLogs.forEach((c) => {
-        if (c.action) set.add(c.action);
-      });
-    });
-    return Array.from(set);
-  }, [loginSessions]);
-
-  const filteredLoginSessions = useMemo(() => {
-    const targetDateVN = auditDateFilter
-      ? auditDateFilter.split('-').reverse().join('/')
-      : '';
-
-    return loginSessions.filter((session) => {
-      if (auditAdminFilter !== 'ALL' && session.adminLabel !== auditAdminFilter) {
-        return false;
-      }
-      if (targetDateVN) {
-        const loginFormatted = formatAuditTime(session.loginLog);
-        if (!loginFormatted.startsWith(targetDateVN)) {
-          return false;
-        }
-      }
-      if (auditActionFilter !== 'ALL') {
-        const matchesLogin = session.loginLog?.action === auditActionFilter;
-        const matchesChangeInSession = session.changeLogs.some(
-          (c) => c.action === auditActionFilter
-        );
-        if (!matchesLogin && !matchesChangeInSession) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [loginSessions, auditAdminFilter, auditDateFilter, auditActionFilter]);
 
   const openHistoryModal = () => {
     loadData();
@@ -1367,15 +1244,6 @@ export default function AdminTenantList() {
 
   return (
     <div className="min-h-screen bg-[#F4F6F9] text-slate-800 flex flex-col font-sans">
-      <header className="h-12 bg-white border-b border-slate-200/90 px-4 lg:px-6 flex items-center justify-end shrink-0">
-        <div className="flex items-center gap-2.5 text-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span className="font-semibold text-slate-800">{adminName}</span>
-          <span className="text-slate-300">·</span>
-          <span className="font-semibold text-rose-600">{roleBadgeText}</span>
-        </div>
-      </header>
-
       <div className="flex-1 flex min-h-0">
         <aside className="w-60 bg-white border-r border-slate-200/90 flex flex-col justify-between shrink-0">
           <div className="p-4 space-y-6">
@@ -1485,87 +1353,84 @@ export default function AdminTenantList() {
         </aside>
 
         <div className="flex-1 min-w-0 px-6 lg:px-8 py-6 space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-rose-50 border border-rose-200/80 text-rose-600 flex items-center justify-center shrink-0">
-                {activeSection === 'overview' ? (
-                  <LayoutGrid className="w-4 h-4" />
-                ) : activeSection === 'accounts' ? (
-                  <Users className="w-4 h-4" />
-                ) : activeSection === 'devices' ? (
-                  <Video className="w-4 h-4" />
-                ) : activeSection === 'billing' ? (
-                  <Receipt className="w-4 h-4" />
-                ) : activeSection === 'dashboard' ? (
-                  <BarChart3 className="w-4 h-4" />
-                ) : (
-                  <Building2 className="w-4 h-4" />
-                )}
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-slate-900 leading-tight">
-                  {currentPageTitle}
-                </h1>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {tr('admin.subtitle')}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setAdminLang(toggleAdminLang())}
-                className="h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                title={adminLang === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
-              >
-                <Globe className="w-3.5 h-3.5 text-rose-600" />
-                <span>{adminLang === 'vi' ? 'VI → EN' : 'EN → VI'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={openHistoryModal}
-                className="h-9 px-3.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 inline-flex items-center gap-2 transition-colors cursor-pointer shadow-2xs"
-              >
-                <History className="w-3.5 h-3.5 text-slate-500" />
-                <span>{tr('admin.historyBtn')}</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-[11px] text-slate-600 tabular-nums">
-                  {loginSessions.length}
-                </span>
-              </button>
-
-              {(activeSection === 'tenants' || activeSection === 'overview') && (
-                <button
-                  type="button"
-                  onClick={openCreateModal}
-                  className="h-9 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{tr('admin.addNewBtn')}</span>
-                </button>
-              )}
-
-              <div className="h-9 px-3 rounded-lg border border-slate-200 bg-white flex items-center gap-2">
-                <UserCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <div className="leading-tight">
-                  <div className="text-xs font-bold text-slate-900">{adminName}</div>
-                  <div className="text-[10px] font-semibold text-slate-400">
-                    {roleBadgeText}
-                  </div>
+          {activeSection !== 'accounts' && (
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-lg bg-rose-50 border border-rose-200/80 text-rose-600 flex items-center justify-center shrink-0 [&_svg]:w-5 [&_svg]:h-5">
+                  {activeSection === 'overview' ? (
+                    <LayoutGrid className="w-4 h-4" />
+                  ) : activeSection === 'devices' ? (
+                    <Video className="w-4 h-4" />
+                  ) : activeSection === 'billing' ? (
+                    <Receipt className="w-4 h-4" />
+                  ) : activeSection === 'dashboard' ? (
+                    <BarChart3 className="w-4 h-4" />
+                  ) : (
+                    <Building2 className="w-4 h-4" />
+                  )}
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-slate-900 leading-tight">
+                    {currentPageTitle}
+                  </h1>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                title={tr('nav.logout')}
-                className="h-9 w-9 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 inline-flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setAdminLang(toggleAdminLang())}
+                  className="h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                  title={adminLang === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
+                >
+                  <Globe className="w-3.5 h-3.5 text-rose-600" />
+                  <span>{adminLang === 'vi' ? 'VI' : 'EN'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={openHistoryModal}
+                  className="h-9 px-3.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 inline-flex items-center gap-2 transition-colors cursor-pointer shadow-2xs"
+                >
+                  <History className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{tr('admin.historyBtn')}</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-[11px] text-slate-600 tabular-nums">
+                    {sessionLogs.length}
+                  </span>
+                </button>
+
+                {(activeSection === 'tenants' || activeSection === 'overview') && (
+                  <button
+                    type="button"
+                    onClick={openCreateModal}
+                    className="h-9 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{tr('admin.addNewBtn')}</span>
+                  </button>
+                )}
+
+                <div className="h-9 px-3 rounded-lg border border-slate-200 bg-white flex items-center gap-2">
+                  <UserCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <div className="leading-tight">
+                    <div className="text-xs font-bold text-slate-900">{adminName}</div>
+                    <div className="text-[10px] font-semibold text-slate-400">
+                      {roleBadgeText}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title={tr('nav.logout')}
+                  className="h-9 w-9 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 inline-flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {activeSection === 'tenants' && (
             <div className="flex items-center justify-end">
@@ -1636,7 +1501,7 @@ export default function AdminTenantList() {
                     </span>
                   </div>
                   <div className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">
-                    {loginSessions.length}
+                    {sessionLogs.length}
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
                     {tr('admin.cardActivitySub')}
@@ -1644,7 +1509,7 @@ export default function AdminTenantList() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs flex flex-col justify-between min-h-[124px]">
                   <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <span>{tr('admin.cardTotalTenants')}</span>
@@ -1667,21 +1532,6 @@ export default function AdminTenantList() {
                     <span className="text-rose-600 font-medium">
                       {metrics.suspended} {tr('admin.statusSuspended').toLowerCase()}
                     </span>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs flex flex-col justify-between min-h-[124px]">
-                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    <span>{tr('admin.cardMonthlyPkg')}</span>
-                    <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                      <Wallet className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                  <div className="text-2xl font-bold text-emerald-600 mt-2 tabular-nums">
-                    {metrics.monthlyEquivalentTotal.toLocaleString('vi-VN')} ₫
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1.5 tabular-nums">
-                    {tr('admin.cardMonthlyPkgSub', { count: metrics.active })}
                   </div>
                 </div>
 
@@ -2278,16 +2128,21 @@ export default function AdminTenantList() {
                 >
                   {adminLang === 'en' ? 'Date' : 'Ngày'}
                 </label>
-                <input
-                  id="audit-filter-date"
-                  type="date"
-                  value={auditDateFilter}
-                  onChange={(e) => {
-                    setAuditDateFilter(e.target.value);
-                    setExpandedSessionId(null);
-                  }}
-                  className="h-10 w-full px-3 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-700 outline-none focus:border-rose-500"
-                />
+                <div className="relative">
+                  <input
+                    id="audit-filter-date"
+                    type="date"
+                    value={auditDateFilter}
+                    onChange={(e) => {
+                      setAuditDateFilter(e.target.value);
+                      setExpandedSessionId(null);
+                    }}
+                    className="h-10 w-full px-3 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-700 outline-none focus:border-rose-500"
+                  />
+                  <span aria-hidden="true" className={`pointer-events-none absolute inset-y-px left-px right-10 flex items-center rounded-l-xl bg-white pl-3 text-xs font-medium ${auditDateFilter ? 'text-slate-700' : 'text-slate-400'}`}>
+                    {auditDateFilter ? auditDateFilter.split('-').reverse().join('/') : 'dd/mm/yyyy'}
+                  </span>
+                </div>
               </div>
 
               <div>
@@ -2337,191 +2192,19 @@ export default function AdminTenantList() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredLoginSessions.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-6 py-12 text-center text-slate-500 text-xs">
-                        {tr('common.noData')}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredLoginSessions.map((session) => {
-                      const isExpanded = expandedSessionId === session.sessionId;
-                      const matchedAcc =
-                        adminAccountsMap[
-                        (session.loginLog.admin || '').trim().toLowerCase()
-                        ];
-
-                      return (
-                        <React.Fragment key={session.sessionId}>
-                          <tr
-                            className={`transition-colors ${isExpanded ? 'bg-sky-50/40' : 'hover:bg-slate-50/90'
-                              }`}
-                          >
-                            <td className="px-6 py-3.5 text-xs text-slate-500 whitespace-nowrap tabular-nums">
-                              <div className="inline-flex items-center gap-1.5">
-                                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span>{formatAuditTime(session.loginLog)}</span>
-                              </div>
-                            </td>
-                            <td className="px-5 py-3.5 text-xs font-bold text-slate-800 whitespace-nowrap">
-                              {session.adminLabel}
-                            </td>
-                            <td className="px-5 py-3.5 text-xs whitespace-nowrap">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200/80 text-[11px] font-bold uppercase">
-                                {session.loginLog.action}
-                              </span>
-                            </td>
-                            <td className="px-6 py-3 text-xs text-slate-600">
-                              <div className="flex items-center justify-between gap-4">
-                                <span className="leading-relaxed">
-                                  {session.loginLog.details}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setExpandedSessionId((prev) =>
-                                      prev === session.sessionId
-                                        ? null
-                                        : session.sessionId
-                                    )
-                                  }
-                                  aria-expanded={isExpanded}
-                                  className={`group inline-flex flex-col items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl shrink-0 transition-all cursor-pointer ${isExpanded
-                                      ? 'bg-sky-50 ring-1 ring-sky-300'
-                                      : 'hover:bg-slate-100/80'
-                                    }`}
-                                >
-                                  <span className="w-8 h-8 rounded-full bg-[#D6EFFF] group-hover:bg-[#BEE5FF] flex items-center justify-center transition-colors">
-                                    <Info className="w-4 h-4 text-[#22C55E] stroke-[2.25]" />
-                                  </span>
-                                  <span className="text-[11px] font-semibold text-slate-800 leading-none">
-                                    {tr('common.details')}
-                                  </span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-
-                          {isExpanded && (
-                            <tr className="bg-slate-50/90">
-                              <td colSpan={4} className="px-6 py-4">
-                                <div className="rounded-xl border border-sky-200/90 bg-white p-4 shadow-2xs space-y-3.5">
-                                  <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
-                                    <div className="flex items-center gap-2.5">
-                                      <div className="w-8 h-8 rounded-full bg-[#D6EFFF] flex items-center justify-center shrink-0">
-                                        <ShieldCheck className="w-4 h-4 text-[#22C55E]" />
-                                      </div>
-                                      <div>
-                                        <div className="text-xs font-bold text-slate-900">
-                                          {adminLang === 'en'
-                                            ? `Working Session #${session.sessionIndex} · ${session.adminLabel}`
-                                            : `Chi tiết phiên làm việc #${session.sessionIndex} · ${session.adminLabel}`}
-                                        </div>
-                                        <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-2 tabular-nums">
-                                          <span>
-                                            {adminLang === 'en' ? 'Role' : 'Vai trò'}:{' '}
-                                            <strong className="text-slate-700">
-                                              {matchedAcc
-                                                ? roleMap[matchedAcc.role]
-                                                : roleBadgeText}
-                                            </strong>
-                                          </span>
-                                          <span className="text-slate-300">•</span>
-                                          <span>
-                                            {adminLang === 'en'
-                                              ? 'Logged in'
-                                              : 'Đăng nhập'}
-                                            :{' '}
-                                            <strong className="text-slate-700">
-                                              {formatAuditTime(session.loginLog)}
-                                            </strong>
-                                          </span>
-                                          <span className="text-slate-300">•</span>
-                                          <span>
-                                            {session.isEnded && session.logoutLog ? (
-                                              <>
-                                                {adminLang === 'en'
-                                                  ? 'Logged out (Session ended)'
-                                                  : 'Đã đăng xuất (Kết thúc phiên)'}
-                                                :{' '}
-                                                <strong className="text-rose-700">
-                                                  {formatAuditTime(session.logoutLog)}
-                                                </strong>
-                                              </>
-                                            ) : (
-                                              <>
-                                                {adminLang === 'en'
-                                                  ? 'Session status'
-                                                  : 'Trạng thái phiên'}
-                                                :{' '}
-                                                <strong className="text-emerald-700">
-                                                  {adminLang === 'en'
-                                                    ? 'Active / Not logged out yet'
-                                                    : 'Đang mở / Chưa đăng xuất'}
-                                                </strong>
-                                              </>
-                                            )}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <span className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-700 tabular-nums">
-                                      {session.changeLogs.length}{' '}
-                                      {adminLang === 'en'
-                                        ? 'change(s) in session'
-                                        : 'hoạt động thay đổi trong phiên'}
-                                    </span>
-                                  </div>
-
-                                  {session.changeLogs.length === 0 ? (
-                                    <div className="py-4 px-3 rounded-lg bg-slate-50 border border-dashed border-slate-200 text-xs text-slate-500 text-center">
-                                      {adminLang === 'en'
-                                        ? 'No modification activities occurred during this login session.'
-                                        : 'Không có hoạt động thay đổi nào được thực hiện trong phiên đăng nhập này.'}
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                        {adminLang === 'en'
-                                          ? 'All changes performed during this session'
-                                          : 'Các hoạt động thay đổi đã thực hiện trong phiên này'}
-                                      </div>
-                                      <div className="divide-y divide-slate-100 rounded-lg border border-slate-200/80 overflow-hidden">
-                                        {session.changeLogs.map((chg, idx) => (
-                                          <div
-                                            key={String(chg.id)}
-                                            className="px-3.5 py-2.5 bg-white flex flex-wrap sm:flex-nowrap items-start justify-between gap-3 text-xs"
-                                          >
-                                            <div className="flex items-start gap-2.5 min-w-0">
-                                              <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 tabular-nums">
-                                                {idx + 1}
-                                              </span>
-                                              <div className="min-w-0 flex flex-wrap items-center gap-2">
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200/80 text-[10px] font-bold uppercase">
-                                                  {chg.action}
-                                                </span>
-                                                <span className="font-semibold text-slate-800">
-                                                  {chg.details}
-                                                </span>
-                                              </div>
-                                            </div>
-                                            <span className="text-[11px] text-slate-500 whitespace-nowrap tabular-nums shrink-0">
-                                              {formatAuditTime(chg)}
-                                            </span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })
-                  )}
+                  {filteredAuditLogs.length === 0 ? (
+                    <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500 text-xs">{tr('common.noData')}</td></tr>
+                  ) : filteredAuditLogs.map(log => (
+                    <React.Fragment key={log.id}>
+                      <tr className="hover:bg-slate-50">
+                        <td className="px-6 py-3.5 text-xs text-slate-500 whitespace-nowrap">{formatAuditTime(log)}</td>
+                        <td className="px-5 py-3.5 text-xs font-bold text-slate-800">{formatAuditAdminLabel(log)}</td>
+                        <td className="px-5 py-3.5 text-xs"><span className={`rounded-md px-2 py-1 font-bold ${isLogoutAction(log.action) ? 'bg-slate-100 text-slate-700' : 'bg-green-50 text-green-700'}`}>{log.action}</span></td>
+                        <td className="px-6 py-3 text-xs text-slate-600"><div className="flex items-center gap-2"><span>{log.details}</span>{isLogoutAction(log.action) && <button type="button" onClick={() => setExpandedSessionId(expandedSessionId === log.id ? null : log.id)} aria-expanded={expandedSessionId === log.id} aria-label={`${expandedSessionId === log.id ? 'Ẩn' : 'Xem'} lịch sử của ${log.admin || 'tài khoản'}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 text-emerald-500 hover:bg-sky-200"><Info className="h-4 w-4" aria-hidden="true" /></button>}</div></td>
+                      </tr>
+                      {isLogoutAction(log.action) && expandedSessionId === log.id && <tr><td colSpan={4} className="bg-slate-50 px-6 py-4"><h3 className="mb-3 text-sm font-bold">{adminLang === 'en' ? 'Account activity' : 'Hoạt động của tài khoản'}: {formatAuditAdminLabel(log)}</h3><ul className="space-y-2">{accountActivity(log).map(item => <li key={item.id} className="text-sm text-slate-700"><span className="text-slate-500">{formatAuditTime(item)}</span> · <strong>{item.action}</strong> · {item.details}</li>)}</ul></td></tr>}
+                    </React.Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>

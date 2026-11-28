@@ -34,7 +34,7 @@ const emitPlatformSync = (): void => {
             window.dispatchEvent(new Event(PLATFORM_SYNC_EVENT_NAME));
         }
     } catch {
-        // Bỏ qua nếu môi trường không hỗ trợ window hoặc Event
+        // ignore
     }
 };
 
@@ -87,7 +87,7 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
                 setDevices(readDevices());
                 setError('');
             } catch {
-                // Giữ dữ liệu hiện tại nếu không đọc được
+                // ignore
             }
         };
 
@@ -158,7 +158,7 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
 
     const content = (
         <div className={embedded ? 'w-full' : 'mx-auto max-w-7xl'}>
-            {!embedded && (
+            {!embedded ? (
                 <>
                     <div className="flex items-center justify-between mb-4">
                         <Link to="/overview/admin" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-600 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rose-600">
@@ -175,38 +175,56 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
                         </button>
                     </div>
                     <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Trang chủ / <span className="text-red-600">Camera & Định vị</span></p>
+                    <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">Camera & Định vị</h1>
+                            <p className="mt-2 text-sm text-slate-500">Quản lý kho Camera và DL GPS.</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => { setAdding(true); setError(''); setNotice(''); }}
+                            className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-700 cursor-pointer"
+                        >
+                            <Plus className="h-4 w-4" /> Thêm thiết bị
+                        </button>
+                    </div>
                 </>
-            )}
-            <div className={`${embedded ? '' : 'mt-3'} flex flex-wrap items-end justify-between gap-4`}>
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">Camera & Định vị</h1>
-                    <p className="mt-2 text-sm text-slate-500">Quản lý kho Camera và DL GPS.</p>
+            ) : (
+                <div className="flex items-center justify-between gap-4">
+                    <p className="text-xs text-slate-500">Quản lý kho thiết bị Camera và Định vị GPS</p>
+                    <button
+                        type="button"
+                        onClick={() => { setAdding(true); setError(''); setNotice(''); }}
+                        className="h-9 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    >
+                        <Plus className="h-3.5 w-3.5" /> Thêm thiết bị
+                    </button>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => { setAdding(true); setError(''); setNotice(''); }}
-                    className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-700 cursor-pointer"
-                >
-                    <Plus className="h-4 w-4" /> Thêm thiết bị
-                </button>
-            </div>
+            )}
+
             {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
             {notice && <p role="status" className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-            <div className="my-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+
+            <div className="my-5 grid grid-cols-2 gap-3.5 lg:grid-cols-5">
                 {[{ label: 'Tổng thiết bị', count: devices.length, icon: Package }, ...summaryStatuses.map(s => ({ label: s, count: devices.filter(d => s === 'Lỗi/Bảo hành' ? ['Lỗi', 'Bảo hành', 'Lỗi/Bảo hành'].includes(d.status) : d.status === s).length, icon: statusIcons[s] }))].map(({ label, count, icon: Icon }) => (
-                    <div key={label} className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div key={label} className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-2xs">
                         <div className="flex justify-between gap-2 text-xs font-bold text-slate-500">
                             <span>{label}</span>
-                            <Icon className="h-4 w-4 shrink-0 text-red-500" />
+                            <Icon className="h-4 w-4 shrink-0 text-rose-500" />
                         </div>
-                        <p className="mt-3 text-2xl font-extrabold text-slate-900">{count}</p>
+                        <p className="mt-2.5 text-2xl font-bold text-slate-900 tabular-nums">{count}</p>
                     </div>
                 ))}
             </div>
-            <section className="rounded-2xl border border-slate-200 bg-white">
+
+            <section className="rounded-xl border border-slate-200/90 bg-white shadow-2xs">
                 <div className="border-b border-slate-100 p-5">
-                    <h2 className="text-lg font-bold">Danh sách thiết bị</h2>
-                    <p className="mt-1 text-sm text-slate-500">{filtered.length} / {devices.length} thiết bị</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h2 className="text-base font-bold text-slate-900">Danh sách thiết bị</h2>
+                            <p className="mt-0.5 text-xs text-slate-500">{filtered.length} / {devices.length} thiết bị</p>
+                        </div>
+                    </div>
                     <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                         <label className="relative">
                             <span className="sr-only">Tìm kiếm thiết bị</span>
@@ -268,8 +286,8 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
                                     </td>
                                     <td className="px-5 py-4">
                                         <div className="flex flex-col items-start gap-2">
-                                            <button type="button" onClick={() => { setSelected(d.id); setError(''); }} className="font-semibold text-red-700 hover:underline cursor-pointer">Chi tiết</button>
-                                            <button type="button" onClick={() => { setLinkTarget(d.id); setLinkTenant(d.tenantId); setLinkVehicle(d.vehicle); setError(''); setNotice(''); }} className="font-semibold text-red-700 hover:underline cursor-pointer">Liên kết</button>
+                                            <button type="button" onClick={() => { setSelected(d.id); setError(''); }} className="font-semibold text-rose-600 hover:underline cursor-pointer">Chi tiết</button>
+                                            <button type="button" onClick={() => { setLinkTarget(d.id); setLinkTenant(d.tenantId); setLinkVehicle(d.vehicle); setError(''); setNotice(''); }} className="font-semibold text-rose-600 hover:underline cursor-pointer">Liên kết</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -295,8 +313,8 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
                             <label className="text-sm font-semibold">Trạng thái<select className={`${input} mt-1`} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Status })}>{statuses.map(s => <option key={s}>{s}</option>)}</select></label>
                         </div>
                         <div className="mt-6 flex gap-3">
-                            <button className="rounded-lg bg-red-600 px-4 py-2.5 font-bold text-white">Lưu thiết bị</button>
-                            <button type="button" className="rounded-lg border border-slate-300 px-4 py-2.5" onClick={() => { setAdding(false); setError(''); }}>Hủy</button>
+                            <button className="rounded-lg bg-rose-600 px-4 py-2.5 font-bold text-white cursor-pointer">Lưu thiết bị</button>
+                            <button type="button" className="rounded-lg border border-slate-300 px-4 py-2.5 cursor-pointer" onClick={() => { setAdding(false); setError(''); }}>Hủy</button>
                         </div>
                     </form>
                 </div>
@@ -304,7 +322,7 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
             {linkTarget && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
                     <form onSubmit={updateLink} role="dialog" aria-modal="true" aria-labelledby="link-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
-                        <h2 id="link-title" className="flex items-center gap-2 text-lg font-bold"><Link2 className="h-5 w-5 text-red-600" /> Liên kết thiết bị</h2>
+                        <h2 id="link-title" className="flex items-center gap-2 text-lg font-bold"><Link2 className="h-5 w-5 text-rose-600" /> Liên kết thiết bị</h2>
                         <p className="mt-2 text-sm text-slate-500">Chọn doanh nghiệp và nhập biển số. Để trống doanh nghiệp để tháo liên kết.</p>
                         {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
                         <div className="mt-5 space-y-4">
@@ -312,8 +330,8 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
                             <label className="block text-sm font-semibold">Biển số phương tiện mẫu<input disabled={!linkTenant} className={`${input} mt-1 disabled:bg-slate-100`} value={linkVehicle} onChange={e => setLinkVehicle(e.target.value)} placeholder="Ví dụ: 29A-111.11" /></label>
                         </div>
                         <div className="mt-6 flex gap-3">
-                            <button className="rounded-lg bg-red-600 px-4 py-2.5 font-bold text-white">Lưu liên kết</button>
-                            <button type="button" onClick={() => { setLinkTarget(null); setError(''); }} className="rounded-lg border border-slate-300 px-4 py-2.5">Hủy</button>
+                            <button className="rounded-lg bg-rose-600 px-4 py-2.5 font-bold text-white cursor-pointer">Lưu liên kết</button>
+                            <button type="button" onClick={() => { setLinkTarget(null); setError(''); }} className="rounded-lg border border-slate-300 px-4 py-2.5 cursor-pointer">Hủy</button>
                         </div>
                     </form>
                 </div>
@@ -330,7 +348,7 @@ export default function AdminDevices({ embedded = false }: AdminDevicesProps) {
                                 <div key={label}><dt className="text-slate-500">{label}</dt><dd className="mt-1 font-semibold break-words">{value}</dd></div>
                             ))}
                         </dl>
-                        <h3 className="mt-7 flex items-center gap-2 font-bold"><History className="h-4 w-4 text-red-600" /> Lịch sử thay đổi</h3>
+                        <h3 className="mt-7 flex items-center gap-2 font-bold"><History className="h-4 w-4 text-rose-600" /> Lịch sử thay đổi</h3>
                         <ul className="mt-3 space-y-3">
                             {selectedDevice.history.map((entry, i) => (
                                 <li key={i} className="rounded-lg bg-slate-50 p-3 text-sm">
