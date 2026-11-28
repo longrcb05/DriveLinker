@@ -1236,15 +1236,6 @@ export default function AdminTenantList() {
 
   return (
     <div className="min-h-screen bg-[#F4F6F9] text-slate-800 flex flex-col font-sans">
-      <header className="h-12 bg-white border-b border-slate-200/90 px-4 lg:px-6 flex items-center justify-end shrink-0">
-        <div className="flex items-center gap-2.5 text-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span className="font-semibold text-slate-800">{adminName}</span>
-          <span className="text-slate-300">·</span>
-          <span className="font-semibold text-rose-600">{roleBadgeText}</span>
-        </div>
-      </header>
-
       <div className="flex-1 flex min-h-0">
         <aside className="w-60 bg-white border-r border-slate-200/90 flex flex-col justify-between shrink-0">
           <div className="p-4 space-y-6">
@@ -1386,7 +1377,7 @@ export default function AdminTenantList() {
                 title={adminLang === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
               >
                 <Globe className="w-3.5 h-3.5 text-rose-600" />
-                <span>{adminLang === 'vi' ? 'VI → EN' : 'EN → VI'}</span>
+                <span>{adminLang === 'vi' ? 'VI' : 'EN'}</span>
               </button>
 
               <button
