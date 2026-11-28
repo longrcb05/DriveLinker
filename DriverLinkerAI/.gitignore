@@ -1,0 +1,37 @@
+# Python virtual environments
+.venv/
+.venv-*/
+venv/
+env/
+edge_ai/venv/
+edge_ai/env/
+
+# Python cache & build
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.pytest_cache/
+Ultralytics/
+
+# Logs & temp outputs
+*.log
+canh_bao_log.json
+canh_bao_log.txt
+bang_chung/
+runs/*
+!runs/detect/
+runs/detect/*
+!runs/detect/train/
+runs/detect/train/*
+!runs/detect/train/weights/
+!runs/detect/train/args.yaml
+!runs/detect/train/*.png
+!runs/detect/train/*.csv
+!am_thanh_canh_bao.wav
+
+# Editor & OS files
+.vscode/
+.DS_Store
+Thumbs.db
+node_modules/
