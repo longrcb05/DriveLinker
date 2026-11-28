@@ -503,7 +503,6 @@ export default function AdminTenantList() {
       partialCount: base.partialCount,
       totalRegisteredVehicles: base.totalVehicles,
       totalActivePackageRevenue: base.totalPackageValue,
-      monthlyEquivalentTotal: base.monthlyPackageRevenue,
       count6M: base.count6M,
       count12M: base.count12M,
       linkedDevicesCount: devices.filter((d) => Boolean(d.tenantId)).length,
@@ -650,17 +649,26 @@ export default function AdminTenantList() {
     });
     return Array.from(set);
   }, [auditLogs, adminAccountsMap, isHistoryModalOpen, adminAccountsVersion]);
-// Bảng lịch sử chính chỉ hiển thị các lần đăng nhập và đăng xuất.
-  const sessionLogs = auditLogs.filter(log => isLoginAction(log.action) || isLogoutAction(log.action));
-  const uniqueAuditActions = Array.from(new Set(sessionLogs.map(log => log.action).filter(Boolean)));
-  const filteredAuditLogs = sessionLogs.filter(log =>
-    (auditAdminFilter === 'ALL' || formatAuditAdminLabel(log) === auditAdminFilter) &&
-    (!auditDateFilter || auditDate(log) === auditDateFilter) &&
-    (auditActionFilter === 'ALL' || log.action === auditActionFilter)
+
+  // Bảng lịch sử chính chỉ hiển thị các lần đăng nhập và đăng xuất.
+  const sessionLogs = auditLogs.filter(
+    (log) => isLoginAction(log.action) || isLogoutAction(log.action)
   );
-  const accountActivity = (log: AdminAuditLog) => auditLogs.filter(item =>
-    log.username && item.username ? item.username === log.username : Boolean(log.admin && item.admin === log.admin)
+  const uniqueAuditActions = Array.from(
+    new Set(sessionLogs.map((log) => log.action).filter(Boolean))
   );
+  const filteredAuditLogs = sessionLogs.filter(
+    (log) =>
+      (auditAdminFilter === 'ALL' || formatAuditAdminLabel(log) === auditAdminFilter) &&
+      (!auditDateFilter || auditDate(log) === auditDateFilter) &&
+      (auditActionFilter === 'ALL' || log.action === auditActionFilter)
+  );
+  const accountActivity = (log: AdminAuditLog) =>
+    auditLogs.filter((item) =>
+      log.username && item.username
+        ? item.username === log.username
+        : Boolean(log.admin && item.admin === log.admin)
+    );
 
   const openHistoryModal = () => {
     loadData();
@@ -1345,84 +1353,84 @@ export default function AdminTenantList() {
         </aside>
 
         <div className="flex-1 min-w-0 px-6 lg:px-8 py-6 space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-lg bg-rose-50 border border-rose-200/80 text-rose-600 flex items-center justify-center shrink-0 [&_svg]:w-5 [&_svg]:h-5">
-                {activeSection === 'overview' ? (
-                  <LayoutGrid className="w-4 h-4" />
-                ) : activeSection === 'accounts' ? (
-                  <Users className="w-4 h-4" />
-                ) : activeSection === 'devices' ? (
-                  <Video className="w-4 h-4" />
-                ) : activeSection === 'billing' ? (
-                  <Receipt className="w-4 h-4" />
-                ) : activeSection === 'dashboard' ? (
-                  <BarChart3 className="w-4 h-4" />
-                ) : (
-                  <Building2 className="w-4 h-4" />
-                )}
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900 leading-tight">
-                  {currentPageTitle}
-                </h1>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setAdminLang(toggleAdminLang())}
-                className="h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                title={adminLang === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
-              >
-                <Globe className="w-3.5 h-3.5 text-rose-600" />
-                <span>{adminLang === 'vi' ? 'VI' : 'EN'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={openHistoryModal}
-                className="h-9 px-3.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 inline-flex items-center gap-2 transition-colors cursor-pointer shadow-2xs"
-              >
-                <History className="w-3.5 h-3.5 text-slate-500" />
-                <span>{tr('admin.historyBtn')}</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-[11px] text-slate-600 tabular-nums">
-                  {sessionLogs.length}
-                </span>
-              </button>
-
-              {(activeSection === 'tenants' || activeSection === 'overview') && (
-                <button
-                  type="button"
-                  onClick={openCreateModal}
-                  className="h-9 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{tr('admin.addNewBtn')}</span>
-                </button>
-              )}
-
-              <div className="h-9 px-3 rounded-lg border border-slate-200 bg-white flex items-center gap-2">
-                <UserCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <div className="leading-tight">
-                  <div className="text-xs font-bold text-slate-900">{adminName}</div>
-                  <div className="text-[10px] font-semibold text-slate-400">
-                    {roleBadgeText}
-                  </div>
+          {activeSection !== 'accounts' && (
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-lg bg-rose-50 border border-rose-200/80 text-rose-600 flex items-center justify-center shrink-0 [&_svg]:w-5 [&_svg]:h-5">
+                  {activeSection === 'overview' ? (
+                    <LayoutGrid className="w-4 h-4" />
+                  ) : activeSection === 'devices' ? (
+                    <Video className="w-4 h-4" />
+                  ) : activeSection === 'billing' ? (
+                    <Receipt className="w-4 h-4" />
+                  ) : activeSection === 'dashboard' ? (
+                    <BarChart3 className="w-4 h-4" />
+                  ) : (
+                    <Building2 className="w-4 h-4" />
+                  )}
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-slate-900 leading-tight">
+                    {currentPageTitle}
+                  </h1>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                title={tr('nav.logout')}
-                className="h-9 w-9 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 inline-flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setAdminLang(toggleAdminLang())}
+                  className="h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                  title={adminLang === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
+                >
+                  <Globe className="w-3.5 h-3.5 text-rose-600" />
+                  <span>{adminLang === 'vi' ? 'VI' : 'EN'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={openHistoryModal}
+                  className="h-9 px-3.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 inline-flex items-center gap-2 transition-colors cursor-pointer shadow-2xs"
+                >
+                  <History className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{tr('admin.historyBtn')}</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-[11px] text-slate-600 tabular-nums">
+                    {sessionLogs.length}
+                  </span>
+                </button>
+
+                {(activeSection === 'tenants' || activeSection === 'overview') && (
+                  <button
+                    type="button"
+                    onClick={openCreateModal}
+                    className="h-9 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{tr('admin.addNewBtn')}</span>
+                  </button>
+                )}
+
+                <div className="h-9 px-3 rounded-lg border border-slate-200 bg-white flex items-center gap-2">
+                  <UserCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <div className="leading-tight">
+                    <div className="text-xs font-bold text-slate-900">{adminName}</div>
+                    <div className="text-[10px] font-semibold text-slate-400">
+                      {roleBadgeText}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title={tr('nav.logout')}
+                  className="h-9 w-9 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 inline-flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {activeSection === 'tenants' && (
             <div className="flex items-center justify-end">
@@ -1501,7 +1509,7 @@ export default function AdminTenantList() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs flex flex-col justify-between min-h-[124px]">
                   <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <span>{tr('admin.cardTotalTenants')}</span>
@@ -1524,21 +1532,6 @@ export default function AdminTenantList() {
                     <span className="text-rose-600 font-medium">
                       {metrics.suspended} {tr('admin.statusSuspended').toLowerCase()}
                     </span>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs flex flex-col justify-between min-h-[124px]">
-                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    <span>{tr('admin.cardMonthlyPkg')}</span>
-                    <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                      <Wallet className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                  <div className="text-2xl font-bold text-emerald-600 mt-2 tabular-nums">
-                    {metrics.monthlyEquivalentTotal.toLocaleString('vi-VN')} ₫
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1.5 tabular-nums">
-                    {tr('admin.cardMonthlyPkgSub', { count: metrics.active })}
                   </div>
                 </div>
 

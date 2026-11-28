@@ -4,7 +4,7 @@ import {
     ArrowUpRight,
     X,
     RefreshCw,
-    ArrowRight
+    ArrowRight,
 } from 'lucide-react';
 import type { AdminRole } from './adminAccounts';
 import type { TenantRecord, SubscriptionPlan } from './AdminTenantList';
@@ -14,11 +14,11 @@ import {
     getInvoicePaymentState,
     getReceivableAmountForInvoice,
     PLATFORM_SYNC_EVENT,
-    EXPIRING_SOON_DAYS
+    EXPIRING_SOON_DAYS,
 } from './AdminBillingManagement';
 import type {
     BillingInvoice,
-    TenantLifecycleStatus
+    TenantLifecycleStatus,
 } from './AdminBillingManagement';
 import { vi } from '../../locales/vi';
 import { en } from '../../locales/en';
@@ -104,7 +104,7 @@ const FALLBACK_DEVICES: InventoryDeviceItem[] = [
         received: '2026-10-15',
         status: 'Đang sử dụng',
         tenantId: 'COMPANY_A',
-        vehicle: '29A-111.11'
+        vehicle: '29A-111.11',
     },
     {
         id: 'demo-2',
@@ -114,7 +114,7 @@ const FALLBACK_DEVICES: InventoryDeviceItem[] = [
         received: '2026-11-01',
         status: 'Tồn kho',
         tenantId: '',
-        vehicle: ''
+        vehicle: '',
     },
     {
         id: 'demo-3',
@@ -124,20 +124,20 @@ const FALLBACK_DEVICES: InventoryDeviceItem[] = [
         received: '2026-11-05',
         status: 'Bảo hành',
         tenantId: 'COMPANY_B',
-        vehicle: '43A-112.22'
-    }
+        vehicle: '43A-112.22',
+    },
 ];
 
 const ROLE_LABELS_VI: Record<AdminRole, string> = {
     SUPER_ADMIN: 'Quản trị hệ thống',
     SUPPORT_ADMIN: 'Hỗ trợ kỹ thuật',
-    BILLING_ADMIN: 'Quản lý thanh toán'
+    BILLING_ADMIN: 'Quản lý thanh toán',
 };
 
 const ROLE_LABELS_EN: Record<AdminRole, string> = {
     SUPER_ADMIN: 'System Admin',
     SUPPORT_ADMIN: 'Support Admin',
-    BILLING_ADMIN: 'Billing Admin'
+    BILLING_ADMIN: 'Billing Admin',
 };
 
 const formatDateVN = (isoDate?: string): string => {
@@ -239,7 +239,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
     const [visibleSeries, setVisibleSeries] = useState({
         committed: true,
         collected: true,
-        tenants: true
+        tenants: true,
     });
     const [activeModal, setActiveModal] = useState<StatModalType>(null);
 
@@ -261,7 +261,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
     const loadDashboardData = () => {
         try {
             const synced = syncUnifiedPlatformData();
-            setTenants(synced.tenants);
+            setTenants(synced.tenants as unknown as TenantRecord[]);
             setInvoices(synced.invoices);
 
             const counts: Record<string, number> = {};
@@ -291,7 +291,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                                     : d.type === 'GPS Tracker' || d.type === 'DL GPS'
                                         ? 'Định vị GPS'
                                         : d.type,
-                            status: d.status === 'Trong kho' ? 'Tồn kho' : d.status
+                            status: d.status === 'Trong kho' ? 'Tồn kho' : d.status,
                         }))
                         : []
                 );
@@ -328,7 +328,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
 
     const stats = useMemo(() => {
         const base = computeUnifiedPlatformMetrics(
-            tenants,
+            tenants as any,
             invoices,
             vehicleCountMap,
             devices
@@ -340,13 +340,13 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
             PKG_12M: {
                 label: tr('admin.pkg12m'),
                 dotClass: 'bg-[#0B1324]',
-                segmentClass: 'bg-[#0B1324]'
+                segmentClass: 'bg-[#0B1324]',
             },
             PKG_6M: {
                 label: tr('admin.pkg6m'),
                 dotClass: 'bg-rose-600',
-                segmentClass: 'bg-rose-600'
-            }
+                segmentClass: 'bg-rose-600',
+            },
         };
 
         const planBreakdown = (['PKG_12M', 'PKG_6M'] as SubscriptionPlan[]).map(
@@ -363,7 +363,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                         base.totalTenants > 0
                             ? Math.round((matched.length / base.totalTenants) * 100)
                             : 0,
-                    totalValue: planTotal
+                    totalValue: planTotal,
                 };
             }
         );
@@ -371,7 +371,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
         return {
             ...base,
             committedPackageTotal,
-            planBreakdown
+            planBreakdown,
         };
     }, [tenants, invoices, vehicleCountMap, devices, committedPackageTotal, adminLang]);
 
@@ -413,7 +413,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                             : 'Quá hạn'
                         : tr('admin.statusPartial'),
                 planLabel: `${tierName} · ${pkgLabel}`,
-                amount
+                amount,
             });
         });
 
@@ -471,7 +471,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                     : Math.max(1, baseTenants + tenantOffsets[idx]),
                 totalVehicles: isCurrentMonth
                     ? stats.totalVehicles
-                    : Math.max(1, Math.round(baseVehicles * vehicleFactors[idx]))
+                    : Math.max(1, Math.round(baseVehicles * vehicleFactors[idx])),
             });
         }
         return points;
@@ -534,7 +534,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
             groupWidth,
             tenantCoords,
             linePath,
-            areaPath
+            areaPath,
         };
     }, [monthlySeries, maxTenantValue]);
 
@@ -551,7 +551,7 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
 
     const modalTenants = useMemo(() => {
         if (activeModal === 'NEW_TENANTS') {
-            return stats.newTenantsList;
+            return stats.newTenantsList as unknown as TenantRecord[];
         }
         return tenants;
     }, [activeModal, stats.newTenantsList, tenants]);
@@ -613,9 +613,10 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                 </div>
             </div>
 
+            {/* ĐÃ XÓA MỤC DOANH THU GÓI / THÁNG (4 THẺ CHỈ SỐ CHÍNH) */}
             <section
                 aria-label={tr('admin.sectionOverview')}
-                className="bg-white rounded-xl border border-slate-200/90 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/80 overflow-hidden shadow-2xs"
+                className="bg-white rounded-xl border border-slate-200/90 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/80 overflow-hidden shadow-2xs"
             >
                 <button
                     type="button"
@@ -707,24 +708,6 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
 
                 <button
                     type="button"
-                    onClick={() => setActiveModal('MRR_REVENUE')}
-                    className="p-5 text-left hover:bg-slate-50/70 transition-colors cursor-pointer group"
-                >
-                    <div className="flex items-center justify-between text-xs font-medium text-slate-500">
-                        <span>{revenueLabel}</span>
-                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors" />
-                    </div>
-                    <div className="text-[26px] font-bold tracking-tight text-emerald-600 mt-2 tabular-nums leading-none">
-                        {stats.totalCollected.toLocaleString('vi-VN')} ₫
-                    </div>
-                    <div className="text-xs text-slate-500 mt-2.5 tabular-nums">
-                        {adminLang === 'en' ? 'Total plan value' : 'Tổng gói'}:{' '}
-                        {committedPackageTotal.toLocaleString('vi-VN')} ₫
-                    </div>
-                </button>
-
-                <button
-                    type="button"
                     onClick={() => setActiveModal('OVERDUE_DEBT')}
                     className="p-5 text-left hover:bg-slate-50/70 transition-colors cursor-pointer group"
                 >
@@ -744,7 +727,9 @@ export default function AdminDashboard({ onNavigateSection }: AdminDashboardProp
                         {debtRows.length > 0 ? (
                             <div className="text-rose-600 font-medium">
                                 {debtRows.length}{' '}
-                                {adminLang === 'en' ? 'enterprise(s) with balance due' : 'doanh nghiệp có khoản cần thu'}
+                                {adminLang === 'en'
+                                    ? 'enterprise(s) with balance due'
+                                    : 'doanh nghiệp có khoản cần thu'}
                             </div>
                         ) : (
                             <div className="text-emerald-700 font-medium">
