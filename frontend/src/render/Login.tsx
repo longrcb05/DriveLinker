@@ -247,7 +247,7 @@ export default function Login() {
           </div>
           <button type="button" onClick={toggleLanguage} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition-colors hover:border-teal-600 hover:text-teal-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 motion-reduce:transition-none" title={language === 'vi' ? 'Chuyển sang Tiếng Anh' : 'Switch to Vietnamese'}>
             <Globe size={16} aria-hidden="true" />
-            <span>{language === 'vi' ? <><strong>VI</strong> / EN</> : <>VI / <strong>EN</strong></>}</span>
+            <span>{language === 'vi' ? 'VI' : 'EN'}</span>
           </button>
         </header>
 
