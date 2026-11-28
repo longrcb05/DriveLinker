@@ -80,8 +80,8 @@ export default function AdminLogin() {
           item.username.toLowerCase() === username.trim().toLowerCase() &&
           item.password === password
       );
-
-      if (account?.status === 'LOCKED') {
+// Không cho tài khoản đã bị khóa đăng nhập vào hệ thống.
+      if (account?.isLocked) {
         setError(
           language === 'vi'
             ? 'Tài khoản đã bị khóa.'
@@ -163,9 +163,10 @@ export default function AdminLogin() {
         <button
           type="button"
           onClick={toggleLanguage}
+          title={language === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
           className="text-xs font-medium text-white/90 hover:text-white px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 backdrop-blur-md transition-colors cursor-pointer"
         >
-          {language === 'vi' ? 'EN' : 'VI'}
+          {language === 'vi' ? 'VI' : 'EN'}
         </button>
       </header>
 

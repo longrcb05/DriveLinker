@@ -75,17 +75,19 @@ export default function Analytics() {
   const [chartMode, setChartMode] = useState<'burn' | 'bar'>('burn');
   const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
 
-  /**
-   * Kết hợp ngày, biển số, loại cảnh báo và trạng thái; ALL nghĩa là không lọc.
-   */
+  // Áp dụng cùng bộ lọc cho bảng, thống kê, biểu đồ và CSV(Lọc sự kiện theo ngày, biển số, loại cảnh báo và trạng thái xử lý.)
   const filteredEvents = useMemo(() => {
     // Ghép trạng thái đã lưu trước khi lọc để bảng, thống kê và CSV dùng cùng kết quả.
-    return RAW_EVENTS.map(e => resolvedEvents.includes(`${e.date}:${e.id}`) ? { ...e, status: 'RESOLVED' } : e).filter(e =>
-      (!selectedDate || e.date === selectedDate) &&
-      (!plateSearch.trim() || matchesPlate(e.vehicle, plateSearch)) && // tìm biển số
-      (typeFilter === 'ALL' || e.type === typeFilter) && //lọc loại cảnh báo
-      (statusFilter === 'ALL' || e.status === statusFilter) // lọc trạng thái xử lý
-    );
+    return RAW_EVENTS
+      .map(event => resolvedEvents.includes(`${event.date}:${event.id}`)
+        ? { ...event, status: 'RESOLVED' }
+        : event)
+      .filter(event =>
+        (!selectedDate || event.date === selectedDate) &&
+        (!plateSearch.trim() || matchesPlate(event.vehicle, plateSearch)) &&
+        (typeFilter === 'ALL' || event.type === typeFilter) &&
+        (statusFilter === 'ALL' || event.status === statusFilter)
+      );
   }, [selectedDate, plateSearch, typeFilter, statusFilter, resolvedEvents]);
 
   // Chỉ lưu khi người dùng chọn OK; hộp thoại này không gửi thông báo tới tài xế.

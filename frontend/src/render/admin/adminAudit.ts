@@ -18,8 +18,12 @@ export function readAdminAuditLogs(): AdminAuditLog[] {
     return [];
   }
 }
-
-export function recordAdminAction(action: string, details: string, actor?: { username: string; fullName: string }): void {
+// Ghi người thực hiện, thời gian và nội dung thao tác vào nhật ký.
+export function recordAdminAction(
+  action: string,
+  details: string,
+  actor?: { username: string; fullName: string },
+): void {
   try {
     const raw = localStorage.getItem(AUDIT_KEY);
     const logs: unknown = raw ? JSON.parse(raw) : [];
@@ -35,14 +39,18 @@ export function recordAdminAction(action: string, details: string, actor?: { use
     };
     localStorage.setItem(AUDIT_KEY, JSON.stringify([entry, ...logs]));
   } catch {
-    // The existing operation can still finish if browser storage is unavailable.
+    // Không chặn thao tác chính nếu không ghi được nhật ký.
   }
 }
 
 export function formatAuditTime(log: AdminAuditLog): string {
   if (log.timestamp) {
     const date = new Date(log.timestamp);
-    if (!Number.isNaN(date.getTime())) return `${date.toLocaleDateString('vi-VN')} ${date.toLocaleTimeString('vi-VN', { hour12: false })}`;
+    if (!Number.isNaN(date.getTime())) {
+      const day = date.toLocaleDateString('vi-VN');
+      const time = date.toLocaleTimeString('vi-VN', { hour12: false });
+      return `${day} ${time}`;
+    }
   }
   const value = log.time || '';
   const timeFirst = value.match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s*,?\s+(\d{1,2}\/\d{1,2}\/\d{4})$/);

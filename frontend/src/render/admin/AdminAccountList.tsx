@@ -54,6 +54,7 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
   const [notice, setNotice] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [passwordTarget, setPasswordTarget] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [form, setForm] = useState({
@@ -86,7 +87,7 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
       window.removeEventListener('storage', syncAccounts);
     };
   }, []);
-
+// Tìm tài khoản theo thông tin cá nhân và lọc theo vai trò, trạng thái.
   const filteredAccounts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('vi');
     return accounts.filter((account) => {
@@ -121,7 +122,7 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
       return false;
     }
   };
-
+// Kiểm tra thông tin và thêm tài khoản admin mới.
   const addAccount = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const username = form.username.trim().toLowerCase();
@@ -162,7 +163,7 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
       setShowAdd(false);
     }
   };
-
+// Cho phép Super Admin khóa hoặc mở khóa tài khoản dưới quyền.
   const toggleLock = (account: ExtendedAdminAccount) => {
     if (sessionStorage.getItem('sys_core_role') !== 'SUPER_ADMIN') {
       setError('Chỉ Super Admin có quyền khóa hoặc mở khóa tài khoản.');
@@ -192,12 +193,24 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
       emitPlatformSync();
     }
   };
-
+// Kiểm tra mật khẩu hiện tại trước khi lưu mật khẩu mới.
   const changePassword = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const signedInUsername = sessionStorage.getItem('sys_core_username');
     if (!signedInUsername || passwordTarget !== signedInUsername) {
       setError('Bạn chỉ có thể đổi mật khẩu của chính mình.');
+      return;
+    }
+    let latestAccounts: ExtendedAdminAccount[];
+    try {
+      latestAccounts = getAdminAccounts();
+    } catch {
+      setError('Không thể đọc dữ liệu tài khoản trên trình duyệt.');
+      return;
+    }
+    const account = latestAccounts.find(item => item.username === signedInUsername);
+    if (!account || account.password !== currentPassword) {
+      setError('Mật khẩu hiện tại không chính xác.');
       return;
     }
     if (newPassword.length < 6) {
@@ -208,10 +221,13 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
       setError('Mật khẩu xác nhận không khớp.');
       return;
     }
-    if (commit(accounts.map((item) => item.username === passwordTarget ? { ...item, password: newPassword } : item), `Đã đổi mật khẩu cho ${passwordTarget}.`)) {
+    if (commit(latestAccounts.map((item) => item.username === passwordTarget ? { ...item, password: newPassword } : item), `Đã đổi mật khẩu cho ${passwordTarget}.`)) {
       recordAdminAction('ĐỔI MẬT KHẨU', `Đổi mật khẩu tài khoản ${signedInUsername}`);
       emitPlatformSync();
-      setPasswordTarget(null); setNewPassword(''); setConfirmPassword('');
+      setPasswordTarget(null);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
     }
   };
 
@@ -225,10 +241,10 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
         </Link>
       )}
       <div className={`${embedded ? '' : 'mt-5'} flex flex-wrap items-start justify-between gap-4`}>
-        <div>
+        {!embedded && <div>
           <h1 className="flex items-center gap-3 text-2xl font-bold text-slate-900 sm:text-3xl"><Users className="h-7 w-7 text-rose-600" aria-hidden="true" /> Tài khoản Admin</h1>
           <p className="mt-2 text-sm text-slate-600">Danh sách tài khoản quản trị hệ thống và thông tin truy cập.</p>
-        </div>
+        </div>}
         <div className="flex flex-wrap items-center gap-3">
           {!embedded && (
             <button
@@ -259,8 +275,9 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
       </form>}
       {passwordTarget && <form onSubmit={changePassword} className="mt-6 rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
         <h2 className="text-lg font-bold">Đổi mật khẩu: {passwordTarget}</h2>
+        <label className="mt-4 block text-sm font-semibold">Mật khẩu hiện tại<input type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} autoComplete="current-password" className={`${controlClass} mt-1`} /></label>
         <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold">Mật khẩu mới · Tối thiểu 6 ký tự<input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" className={`${controlClass} mt-1`} /></label><label className="text-sm font-semibold">Xác nhận mật khẩu<input type="password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" className={`${controlClass} mt-1`} /></label></div>
-        <div className="mt-5 flex gap-3"><button type="submit" className="min-h-11 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700">Lưu mật khẩu</button><button type="button" onClick={() => { setPasswordTarget(null); setNewPassword(''); setConfirmPassword(''); setError(''); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">Hủy</button></div>
+        <div className="mt-5 flex gap-3"><button type="submit" className="min-h-11 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700">Lưu mật khẩu</button><button type="button" onClick={() => { setPasswordTarget(null); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setError(''); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">Hủy</button></div>
       </form>}
       <div className="mt-7 rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-200 p-5 sm:p-6">
@@ -292,7 +309,7 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
                     <td className="whitespace-nowrap px-5 py-4 text-slate-600">{formatLastLogin(account.lastLogin)}</td>
                     <td className="px-5 py-4">
                       <div className="flex flex-col items-start gap-2">
-                        {isSuperAdmin && account.role !== 'SUPER_ADMIN' && (
+                        {isSuperAdmin && account.username !== currentUsername && account.role !== 'SUPER_ADMIN' && (
                           <button type="button" onClick={() => toggleLock(account)} className="text-sm font-semibold text-rose-700 underline underline-offset-2 cursor-pointer">
                             {!locked ? 'Khóa' : 'Mở khóa'}
                           </button>
@@ -301,7 +318,7 @@ export default function AdminAccountList({ embedded = false }: AdminAccountListP
                           <span className="text-xs text-slate-400">Không thể khóa</span>
                         )}
                         {account.username === currentUsername && (
-                          <button type="button" onClick={() => { setPasswordTarget(account.username); setShowAdd(false); setNewPassword(''); setConfirmPassword(''); setError(''); setNotice(''); }} className="whitespace-nowrap text-sm font-semibold text-slate-700 underline underline-offset-2 cursor-pointer">
+                          <button type="button" onClick={() => { setPasswordTarget(account.username); setShowAdd(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setError(''); setNotice(''); }} className="whitespace-nowrap text-sm font-semibold text-slate-700 underline underline-offset-2 cursor-pointer">
                             Đổi mật khẩu
                           </button>
                         )}
